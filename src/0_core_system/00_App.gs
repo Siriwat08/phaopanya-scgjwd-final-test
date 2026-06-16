@@ -626,33 +626,45 @@ function checkSystemIntegrity() {
 function setupEnvironment() {
   // [FIX S1 v5.5.002] เพิ่ม try-catch ครอบทั้งฟังก์ชัน — Rule 12
   try {
-  const ui = SpreadsheetApp.getUi();
+    const ui = SpreadsheetApp.getUi();
 
-  const result = ui.prompt(
-    '⚙️ ตั้งค่า Gemini API Key',
-    'กรุณาใส่ Gemini API Key:\n(ได้จาก https://aistudio.google.com/app/apikey)',
-    ui.ButtonSet.OK_CANCEL
-  );
-
-  if (result.getSelectedButton() !== ui.Button.OK) return;
-
-  const inputKey = result.getResponseText().trim();
-  const keyRegex = /^AIza[0-9A-Za-z\-_]{35}$/;
-
-  if (!inputKey || !keyRegex.test(inputKey)) {
-    // [FIX BUG-04 v5.5.001] เปลี่ยน ui.alert() เป็น safeUiAlert_()
-    safeUiAlert_(
-      '❌ API Key ไม่ถูกต้อง\n' +
-      'ต้องขึ้นต้นด้วย "AIza" และยาว 39 ตัวอักษร'
+    const result = ui.prompt(
+      '⚙️ ตั้งค่า Gemini API Key',
+      'กรุณาใส่ Gemini API Key:\n(ได้จาก https://aistudio.google.com/app/apikey)\n\n' +
+      'รองรับทั้งรูปแบบเก่า (AIza...) และรูปแบบใหม่ (AQ...)',
+      ui.ButtonSet.OK_CANCEL
     );
-    return;
-  }
 
-  PropertiesService.getScriptProperties()
-                   .setProperty('GEMINI_API_KEY', inputKey);
-  logInfo('App', 'ตั้งค่า GEMINI_API_KEY สำเร็จ');
-  // [FIX BUG-04 v5.5.001] เปลี่ยน ui.alert() เป็น safeUiAlert_()
-  safeUiAlert_('✅ บันทึก API Key เรียบร้อยแล้วครับ!');
+    if (result.getSelectedButton() !== ui.Button.OK) return;
+
+    const inputKey = result.getResponseText().trim();
+
+    // [FIX v5.5.006] รองรับ Gemini API Key ทั้ง 2 รูปแบบ:
+    // - Legacy (v1): ขึ้นต้นด้วย "AIza" + 35 ตัวอักษร (รวม 39 ตัว)
+    // - New (v2):    ขึ้นต้นด้วย "AQ."   + Base64URL chars (40-80 ตัว)
+    // Charset ที่อนุญาต: A-Z, a-z, 0-9, -, _ (Base64 URL-safe)
+    const legacyPattern = /^AIza[0-9A-Za-z\-_]{35}$/;
+    const newPattern    = /^AQ\.[0-9A-Za-z\-_]{30,80}$/;
+    const isValidKey    = legacyPattern.test(inputKey) || newPattern.test(inputKey);
+
+    if (!inputKey || !isValidKey) {
+      // [FIX BUG-04 v5.5.001] เปลี่ยน ui.alert() เป็น safeUiAlert_()
+      safeUiAlert_(
+        '❌ API Key ไม่ถูกต้อง\n\n' +
+        'รูปแบบที่รองรับ:\n' +
+        '• รูปแบบเก่า: ขึ้นต้นด้วย "AIza" ยาว 39 ตัวอักษร\n' +
+        '• รูปแบบใหม่: ขึ้นต้นด้วย "AQ."   ยาว 33-83 ตัวอักษร\n\n' +
+        'กรุณาตรวจสอบคีย์อีกครั้ง หรือขอคีย์ใหม่จาก\n' +
+        'https://aistudio.google.com/app/apikey'
+      );
+      return;
+    }
+
+    PropertiesService.getScriptProperties()
+                     .setProperty('GEMINI_API_KEY', inputKey);
+    logInfo('App', 'ตั้งค่า GEMINI_API_KEY สำเร็จ (รูปแบบ: ' + (inputKey.startsWith('AQ.') ? 'v2' : 'v1') + ')');
+    // [FIX BUG-04 v5.5.001] เปลี่ยน ui.alert() เป็น safeUiAlert_()
+    safeUiAlert_('✅ บันทึก API Key เรียบร้อยแล้วครับ!');
   } catch (err) {
     logError('App', 'setupEnvironment: ' + err.message, err);
     safeUiAlert_('❌ ตั้งค่า API Key ล้มเหลว: ' + err.message);
