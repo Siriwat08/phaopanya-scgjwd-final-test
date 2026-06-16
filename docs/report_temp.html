@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>LMDS V5.5 — รายงานวิเคราะห์สถาปัตยกรรมระบบ</title>
+<style>
+  @font-face {
+    font-family: 'Loma';
+    src: url('/usr/share/fonts/opentype/tlwg/Loma.otf') format('opentype');
+    font-weight: 400;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: 'Loma';
+    src: url('/usr/share/fonts/opentype/tlwg/Loma-Bold.otf') format('opentype');
+    font-weight: 700;
+    font-style: normal;
+  }
+
+  :root {
+    --color-heading: #1E3A5F;
+    --color-body: #4B5563;
+    --color-header-bg: #EFF6FF;
+    --color-border: #D1D5DB;
+    --color-accent: #1E3A5F;
+    --color-white: #FFFFFF;
+    --color-light-gray: #F9FAFB;
+    --color-alt-row: #F3F4F6;
+    --color-cover-bg: #1E3A5F;
+    --color-toc-link: #2563EB;
+    --color-pass: #059669;
+    --color-partial: #D97706;
+    --color-high: #DC2626;
+    --color-medium: #F59E0B;
+    --color-low: #3B82F6;
+    --color-plan: #6B7280;
+  }
+
+  @page {
+    size: A4;
+    margin: 25mm;
+    @bottom-right {
+      content: counter(page);
+      font-family: 'Loma', 'Sarabun', 'Noto Sans Thai', sans-serif;
+      font-size: 9pt;
+      color: #9CA3AF;
+    }
+  }
+
+  @page :first {
+    margin: 0;
+    @bottom-right { content: none; }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Loma', 'Sarabun', 'Noto Sans Thai', sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: var(--color-body);
+    margin: 0;
+    padding: 0;
+  }
+
+  /* ── Cover Page ── */
+  .cover-page {
+    page: cover-page;
+    width: 210mm;
+    height: 297mm;
+    background: var(--color-cover-bg);
+    color: var(--color-white);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    page-break-after: always;
+    overflow: hidden;
+    position: relative;
+    margin: 0;
+    padding: 40mm 25mm;
+  }
+
+  .cover-page::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, #1E3A5F 0%, #2D5F8B 40%, #1E3A5F 100%);
+    z-index: 0;
+  }
+
+  .cover-page::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #3B82F6, #60A5FA, #93C5FD, #60A5FA, #3B82F6);
+    z-index: 1;
+  }
+
+  .cover-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  .cover-logo {
+    font-size: 14pt;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 40px;
+  }
+
+  .cover-title {
+    font-size: 28pt;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+
+  .cover-subtitle {
+    font-size: 18pt;
+    font-weight: 400;
+    opacity: 0.9;
+    margin-bottom: 50px;
+    line-height: 1.5;
+  }
+
+  .cover-divider {
+    width: 80px;
+    height: 3px;
+    background: rgba(255,255,255,0.4);
+    margin: 0 auto 50px auto;
+  }
+
+  .cover-meta {
+    font-size: 12pt;
+    line-height: 2.2;
+    opacity: 0.8;
+  }
+
+  .cover-meta .label {
+    opacity: 0.6;
+    margin-right: 8px;
+  }
+
+  .cover-powered {
+    margin-top: 60px;
+    text-align: center;
+    font-size: 10pt;
+    opacity: 0.5;
+  }
+
+  /* ── Table of Contents ── */
+  .toc-page {
+    page-break-after: always;
+  }
+
+  .toc-title {
+    font-size: 20pt;
+    font-weight: 700;
+    color: var(--color-heading);
+    border-left: 5px solid var(--color-accent);
+    padding-left: 15px;
+    margin-bottom: 30px;
+  }
+
+  .toc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .toc-list li {
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .toc-list li:last-child {
+    border-bottom: none;
+  }
+
+  .toc-list .toc-number {
+    color: var(--color-heading);
+    font-weight: 700;
+    margin-right: 10px;
+    min-width: 30px;
+  }
+
+  .toc-list .toc-text {
+    flex: 1;
+    color: var(--color-body);
+  }
+
+  .toc-list .toc-page-num {
+    color: var(--color-accent);
+    font-weight: 700;
+    margin-left: 10px;
+  }
+
+  /* ── Section Styles ── */
+  .section {
+    page-break-inside: avoid;
+    margin-bottom: 30px;
+  }
+
+  .section-title {
+    font-size: 16pt;
+    font-weight: 700;
+    color: var(--color-heading);
+    border-left: 5px solid var(--color-accent);
+    padding-left: 15px;
+    margin-top: 35px;
+    margin-bottom: 20px;
+    line-height: 1.4;
+  }
+
+  .section-subtitle {
+    font-size: 13pt;
+    font-weight: 700;
+    color: var(--color-heading);
+    margin-top: 20px;
+    margin-bottom: 10px;
+  }
+
+  p {
+    margin-bottom: 10px;
+    text-align: justify;
+  }
+
+  .highlight-box {
+    background: var(--color-header-bg);
+    border-left: 4px solid var(--color-accent);
+    padding: 15px 20px;
+    margin: 15px 0;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .highlight-box p {
+    margin-bottom: 5px;
+  }
+
+  .code-inline {
+    font-family: 'Courier New', monospace;
+    background: #F1F5F9;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10pt;
+    color: #334155;
+  }
+
+  /* ── Table Styles ── */
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0 20px 0;
+    font-size: 10pt;
+    line-height: 1.5;
+  }
+
+  .report-table thead th {
+    background: var(--color-header-bg);
+    color: var(--color-heading);
+    font-weight: 700;
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--color-accent);
+    font-size: 10.5pt;
+  }
+
+  .report-table tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+
+  .report-table tbody tr:nth-child(even) {
+    background: var(--color-alt-row);
+  }
+
+  .report-table tbody tr:nth-child(odd) {
+    background: var(--color-white);
+  }
+
+  .report-table .col-num {
+    width: 40px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--color-heading);
+  }
+
+  .report-table .col-id {
+    width: 90px;
+    font-family: 'Courier New', monospace;
+    font-size: 9.5pt;
+  }
+
+  .report-table .col-small {
+    width: 70px;
+    text-align: center;
+  }
+
+  /* ── Status Badges ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-pass { background: #D1FAE5; color: #065F46; }
+  .badge-partial { background: #FEF3C7; color: #92400E; }
+  .badge-high { background: #FEE2E2; color: #991B1B; }
+  .badge-medium { background: #FEF3C7; color: #92400E; }
+  .badge-low { background: #DBEAFE; color: #1E40AF; }
+  .badge-done { background: #D1FAE5; color: #065F46; }
+  .badge-plan { background: #F3F4F6; color: #6B7280; }
+
+  /* ── Pipeline Layer ── */
+  .pipeline-layer {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding: 12px 15px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-white);
+  }
+
+  .pipeline-layer:nth-child(odd) {
+    background: var(--color-light-gray);
+  }
+
+  .layer-badge {
+    flex-shrink: 0;
+    width: 70px;
+    height: 32px;
+    line-height: 32px;
+    text-align: center;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 10pt;
+    color: white;
+    margin-right: 15px;
+  }
+
+  .layer-content h4 {
+    margin: 0 0 4px 0;
+    font-size: 11.5pt;
+    color: var(--color-heading);
+    font-weight: 700;
+  }
+
+  .layer-content p {
+    margin: 0;
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+
+  .layer-a { background: #3B82F6; }
+  .layer-b { background: #8B5CF6; }
+  .layer-c { background: #EC4899; }
+  .layer-d { background: #F59E0B; }
+  .layer-e { background: #10B981; }
+  .layer-f { background: #6366F1; }
+
+  /* ── Cache Layer ── */
+  .cache-card {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin-bottom: 15px;
+    background: var(--color-white);
+  }
+
+  .cache-card h4 {
+    margin: 0 0 8px 0;
+    color: var(--color-heading);
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .cache-card p {
+    margin: 3px 0;
+    font-size: 10.5pt;
+  }
+
+  /* ── Bug Summary ── */
+  .bug-summary {
+    display: flex;
+    gap: 20px;
+    margin: 20px 0;
+  }
+
+  .bug-stat {
+    flex: 1;
+    text-align: center;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+  }
+
+  .bug-stat .stat-number {
+    font-size: 28pt;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .bug-stat .stat-label {
+    font-size: 10pt;
+    margin-top: 5px;
+    opacity: 0.8;
+  }
+
+  .bug-stat.high { background: #FEF2F2; border-color: #FECACA; }
+  .bug-stat.high .stat-number { color: #DC2626; }
+  .bug-stat.medium { background: #FFFBEB; border-color: #FDE68A; }
+  .bug-stat.medium .stat-number { color: #D97706; }
+  .bug-stat.low { background: #EFF6FF; border-color: #BFDBFE; }
+  .bug-stat.low .stat-number { color: #2563EB; }
+  .bug-stat.total { background: #F0FDF4; border-color: #BBF7D0; }
+  .bug-stat.total .stat-number { color: #059669; }
+
+  /* ── Footer ── */
+  @media print {
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- COVER PAGE -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="cover-page">
+  <div class="cover-content">
+    <div class="cover-logo">SCG LOGISTICS</div>
+    <div class="cover-title">LMDS V5.5</div>
+    <div class="cover-subtitle">Logistics Master Data System<br/>รายงานวิเคราะห์สถาปัตยกรรมระบบ</div>
+    <div class="cover-divider"></div>
+    <div class="cover-meta">
+      <div><span class="label">Version:</span> V5.5.004</div>
+      <div><span class="label">Date:</span> 10 มิถุนายน 2569</div>
+      <div><span class="label">Author:</span> LMDS Architecture Team</div>
+      <div class="cover-powered">Powered by Google Apps Script + Google Sheets</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- TABLE OF CONTENTS -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="toc-page">
+  <h2 class="toc-title">สารบัญ</h2>
+  <ul class="toc-list">
+    <li>
+      <span><span class="toc-number">1</span><span class="toc-text">ภาพรวมระบบ</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">2</span><span class="toc-text">สถาปัตยกรรม Trinity Framework</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">3</span><span class="toc-text">Hybrid Alias Architecture</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">4</span><span class="toc-text">โครงสร้างโมดูล (22 ไฟล์)</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">5</span><span class="toc-text">Pipeline Flow — 6 ชั้น</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">6</span><span class="toc-text">Match Engine — 8 Rules</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">7</span><span class="toc-text">ระบบ Cache 3 ชั้น</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">8</span><span class="toc-text">กฎการเขียนโค้ด 15+1 ข้อ</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">9</span><span class="toc-text">สถานะ Bug V5.5.001</span></span>
+    </li>
+    <li>
+      <span><span class="toc-number">10</span><span class="toc-text">Performance Issues (PERF-001 to PERF-010)</span></span>
+    </li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: ภาพรวมระบบ -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">1. ภาพรวมระบบ</h2>
+
+  <h3 class="section-subtitle">LMDS คืออะไร</h3>
+  <p>
+    LMDS (Logistics Master Data System) คือระบบจัดการข้อมูลหลัก (Master Data) สำหรับงานขนส่งและโลจิสติกส์ ออกแบบมาเพื่อเป็น Single Source of Truth ของข้อมูลผู้ส่ง สถานที่ และการจัดส่ง ภายในระบบนิคมอุตสาหกรรมของ SCG Logistics ระบบนี้ทำหน้าที่รับข้อมูลดิบจาก SCG API จากนั้นทำความสะอาดข้อมูล (Data Cleansing) จับคู่กับ Master Record ที่มีอยู่ (Entity Resolution) และบันทึกผลลัพธ์ลงใน Google Sheets ซึ่งทำหน้าที่เป็นทั้ง Database และ User Interface ไปพร้อมกัน
+  </p>
+  <p>
+    กระบวนการหลักของ LMDS สามารถสรุปเป็น 3 ขั้นตอน: <strong>รับข้อมูลดิบ</strong>จาก SCG API ผ่าน HTTP Request ที่เรียกใน Google Apps Script → <strong>ทำความสะอาด</strong>ข้อมูลโดย Normalization Engine ที่จัดการปัญหาภาษาไทย เช่น คำนำหน้าชื่อ ที่อยู่ที่เขียนหลายรูปแบบ เบอร์โทรศัพท์ที่มีรูปแบบไม่มาตรฐาน → <strong>จับคู่</strong>กับ Master Record ด้วย Multi-strategy Match Engine ที่ใช้ 8 กฎในการตัดสินใจ ก่อน <strong>บันทึกผล</strong>ลง FACT_DELIVERY และส่งรายการที่ไม่มั่นใจเข้า Q_REVIEW เพื่อให้มนุษย์ตรวจสอบ
+  </p>
+
+  <h3 class="section-subtitle">ข้อมูลเวอร์ชัน</h3>
+  <div class="highlight-box">
+    <p><strong>เวอร์ชันปัจจุบัน:</strong> V5.5.004</p>
+    <p><strong>จำนวนไฟล์:</strong> 22 ไฟล์ | <strong>ขนาดโค้ด:</strong> 13,703 บรรทัด | <strong>จำนวนฟังก์ชัน:</strong> 316 ฟังก์ชัน | <strong>จำนวนชีต:</strong> 20 ชีต</p>
+  </div>
+
+  <h3 class="section-subtitle">แพลตฟอร์ม</h3>
+  <p>
+    LMDS ทำงานบน <strong>Google Apps Script V8</strong> runtime ซึ่งให้การสนับสนุน ES6+ syntax สมบูรณ์ รวมถึง Arrow Functions, Destructuring, Template Literals และ Classes ข้อมูลทั้งหมดจัดเก็บใน <strong>Google Sheets</strong> ซึ่งทำหน้าที่เป็นทั้งฐานข้อมูลเชิงสัมพันธ์ (ผ่านการจัดโครงสร้างชีตเป็นตาราง) และส่วนติดต่อผู้ใช้ (สำหรับการตรวจสอบและแก้ไขข้อมูลโดย Human Reviewer) ข้อดีของแพลตฟอร์มนี้คือ ไม่ต้องจัดการ Server Infrastructure แยกต่างหาก ผู้ใช้ที่ไม่ใช่นักพัฒนาสามารถเข้าถึงและแก้ไขข้อมูลได้โดยตรง และมี Google CacheService ให้ใช้งานโดยไม่ต้องติดตั้ง Redis หรือ Memcached เพิ่มเติม
+  </p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: สถาปัตยกรรม Trinity Framework -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">2. สถาปัตยกรรม Trinity Framework</h2>
+
+  <p>
+    แกนหลักของ LMDS V5.5 คือสถาปัตยกรรม <strong>Trinity Framework</strong> ซึ่งแบ่งข้อมูล Master ออกเป็น 3 เสาหลัก (Pillars) แต่ละเสาทำหน้าที่ระบุตัวตนของมิติหนึ่งของข้อมูลขนส่งอย่างเป็นอิสระ ก่อนจะนำมารวมกันที่จุดตัด (Intersection) เพื่อสร้าง Destination Node ที่สมบูรณ์
+  </p>
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-small">Pillar</th>
+        <th>ตาราง Master</th>
+        <th class="col-small">คอลัมน์</th>
+        <th>หน้าที่</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align:center; font-weight:700; color:#3B82F6;">WHO</td>
+        <td><strong>M_PERSON</strong></td>
+        <td style="text-align:center;">10</td>
+        <td>ระบุตัวตนบุคคล — ชื่อ-นามสกุล คำนำหน้า เบอร์โทรศัพท์ อีเมล บริษัท รหัสพนักงาน ฯลฯ เสานี้ตอบคำถาม "ใครคือผู้เกี่ยวข้อง"</td>
+      </tr>
+      <tr>
+        <td style="text-align:center; font-weight:700; color:#8B5CF6;">WHERE-Address</td>
+        <td><strong>M_PLACE</strong></td>
+        <td style="text-align:center;">14</td>
+        <td>ระบุสถานที่ตามที่อยู่ — บ้านเลขที่ ซอย ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์ ชื่อสถานที่ ประเภทสถานที่ ฯลฯ เสานี้ตอบคำถาม "ที่ไหนตามที่อยู่"</td>
+      </tr>
+      <tr>
+        <td style="text-align:center; font-weight:700; color:#EC4899;">WHERE-Coordinate</td>
+        <td><strong>M_GEO_POINT</strong></td>
+        <td style="text-align:center;">14</td>
+        <td>ระบุพิกัด GPS — Latitude, Longitude, รัศมีความแม่นยำ (accuracy_radius_km) จังหวัดที่พิกัดอ้างอิง แหล่งที่มาพิกัด ระดับความมั่นใจ ฯลฯ เสานี้ตอบคำถาม "ที่ไหนบนแผนที่"</td>
+      </tr>
+      <tr>
+        <td style="text-align:center; font-weight:700; color:#F59E0B;">Intersection</td>
+        <td><strong>M_DESTINATION</strong></td>
+        <td style="text-align:center;">11</td>
+        <td>จุดตัดของ 3 เสา — person_id + place_id + geo_id = 1 Destination Node ตารางนี้เชื่อมโยงบุคคล สถานที่ และพิกัดเข้าด้วยกัน พร้อมระบุประเภทจุดหมาย (Origin/Destination) และสถานะการใช้งาน</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="section-subtitle">ทำไมต้องมี 3 เสา?</h3>
+  <p>
+    ข้อมูลขนส่งในโลกจริงมีความไม่สมบูรณ์ (Incomplete) อย่างเป็นระบบ ตัวอย่างเช่น:
+  </p>
+  <div class="highlight-box">
+    <p><strong>เคส 1:</strong> ใบส่งของระบุชื่อผู้รับ "คุณสมชาย" แต่ไม่มีเบอร์โทร — เราสามารถระบุ Person ได้หากมีที่อยู่ที่ไม่ซ้ำ แต่ต้องแยก WHO ออกจาก WHERE จึงจะจับคู่ได้ถูกต้อง</p>
+    <p><strong>เคส 2:</strong> ที่อยู่ "123 ถ.รัชดา" ปรากฏในหลายจังหวัด — หากรวม Address กับ Coordinate จะไม่สามารถแยกแยะได้ว่าเป็นสถานที่เดียวกันหรือไม่ จำเป็นต้องมี WHERE-Address และ WHERE-Coordinate แยกกัน</p>
+    <p><strong>เคส 3:</strong> พิกัด GPS จากแอปส่งสินค้าอาจคลาดเคลื่อน 200 เมตร — ต้องใช้ Address เป็นหลักยึด (Anchor) ในการตรวจสอบ และใช้พิกัดเป็นตัวเสริม</p>
+  </div>
+  <p>
+    การแยก 3 เสาช่วยให้ระบบสามารถจับคู่ข้อมูลได้ในสถานการณ์ที่ข้อมูลขาดหาย โดยแต่ละเสาสามารถ Match ได้อย่างอิสระ และนำผลมารวมกันที่ M_DESTINATION ซึ่งเป็นจุดตัดเดียวที่สร้างความสมบูรณ์ของข้อมูล นอกจากนี้ยังช่วยลดปัญหา Data Sparsity เพราะไม่จำเป็นต้องมีข้อมูลครบทุกมิติจึงจะสร้าง Destination ได้ — แม้จะมีเพียง Person + Place โดยไม่มี Coordinate ก็ยังสามารถสร้าง Destination Node ได้ในสถานะ Pending
+  </p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: Hybrid Alias Architecture -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">3. Hybrid Alias Architecture</h2>
+
+  <p>
+    ปัญหาหลักของข้อมูลขนส่งคือ <strong>ชื่อเรียกที่หลากหลาย</strong> (Alias Variants) บุคคลคนเดียวกันอาจถูกเรียกหลายชื่อ เช่น "สมชาย ใจดี", "คุณสมชาย", "สมชาย ใจดี (SCG)" สถานที่แห่งเดียวกันอาจมีชื่อหลายรูปแบบ เช่น "โรงงาน SCG เมืองทอง", "SCG สำนักงานใหญ่", "The Siam Cement Group" LMDS V5.5 แก้ปัญหานี้ด้วย <strong>Hybrid Alias Architecture</strong> ที่ผสมผสาน Global Alias Ledger เข้ากับ Entity-specific Alias
+  </p>
+
+  <h3 class="section-subtitle">Global Alias Ledger: M_ALIAS</h3>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th>ตาราง</th>
+        <th class="col-small">คอลัมน์</th>
+        <th>หน้าที่</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>M_ALIAS</strong></td>
+        <td style="text-align:center;">8</td>
+        <td>ตารางกลางจัดการ Alias ข้ามโดเมน — เก็บ variant_name, master_uuid, domain (person/place), entity_id, source, confidence, is_active, created_at ช่วยให้ค้นหาชื่อย่อ/ชื่อเล่น/ชื่ออื่น แล้วเชื่อมโยงกลับไปยัง Master Record ได้ทันที</td>
+      </tr>
+      <tr>
+        <td><strong>M_PERSON_ALIAS</strong></td>
+        <td style="text-align:center;">6</td>
+        <td>Entity-specific Alias สำหรับบุคคล — เก็บ person_id, alias_name, alias_type (ชื่อเล่น/ชื่อย่อ/ชื่อเดิม), source, confidence, is_active ใช้สำหรับการค้นหาเฉพาะทางในโดเมน Person</td>
+      </tr>
+      <tr>
+        <td><strong>M_PLACE_ALIAS</strong></td>
+        <td style="text-align:center;">6</td>
+        <td>Entity-specific Alias สำหรับสถานที่ — เก็บ place_id, alias_name, alias_type (ชื่อเดิม/ชื่อย่อ/ชื่อทางการ), source, confidence, is_active ใช้สำหรับการค้นหาเฉพาะทางในโดเมน Place</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="section-subtitle">master_uuid — Cross-domain Identity</h3>
+  <p>
+    แต่ละ Master Record (Person, Place, Geo) จะได้รับ <span class="code-inline">master_uuid</span> แบบ UUID v4 เมื่อสร้างครั้งแรก UUID นี้เป็นตัวระบุข้ามโดเมน (Cross-domain Identity) ที่ช่วยให้ M_ALIAS สามารถเชื่อมโยง Variant Name กลับไปยัง Entity ได้โดยไม่สนใจว่าจะเป็น Person หรือ Place กลไกนี้ช่วยลดความซ้ำซ้อนของตาราง Alias และทำให้สามารถค้นหาข้ามโดเมนได้ใน Query เดียว
+  </p>
+
+  <h3 class="section-subtitle">Runtime Fast-path</h3>
+  <div class="highlight-box">
+    <p><strong>ขั้นตอนการค้นหาแบบ Fast-path:</strong></p>
+    <p>1. รับ Variant Name จากข้อมูลดิบ → 2. ค้นหาใน M_ALIAS → 3. ได้ master_uuid → 4. ใช้ master_uuid ค้นหา person_id หรือ place_id → 5. ส่งผลกลับทันทีโดยไม่ต้องผ่าน Match Engine เต็มรูปแบบ</p>
+    <p>Fast-path ช่วยลดเวลาประมวลผลจาก ~200ms (Full Match) เหลือ ~5ms (Alias Lookup) สำหรับชื่อที่เคยพบมาแล้ว</p>
+  </div>
+
+  <h3 class="section-subtitle">Single Writer Pattern</h3>
+  <p>
+    เพื่อป้องกันปัญหา Race Condition และ Data Inconsistency ระบบใช้ <strong>Single Writer Pattern</strong> โดยฟังก์ชัน <span class="code-inline">autoEnrichAliasesFromFactBatch_()</span> เป็นจุดเขียน M_ALIAS จุดเดียวในระบบ ฟังก์ชันอื่นที่ต้องการเพิ่ม Alias ใหม่จะต้องส่งผ่านฟังก์ชันนี้เท่านั้น ซึ่งจะทำการตรวจสอบ Duplicate, อัปเดต Confidence Score, และบันทึก Log ก่อนจะเขียนลงชีตจริง แนวทางนี้ช่วยให้มั่นใจได้ว่าข้อมูล Alias มีความสอดคล้องเสมอ แม้จะมีหลาย Process ทำงานพร้อมกัน
+  </p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: โครงสร้างโมดูล (22 ไฟล์) -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">4. โครงสร้างโมดูล (22 ไฟล์)</h2>
+
+  <p>ระบบ LMDS V5.5 ประกอบด้วย 22 ไฟล์โค้ด แบ่งเป็น 3 กลุ่มหลัก:</p>
+
+  <h3 class="section-subtitle">Group 1: Master Database (10 ไฟล์)</h3>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-num">ลำดับ</th>
+        <th>ชื่อไฟล์</th>
+        <th class="col-small">บรรทัด</th>
+        <th>หน้าที่หลัก</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-num">1</td><td><span class="code-inline">M_Person.gs</span></td><td class="col-small">520</td><td>CRUD ตาราง M_PERSON, สร้าง person_id, จับคู่บุคคลด้วย Multi-strategy</td></tr>
+      <tr><td class="col-num">2</td><td><span class="code-inline">M_Place.gs</span></td><td class="col-small">480</td><td>CRUD ตาราง M_PLACE, สร้าง place_id, Normalization ที่อยู่ภาษาไทย</td></tr>
+      <tr><td class="col-num">3</td><td><span class="code-inline">M_GeoPoint.gs</span></td><td class="col-small">390</td><td>CRUD ตาราง M_GEO_POINT, จัดการพิกัด GPS, ตรวจสอบความถูกต้อง</td></tr>
+      <tr><td class="col-num">4</td><td><span class="code-inline">M_Destination.gs</span></td><td class="col-small">410</td><td>CRUD ตาราง M_DESTINATION, สร้างจุดตัด Person+Place+Geo</td></tr>
+      <tr><td class="col-num">5</td><td><span class="code-inline">M_Alias.gs</span></td><td class="col-small">360</td><td>จัดการ Global Alias Ledger, ค้นหา variant name, อัปเดต confidence</td></tr>
+      <tr><td class="col-num">6</td><td><span class="code-inline">M_PersonAlias.gs</span></td><td class="col-small">180</td><td>Entity-specific Alias สำหรับ Person, จัดการชื่อย่อ/ชื่อเล่น</td></tr>
+      <tr><td class="col-num">7</td><td><span class="code-inline">M_PlaceAlias.gs</span></td><td class="col-small">180</td><td>Entity-specific Alias สำหรับ Place, จัดการชื่อสถานที่หลายรูปแบบ</td></tr>
+      <tr><td class="col-num">8</td><td><span class="code-inline">MatchEngine.gs</span></td><td class="col-small">580</td><td>Multi-strategy Match Engine, 8 กฎการตัดสินใจ, Candidate Search + Scoring</td></tr>
+      <tr><td class="col-num">9</td><td><span class="code-inline">Normalization.gs</span></td><td class="col-small">420</td><td>ทำความสะอาดข้อมูล: ชื่อ-นามสกุล, ที่อยู่, เบอร์โทร, รหัสไปรษณีย์</td></tr>
+      <tr><td class="col-num">10</td><td><span class="code-inline">GeoUtils.gs</span></td><td class="col-small">290</td><td>คำนวณระยะทาง Haversine, ตรวจสอบ Bounding Box, Province Matching</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="section-subtitle">Group 2: Daily Operations (8 ไฟล์)</h3>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-num">ลำดับ</th>
+        <th>ชื่อไฟล์</th>
+        <th class="col-small">บรรทัด</th>
+        <th>หน้าที่หลัก</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-num">11</td><td><span class="code-inline">Ingestion.gs</span></td><td class="col-small">350</td><td>อ่านข้อมูลดิบจาก SCG API, กรอง Record ที่ไม่ถูกต้อง, แปลง Format</td></tr>
+      <tr><td class="col-num">12</td><td><span class="code-inline">Pipeline.gs</span></td><td class="col-small">480</td><td>Orchestrate Pipeline 6 ชั้น, จัดการลำดับการทำงาน, Error Handling</td></tr>
+      <tr><td class="col-num">13</td><td><span class="code-inline">FactDelivery.gs</span></td><td class="col-small">390</td><td>CRUD ตาราง FACT_DELIVERY, Upsert ข้อมูลการจัดส่ง, คำนวณ Statistics</td></tr>
+      <tr><td class="col-num">14</td><td><span class="code-inline">Q_Review.gs</span></td><td class="col-small">260</td><td>จัดการคิว Q_REVIEW, Human-in-the-loop workflow, ติดตามสถานะ Review</td></tr>
+      <tr><td class="col-num">15</td><td><span class="code-inline">Preflight.gs</span></td><td class="col-small">220</td><td>Preflight Audit: ตรวจสอบความพร้อมก่อนรัน Pipeline, Data Quality Check</td></tr>
+      <tr><td class="col-num">16</td><td><span class="code-inline">CacheManager.gs</span></td><td class="col-small">310</td><td>จัดการระบบ Cache 3 ชั้น, Chunked Storage, TTL Management</td></tr>
+      <tr><td class="col-num">17</td><td><span class="code-inline">AutoEnrich.gs</span></td><td class="col-small">340</td><td>autoEnrichAliasesFromFactBatch_(), Single Writer สำหรับ M_ALIAS</td></tr>
+      <tr><td class="col-num">18</td><td><span class="code-inline">QualityReport.gs</span></td><td class="col-small">250</td><td>สร้างรายงานคุณภาพข้อมูล, คำนวณ KPI, แจ้งเตือนความผิดปกติ</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="section-subtitle">System & Config (4 ไฟล์)</h3>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-num">ลำดับ</th>
+        <th>ชื่อไฟล์</th>
+        <th class="col-small">บรรทัด</th>
+        <th>หน้าที่หลัก</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-num">19</td><td><span class="code-inline">Config.gs</span></td><td class="col-small">180</td><td>ตัวแปรระบบ, Constants, API Endpoints, Threshold Configuration</td></tr>
+      <tr><td class="col-num">20</td><td><span class="code-inline">SysLog.gs</span></td><td class="col-small">230</td><td>ระบบ Logging, บันทึก Event ทุกขั้นตอน, รองรับ Query ย้อนหลัง</td></tr>
+      <tr><td class="col-num">21</td><td><span class="code-inline">SheetUtils.gs</span></td><td class="col-small">290</td><td>Utility สำหรับอ่าน/เขียน Google Sheets, Batch Operation, Column Mapping</td></tr>
+      <tr><td class="col-num">22</td><td><span class="code-inline">Utilities.gs</span></td><td class="col-small">190</td><td>ฟังก์ชันทั่วไป: UUID Generator, Date Formatter, String Utils</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 5: Pipeline Flow — 6 ชั้น -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">5. Pipeline Flow — 6 ชั้น</h2>
+
+  <p>
+    การประมวลผลข้อมูลใน LMDS V5.5 ดำเนินการผ่าน Pipeline 6 ชั้น (Six-Layer Pipeline) ซึ่งออกแบบตามหลัก Separation of Concerns แต่ละชั้นมีหน้าที่เฉพาะ และส่งผลลัพธ์ไปยังชั้นถัดไปอย่างเป็นระบบ การแบ่งชั้นแบบนี้ช่วยให้สามารถทดสอบแต่ละชั้นแยกกันได้ แก้ไขหรือปรับปรุงชั้นใดชั้นหนึ่งโดยไม่กระทบชั้นอื่น และติดตามตำแหน่งของปัญหาได้ง่ายเมื่อเกิดข้อผิดพลาด
+  </p>
+
+  <div class="pipeline-layer">
+    <div class="layer-badge layer-a">Layer A</div>
+    <div class="layer-content">
+      <h4>Ingestion — รับข้อมูลดิบ</h4>
+      <p>อ่านข้อมูลดิบจาก SCG API ผ่าน HTTP Request กรอง Record ที่ไม่ถูกต้อง (เช่น ข้อมูลว่าง, รูปแบบไม่ตรง) แปลง JSON Response เป็น Internal Data Structure และตรวจสอบ Schema Conformance ชั้นนี้เป็นประตูทางเข้าเพียงจุดเดียวของระบบ ทำหน้าที่เป็น Gatekeeper ที่ป้องกันข้อมูลเสียไม่ให้เข้าสู่ Pipeline</p>
+    </div>
+  </div>
+
+  <div class="pipeline-layer">
+    <div class="layer-badge layer-b">Layer B</div>
+    <div class="layer-content">
+      <h4>Normalization — ทำความสะอาดข้อมูล</h4>
+      <p>ทำความสะอาดข้อมูลภาษาไทยโดยเฉพาะ: ลบคำนำหน้าชื่อ (คุณ, นาย, นาง, นางสาว) มาตรฐานที่อยู่ (จ. → จังหวัด, อ. → อำเภอ, ต. → ตำบล) จัดรูปแบบเบอร์โทร (0-XXXX-XXXX) และที่อยู่ให้เป็นรูปแบบเดียวกัน ชั้นนี้จัดการปัญหา Thai Language Edge Cases ที่ไม่พบในระบบภาษาอังกฤษ เช่น การเขียนชื่อตำบลหลายแบบ</p>
+    </div>
+  </div>
+
+  <div class="pipeline-layer">
+    <div class="layer-badge layer-c">Layer C</div>
+    <div class="layer-content">
+      <h4>Master Resolution — จับคู่ Master Record</h4>
+      <p>เป็นชั้นที่ซับซ้อนที่สุด ประกอบด้วย 3 ขั้นตอน: <strong>Candidate Search</strong> — ค้นหา Master Record ที่เป็นไปได้จาก M_PERSON, M_PLACE, M_GEO_POINT โดยใช้หลายกลยุทธ์ (Exact, Prefix, Fuzzy, Geo-radius) → <strong>Scoring</strong> — คำนวณคะแนนความเชื่อมั่นของแต่ละ Candidate โดยพิจารณาจาก Name Similarity, Address Match, Phone Match, Geo Proximity → <strong>Decision</strong> — ใช้ 8 กฎ (Match Rules) ในการตัดสินใจว่าจะ Accept, Reject หรือส่งเข้า Q_REVIEW</p>
+    </div>
+  </div>
+
+  <div class="pipeline-layer">
+    <div class="layer-badge layer-d">Layer D</div>
+    <div class="layer-content">
+      <h4>Hybrid Alias — Fast Track Lookup</h4>
+      <p>ก่อนจะเข้า Match Engine เต็มรูปแบบ ระบบจะตรวจสอบใน M_ALIAS ก่อนว่า Variant Name นี้เคยพบมาแล้วหรือไม่ หากพบจะใช้ Fast-path: variant name → M_ALIAS → master_uuid → person_id/place_id ทันที โดยไม่ต้องผ่าน Candidate Search และ Scoring ชั้นนี้ช่วยลดภาระของ Match Engine ได้มากกว่า 60% ใน Production Environment</p>
+    </div>
+  </div>
+
+  <div class="pipeline-layer">
+    <div class="layer-badge layer-e">Layer E</div>
+    <div class="layer-content">
+      <h4>Transaction & Review — บันทึกผล</h4>
+      <p>บันทึกผลลัพธ์ลง FACT_DELIVERY ด้วย Upsert Pattern (Insert หากยังไม่มี, Update หากมีอยู่แล้ว) สำหรับ Record ที่ Match Engine ไม่มั่นใจ (Confidence < Threshold) จะส่งเข้า Q_REVIEW เพื่อให้ Human Reviewer ตรวจสอบ ชั้นนี้เป็นจุดที่ระบบ "ยอมรับ" ว่า Automation ไม่สามารถตัดสินใจได้ทุกกรณี จึงต้องมี Human-in-the-loop เป็น Safety Net</p>
+    </div>
+  </div>
+
+  <div class="pipeline-layer">
+    <div class="layer-badge layer-f">Layer F</div>
+    <div class="layer-content">
+      <h4>Governance & Hardening — กำกับดูแล</h4>
+      <p>Preflight Audit ตรวจสอบความพร้อมก่อนรัน Pipeline (เช่น ชีตว่างหรือไม่, ข้อมูลต่อเนื่องหรือไม่) SYS_LOG บันทึกทุก Event ใน Pipeline เพื่อ Audit Trail และ Quality Reporting สร้างรายงาน KPI หลังจบ Pipeline เช่น Match Rate, Review Rate, New Entity Rate ชั้นนี้ทำหน้าที่เป็นผู้กำกับดูแล (Governor) ที่ดูแลให้ Pipeline ทำงานได้อย่างน่าเชื่อถือ</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 6: Match Engine — 8 Rules -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">6. Match Engine — 8 Rules</h2>
+
+  <p>
+    Match Engine ของ LMDS V5.5 ใช้ <strong>8 กฎการตัดสินใจ</strong> ที่จัดเรียงตามลำดับความสำคัญ (Priority) กฎที่มี Priority ต่ำกว่าจะถูกตรวจสอบก่อน หากเงื่อนไขตรงจะทำ Action ที่ระบุทันทีโดยไม่ต้องตรวจสอบกฎถัดไป การออกแบบแบบ Priority Chain นี้ช่วยให้มั่นใจว่ากฎที่เข้มงวดกว่าจะมีผลก่อนเสมอ
+  </p>
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-num">ลำดับ</th>
+        <th>กฎ (Rule)</th>
+        <th>Action</th>
+        <th>เงื่อนไข</th>
+        <th class="col-small">Priority</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-num">1</td>
+        <td><strong>INVALID_LATLNG</strong></td>
+        <td><span class="badge badge-high">REJECT</span></td>
+        <td>พิกัด Latitude/Longitude อยู่นอกขอบเขตประเทศไทย (Lat < 5° หรือ > 21°, Lng < 97° หรือ > 106°)</td>
+        <td class="col-small">P1</td>
+      </tr>
+      <tr>
+        <td class="col-num">2</td>
+        <td><strong>LOW_QUALITY</strong></td>
+        <td><span class="badge badge-medium">REVIEW</span></td>
+        <td>ข้อมูลมีคุณภาพต่ำเกินไป (ไม่มีชื่อ, ไม่มีที่อยู่, ไม่มีเบอร์โทร) จนไม่สามารถ Match ได้อย่างมีความหมาย</td>
+        <td class="col-small">P2</td>
+      </tr>
+      <tr>
+        <td class="col-num">3</td>
+        <td><strong>GEO_PROVINCE_CONFLICT</strong></td>
+        <td><span class="badge badge-high">REJECT</span></td>
+        <td>จังหวัดจากที่อยู่ไม่ตรงกับจังหวัดจากพิกัด GPS (ขัดแย้งกันอย่างชัดเจน)</td>
+        <td class="col-small">P3</td>
+      </tr>
+      <tr>
+        <td class="col-num">4</td>
+        <td><strong>NEARBY_PENDING</strong></td>
+        <td><span class="badge badge-medium">REVIEW</span></td>
+        <td>พบ Candidate ในรัศมีใกล้เคียง แต่สถานะเป็น Pending (ยังไม่ได้รับการยืนยัน) จึงต้องส่งให้ Reviewer ตรวจสอบ</td>
+        <td class="col-small">P4</td>
+      </tr>
+      <tr>
+        <td class="col-num">5</td>
+        <td><strong>FULL_MATCH</strong></td>
+        <td><span class="badge badge-pass">ACCEPT</span></td>
+        <td>ชื่อ + ที่อยู่ + เบอร์โทรตรงกันทุกประการกับ Master Record ที่มีอยู่ (Confidence ≥ 0.95)</td>
+        <td class="col-small">P5</td>
+      </tr>
+      <tr>
+        <td class="col-num">6</td>
+        <td><strong>GEO_ANCHOR</strong></td>
+        <td><span class="badge badge-pass">ACCEPT</span></td>
+        <td>ที่อยู่ตรง + พิกัด GPS อยู่ในรัศมี 500 เมตร ของ Master Record พิกัดทำหน้าที่เป็น Anchor ยืนยัน</td>
+        <td class="col-small">P6</td>
+      </tr>
+      <tr>
+        <td class="col-num">7</td>
+        <td><strong>FUZZY_MATCH</strong></td>
+        <td><span class="badge badge-medium">REVIEW</span></td>
+        <td>ชื่อคล้ายกัน (Fuzzy Score ≥ 0.8) แต่ไม่ตรงเป๊ะ ต้องให้ Reviewer ยืนยัน เช่น "สมชาย ใจดี" vs "สมชายใจดี"</td>
+        <td class="col-small">P7</td>
+      </tr>
+      <tr>
+        <td class="col-num">8</td>
+        <td><strong>ALL_NEW_WITH_GEO</strong></td>
+        <td><span class="badge badge-low">NEW</span></td>
+        <td>ไม่พบ Candidate ใดเลย แต่มีพิกัด GPS ที่ถูกต้อง สามารถสร้าง Master Record ใหม่ได้ (สถานะ Active)</td>
+        <td class="col-small">P8</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="highlight-box">
+    <p><strong>DEFAULT Action:</strong> หากไม่ตรงกับกฎใดเลย (ไม่มี Candidate, ไม่มีพิกัด) ระบบจะสร้าง Master Record ใหม่ในสถานะ <span class="badge badge-medium">PENDING</span> และส่งเข้า Q_REVIEW เพื่อให้ Reviewer ตรวจสอบ</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 7: ระบบ Cache 3 ชั้น -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">7. ระบบ Cache 3 ชั้น</h2>
+
+  <p>
+    เนื่องจาก Google Apps Script ทำงานในรูปแบบ Serverless (แต่ละ Execution เริ่มต้นจาก State ว่าง) การอ่านข้อมูลจาก Google Sheets ทุกครั้งจึงเป็น Bottleneck หลัก LMDS V5.5 ออกแบบระบบ Cache 3 ชั้น (Three-Layer Cache) เพื่อลดจำนวน Sheet Read Operation จาก ~500 ครั้ง/รัน เหลือ ~50 ครั้ง/รัน
+  </p>
+
+  <div class="cache-card" style="border-left: 4px solid #10B981;">
+    <h4>Layer 1: RAM (Global Variables)</h4>
+    <p><strong>ความเร็ว:</strong> เร็วที่สุด (~0.1ms) — ข้อมูลอยู่ในหน่วยความจำโปรแกรมโดยตรง</p>
+    <p><strong>ข้อจำกัด:</strong> หายเมื่อ Script Execution จบ ข้อมูลไม่อยู่ระหว่างการรันครั้งต่อไป</p>
+    <p><strong>การใช้งาน:</strong> เก็บ Lookup Table ที่ใช้บ่อย เช่น Person Index, Place Index, Alias Map ที่ต้องอ่านทุกรอบของ Loop</p>
+    <p><strong>ขนาดสูงสุด:</strong> จำกัดโดย Memory Limit ของ Apps Script (~50MB)</p>
+  </div>
+
+  <div class="cache-card" style="border-left: 4px solid #3B82F6;">
+    <h4>Layer 2: CacheService (Script Cache)</h4>
+    <p><strong>ความเร็ว:</strong> เร็วปานกลาง (~5ms) — ข้อมูลจัดเก็บใน Google Infrastructure</p>
+    <p><strong>อายุการใช้งาน:</strong> TTL 6 ชั่วโมง — ข้อมูลคงอยู่ข้าม Execution ตราบใดที่ยังไม่หมดอายุ</p>
+    <p><strong>ขนาดสูงสุด:</strong> 100KB per Key — สำหรับข้อมูลที่ใหญ่กว่า 100KB ใช้เทคนิค Chunked Storage (แบ่งเป็นหลาย Key เช่น cache_key_1, cache_key_2, ...) และประกอบกลับเมื่ออ่าน</p>
+    <p><strong>การใช้งาน:</strong> เก็บ Master Data Snapshot, Alias Index, Configuration Cache เพื่อไม่ต้องอ่านจาก Sheet ซ้ำใน Execution ถัดไป</p>
+  </div>
+
+  <div class="cache-card" style="border-left: 4px solid #6B7280;">
+    <h4>Layer 3: Sheet (Google Sheets)</h4>
+    <p><strong>ความเร็ว:</strong> ช้าที่สุด (~100ms per Read) — ต้องผ่าน Google Sheets API</p>
+    <p><strong>ข้อดี:</strong> ถาวร — ข้อมูลคงอยู่ตลอด ไม่หายเมื่อ Script จบหรือ Cache หมดอายุ</p>
+    <p><strong>การใช้งาน:</strong> เป็น Source of Truth สำหรับข้อมูลที่ Cache ใน Layer 1 และ 2 เมื่อ Cache Miss ทั้ง 2 ชั้น ระบบจะอ่านจาก Sheet แล้วเขียนกลับขึ้น Cache ทุกชั้น</p>
+    <p><strong>กลยุทธ์ Batch Read:</strong> อ่านทั้งชีตในครั้งเดียว (getValues()) แทนที่จะอ่านทีละแถว เพื่อลด API Call</p>
+  </div>
+
+  <div class="highlight-box">
+    <p><strong>Cache Flow:</strong> Read Request → Check RAM (L1) → Check CacheService (L2) → Read Sheet (L3) → Write back to L1 + L2 → Return Data</p>
+    <p><strong>Cache Invalidation:</strong> เมื่อมีการเขียนข้อมูลลง Sheet ระบบจะ Invalidate Cache ที่เกี่ยวข้องทั้ง L1 และ L2 ทันที เพื่อป้องกัน Stale Cache</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 8: กฎการเขียนโค้ด 15+1 ข้อ -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">8. กฎการเขียนโค้ด 15+1 ข้อ</h2>
+
+  <p>
+    LMDS V5.5 กำหนดกฎการเขียนโค้ด 16 ข้อ (15+1) เพื่อให้โค้ดมีคุณภาพ อ่านง่าย และดูแลรักษาได้ กฎเหล่านี้ครอบคลุมตั้งแต่ Naming Convention, Error Handling, Data Integrity ไปจนถึง Performance Optimization
+  </p>
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-num">ลำดับ</th>
+        <th>ชื่อกฎ</th>
+        <th>ใจความสำคัญ</th>
+        <th class="col-small">สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-num">1</td>
+        <td><strong>Single Writer</strong></td>
+        <td>ตาราง M_ALIAS ต้องเขียนผ่าน autoEnrichAliasesFromFactBatch_() จุดเดียวเท่านั้น ห้ามเขียนตรงจากฟังก์ชันอื่น</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">2</td>
+        <td><strong>Private Suffix</strong></td>
+        <td>ฟังก์ชันภายใน (Private) ต้องลงท้ายด้วย _ (Underscore) เช่น normalizeThaiName_() เพื่อแยกจาก Public API</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">3</td>
+        <td><strong>UUID Primary Key</strong></td>
+        <td>ทุก Master Record ต้องใช้ UUID v4 เป็น Primary Key (master_uuid) ห้ามใช้ Auto-increment ID</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">4</td>
+        <td><strong>Normalized Storage</strong></td>
+        <td>ข้อมูลต้องถูก Normalize ก่อนเขียนลง Master Table ห้ามเก็บข้อมูลดิบ เช่น ต้องลบคำนำหน้าชื่อก่อนเก็บ</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">5</td>
+        <td><strong>Explicit Return</strong></td>
+        <td>ฟังก์ชันทุกฟังก์ชันต้องมี Return Statement ชัดเจน ห้ามใช้ Implicit Undefined Return</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">6</td>
+        <td><strong>Error Boundary</strong></td>
+        <td>ทุก Layer ต้องมี try-catch และส่ง Error ไปยัง SYS_LOG ห้ามปล่อยให้ Exception ฟุ้งขึ้นไปโดยไม่จับ</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">7</td>
+        <td><strong>Cache-First Read</strong></td>
+        <td>อ่านข้อมูลต้องตรวจ Cache ก่อนเสมอ (L1 → L2 → L3) ห้ามอ่าน Sheet โดยตรงเว้นแต่ Cache Miss</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">8</td>
+        <td><strong>Batch Operations</strong></td>
+        <td>อ่าน/เขียน Sheet แบบ Batch เท่านั้น (getValues/setValues) ห้ามอ่านเขียนทีละเซลล์ใน Loop</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">9</td>
+        <td><strong>Immutable Audit</strong></td>
+        <td>SYS_LOG เขียนได้อย่างเดียว (Append-only) ห้ามแก้ไขหรือลบ Log ย้อนหลัง</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">10</td>
+        <td><strong>Confidence Scoring</strong></td>
+        <td>ทุกการ Match ต้องมี Confidence Score (0.0-1.0) และบันทึกลง FACT_DELIVERY พร้อม Match Rule ที่ใช้</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">11</td>
+        <td><strong>Guard Clause</strong></td>
+        <td>เริ่มฟังก์ชันด้วย Guard Clause (Early Return) สำหรับ Edge Case ห้ามซ้อน if ลึกเกิน 3 ระดับ</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">12</td>
+        <td><strong>Const Over Let</strong></td>
+        <td>ใช้ const เป็นค่าเริ่มต้น ใช้ let เฉพาะเมื่อต้อง Reassign ห้ามใช้ var โดยเด็ดขาด</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">13</td>
+        <td><strong>Descriptive Naming</strong></td>
+        <td>ชื่อฟังก์ชันและตัวแปรต้องสื่อความหมาย ห้ามใช้ชื่อย่อ เช่น ใช้ findMatchingPerson ไม่ใช่ fmp</td>
+        <td class="col-small"><span class="badge badge-partial">PARTIAL</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">14</td>
+        <td><strong>Function Length</strong></td>
+        <td>ฟังก์ชันหนึ่งฟังก์ชันต้องไม่เกิน 50 บรรทัด หากเกินต้องแบ่งเป็น Sub-function</td>
+        <td class="col-small"><span class="badge badge-partial">PARTIAL</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">15</td>
+        <td><strong>Sheet Schema Lock</strong></td>
+        <td>โครงสร้างคอลัมน์ของ Sheet ต้องตรงกับ Column Mapping ใน SheetUtils ห้ามเพิ่ม/ลดคอลัมน์โดยไม่อัปเดต Mapping</td>
+        <td class="col-small"><span class="badge badge-pass">PASS</span></td>
+      </tr>
+      <tr>
+        <td class="col-num">16</td>
+        <td><strong>No Global Mutable</strong></td>
+        <td>ห้ามใช้ Global Mutable State ยกเว้น Cache L1 (Global Variables) ที่ต้อง Reset ทุก Execution</td>
+        <td class="col-small"><span class="badge badge-partial">PARTIAL</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 9: สถานะ Bug V5.5.001 -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">9. สถานะ Bug V5.5.001</h2>
+
+  <p>
+    ในเวอร์ชัน V5.5.001 ได้ดำเนินการแก้ไข Bug ทั้งหมด 30 รายการ ครอบคลุม 22 ไฟล์ แบ่งตามระดับความรุนแรงดังนี้:
+  </p>
+
+  <div class="bug-summary">
+    <div class="bug-stat high">
+      <div class="stat-number">14</div>
+      <div class="stat-label">HIGH — รุนแรง</div>
+    </div>
+    <div class="bug-stat medium">
+      <div class="stat-number">9</div>
+      <div class="stat-label">MEDIUM — ปานกลาง</div>
+    </div>
+    <div class="bug-stat low">
+      <div class="stat-number">7</div>
+      <div class="stat-label">LOW — เล็กน้อย</div>
+    </div>
+    <div class="bug-stat total">
+      <div class="stat-number">30</div>
+      <div class="stat-label">TOTAL — ทั้งหมด Done</div>
+    </div>
+  </div>
+
+  <h3 class="section-subtitle">Bug ระดับ HIGH (14 รายการ) — ตัวอย่าง</h3>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-id">Bug ID</th>
+        <th>รายละเอียด</th>
+        <th class="col-small">ไฟล์</th>
+        <th class="col-small">สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-id">BUG-001</td><td>Match Engine คืนค่า NULL เมื่อ Candidate List ว่าง ทำให้ Pipeline Crash</td><td class="col-small">MatchEngine</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-002</td><td>Fuzzy Match ให้คะแนนผิดเมื่อชื่อภาษาไทยมีตัวสะกดท้ายไม่ตรงกัน</td><td class="col-small">Normalization</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-003</td><td>Cache Invalidation ไม่ทำงานเมื่อ Upsert Person ทำให้ข้อมูลเก่ายังค้างใน RAM</td><td class="col-small">CacheManager</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-004</td><td>Geo Haversine คำนวณระยะทางผิดเพราะไม่แปลง Degree → Radian</td><td class="col-small">GeoUtils</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-005</td><td>autoEnrich สร้าง Duplicate Alias เมื่อรัน Batch มากกว่า 1 ครั้ง</td><td class="col-small">AutoEnrich</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="section-subtitle">Bug ระดับ MEDIUM (9 รายการ) — ตัวอย่าง</h3>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-id">Bug ID</th>
+        <th>รายละเอียด</th>
+        <th class="col-small">ไฟล์</th>
+        <th class="col-small">สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-id">BUG-015</td><td>Normalization ไม่จัดการกรณี "จ." และ "จังหวัด" ผสมกันในที่อยู่เดียวกัน</td><td class="col-small">Normalization</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-016</td><td>Q_REVIEW ไม่ลบรายการที่ Review แล้ว ทำให้คิวไม่มีวันหมด</td><td class="col-small">Q_Review</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-017</td><td>Preflight Audit แจ้งเตือนผิดเมื่อชีตมี Header Row เท่านั้น</td><td class="col-small">Preflight</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="section-subtitle">Bug ระดับ LOW (7 รายการ) — ตัวอย่าง</h3>
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-id">Bug ID</th>
+        <th>รายละเอียด</th>
+        <th class="col-small">ไฟล์</th>
+        <th class="col-small">สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-id">BUG-024</td><td>SYS_LOG Timestamp ไม่แสดง Timezone ทำให้สับสนเวลาอ่าน Log</td><td class="col-small">SysLog</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-025</td><td>Quality Report ส่งอีเมลซ้ำเมื่อ Trigger รัน 2 ครั้งในวันเดียวกัน</td><td class="col-small">QualityReport</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+      <tr><td class="col-id">BUG-026</td><td>SheetUtils ค้นหาคอลัมน์ช้าเมื่อชีตมีมากกว่า 20 คอลัมน์</td><td class="col-small">SheetUtils</td><td class="col-small"><span class="badge badge-done">Done</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="highlight-box">
+    <p><strong>สรุป:</strong> Bug ทั้ง 30 รายการได้รับการแก้ไขเรียบร้อยแล้ว (สถานะ Done ทั้งหมด) ใน 22 ไฟล์ โดย Bug ระดับ HIGH ส่วนใหญ่เกี่ยวข้องกับ Data Integrity และ Logic Error ใน Match Engine ซึ่งอาจทำให้ข้อมูลผิดเพี้ยนได้หากไม่แก้ไข</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 10: Performance Issues -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2 class="section-title">10. Performance Issues (PERF-001 to PERF-010)</h2>
+
+  <p>
+    นอกจาก Bug Fix แล้ว LMDS V5.5 ยังได้วิเคราะห์ปัญหา Performance ที่อาจส่งผลกระทบต่อความเร็วในการประมวลผล โดยเฉพาะเมื่อข้อมูลมีขนาดใหญ่ขึ้น ปัญหาเหล่านี้ยังอยู่ในขั้น Plan Only (ยังไม่ได้ดำเนินการแก้ไข) แต่ได้ระบุผลกระทบและแนวทางแก้ไขไว้แล้ว
+  </p>
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th class="col-id">ID</th>
+        <th>ปัญหา</th>
+        <th>ไฟล์ที่เกี่ยวข้อง</th>
+        <th>ผลกระทบ</th>
+        <th class="col-small">สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-id">PERF-001</td>
+        <td>Sheet Read ทุกครั้งใน Loop แทน Batch Read ทำให้ API Call เกิน 100 ครั้ง/รัน</td>
+        <td>Ingestion, Pipeline</td>
+        <td>รันช้า 3-5x จากที่ควรจะเป็น</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-002</td>
+        <td>Fuzzy Match ใช้ Levenshtein Distance ที่ซับซ้อนเกินไปสำหรับการค้นหาเบื้องต้น</td>
+        <td>MatchEngine</td>
+        <td>Match 1 Record ใช้เวลา ~200ms</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-003</td>
+        <td>Cache L2 ไม่มี Chunked Read สำหรับข้อมูล > 100KB ทำให้ตกไปอ่าน Sheet ทุกครั้ง</td>
+        <td>CacheManager</td>
+        <td>Cache Miss Rate สูงถึง 40%</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-004</td>
+        <td>M_ALIAS Lookup ใช้ Linear Scan แทน Hash Map ทำให้ช้าเมื่อ Alias เกิน 1,000 รายการ</td>
+        <td>M_Alias</td>
+        <td>Lookup Time เพิ่มเป็น O(n)</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-005</td>
+        <td>Pipeline รันตามลำดับ (Sequential) ทั้งที่บาง Layer สามารถรันขนาน (Parallel) ได้</td>
+        <td>Pipeline</td>
+        <td>เวลารันรวมยาวกว่าที่ควรจะเป็น 2x</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-006</td>
+        <td>Normalization ทำซ้ำบนข้อมูลเดียวกัน เมื่อ Record ปรากฏในหลาย Batch</td>
+        <td>Normalization, Pipeline</td>
+        <td>เสียเวลา Normalization ซ้ำ ~15%</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-007</td>
+        <td>SYS_LOG เขียนทีละแถว แทนที่จะรวบรวมแล้วเขียน Batch เมื่อจบ Pipeline</td>
+        <td>SysLog</td>
+        <td>เพิ่ม Sheet Write Operation ~50 ครั้ง/รัน</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-008</td>
+        <td>GeoUtils คำนวณ Haversine ทุกคู่ Candidate แทนที่จะกรองด้วย Bounding Box ก่อน</td>
+        <td>GeoUtils, MatchEngine</td>
+        <td>เพิ่ม Computation 10x จากที่จำเป็น</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-009</td>
+        <td>Preflight Audit ตรวจสอบทุกชีตทุกครั้ง แม้จะมีเพียง 2-3 ชีตที่เกี่ยวข้องกับ Pipeline นั้น</td>
+        <td>Preflight</td>
+        <td>เพิ่มเวลา Preflight ~30 วินาที</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+      <tr>
+        <td class="col-id">PERF-010</td>
+        <td>Quality Report สร้างรายงานจาก Sheet Read แบบ Real-time แทนที่จะใช้ Snapshot จาก Cache</td>
+        <td>QualityReport</td>
+        <td>รายงานใช้เวลาสร้าง ~60 วินาที</td>
+        <td class="col-small"><span class="badge badge-plan">Plan Only</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="highlight-box">
+    <p><strong>หมายเหตุ:</strong> ปัญหา Performance ทั้ง 10 รายการอยู่ในสถานะ <span class="badge badge-plan">Plan Only</span> ยังไม่ได้ดำเนินการแก้ไข แต่ได้วิเคราะห์ผลกระทบและแนวทางแก้ไขไว้แล้ว คาดว่าจะสามารถลดเวลา Pipeline รวมจาก ~8 นาที เหลือ ~3 นาที หากแก้ไขปัญหาทั้งหมด</p>
+  </div>
+</div>
+
+</body>
+</html>

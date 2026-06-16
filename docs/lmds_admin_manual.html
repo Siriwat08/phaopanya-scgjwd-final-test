@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>LMDS V5.5 — คู่มือการใช้งานสำหรับแอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Noto+Sans:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --c-bg: #ffffff;
+    --c-text: #1a1a2e;
+    --c-muted: #6b7280;
+    --c-accent: #1e40af;
+    --c-accent-light: #dbeafe;
+    --c-border: #e5e7eb;
+    --c-header-bg: #1e3a5f;
+    --c-header-text: #ffffff;
+    --c-table-stripe: #f3f4f6;
+    --c-found: #dcfce7;
+    --c-notfound: #fee2e2;
+    --c-review: #fef3c7;
+    --c-code-bg: #f1f5f9;
+    --c-tip-bg: #eff6ff;
+    --c-tip-border: #3b82f6;
+    --c-warn-bg: #fffbeb;
+    --c-warn-border: #f59e0b;
+  }
+
+  @page {
+    size: A4;
+    margin: 20mm 18mm 20mm 18mm;
+    @bottom-center {
+      content: counter(page);
+      font-size: 9pt;
+      color: #9ca3af;
+      font-family: 'Noto Sans', 'Noto Sans Thai', sans-serif;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--c-bg);
+    font-family: 'Sarabun', 'Noto Sans Thai', 'Noto Sans', sans-serif;
+    color: var(--c-text);
+    line-height: 1.75;
+    font-size: 11pt;
+  }
+
+  /* Cover Page */
+  .cover {
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1e40af 100%);
+    color: #ffffff;
+    padding: 40px;
+  }
+  .cover-icon { font-size: 72pt; margin-bottom: 20px; }
+  .cover h1 { font-size: 28pt; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.5px; }
+  .cover h2 { font-size: 16pt; font-weight: 400; margin-bottom: 30px; color: #93c5fd; }
+  .cover-version {
+    display: inline-block;
+    border: 2px solid #60a5fa;
+    border-radius: 8px;
+    padding: 8px 24px;
+    font-size: 12pt;
+    font-weight: 600;
+    margin-bottom: 40px;
+  }
+  .cover-meta { font-size: 10pt; color: #93c5fd; margin-top: 60px; }
+  .cover-meta p { margin: 4px 0; }
+
+  /* TOC */
+  .toc { page-break-after: always; padding-top: 30px; }
+  .toc h2 { font-size: 18pt; font-weight: 700; color: var(--c-accent); margin-bottom: 20px; border-bottom: 2px solid var(--c-accent); padding-bottom: 8px; }
+  .toc-list { list-style: none; padding: 0; }
+  .toc-list li { padding: 5px 0; border-bottom: 1px dotted var(--c-border); }
+  .toc-list li a { text-decoration: none; color: var(--c-text); font-size: 11pt; }
+  .toc-list li a:hover { color: var(--c-accent); }
+  .toc-list li .toc-num { display: inline-block; width: 40px; font-weight: 600; color: var(--c-accent); }
+  .toc-list li.sub { padding-left: 30px; font-size: 10.5pt; }
+  .toc-list li.sub .toc-num { width: 50px; }
+
+  /* Headings */
+  h1 { font-size: 20pt; font-weight: 800; color: var(--c-accent); margin: 30px 0 12px; border-bottom: 3px solid var(--c-accent); padding-bottom: 6px; }
+  h2 { font-size: 15pt; font-weight: 700; color: var(--c-header-bg); margin: 24px 0 10px; border-left: 4px solid var(--c-accent); padding-left: 12px; }
+  h3 { font-size: 12pt; font-weight: 600; color: #374151; margin: 16px 0 8px; }
+
+  p { margin: 8px 0; text-align: left; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+  th { background: var(--c-header-bg); color: var(--c-header-text); padding: 8px 10px; text-align: left; font-weight: 600; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--c-border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--c-table-stripe); }
+
+  /* Code blocks */
+  code { font-family: 'Sarasa Mono SC', 'Consolas', 'Courier New', monospace; background: var(--c-code-bg); padding: 1px 5px; border-radius: 3px; font-size: 9.5pt; }
+  pre { background: var(--c-code-bg); padding: 12px; border-radius: 6px; font-size: 9pt; overflow-x: auto; margin: 10px 0; border: 1px solid var(--c-border); }
+  pre code { background: transparent; padding: 0; }
+
+  /* Callout boxes */
+  .tip { background: var(--c-tip-bg); border-left: 4px solid var(--c-tip-border); padding: 12px 16px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+  .tip::before { content: 'Tip: '; font-weight: 700; color: var(--c-tip-border); }
+  .warn { background: var(--c-warn-bg); border-left: 4px solid var(--c-warn-border); padding: 12px 16px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+  .warn::before { content: 'Warning: '; font-weight: 700; color: var(--c-warn-border); }
+  .note { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+  .note::before { content: 'Note: '; font-weight: 700; color: #22c55e; }
+
+  /* Menu items */
+  .menu-path { display: inline-block; background: #1e293b; color: #f1f5f9; padding: 3px 10px; border-radius: 4px; font-size: 9.5pt; font-family: 'Sarasa Mono SC', monospace; margin: 2px 0; }
+  .menu-path .sep { color: #64748b; margin: 0 3px; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 8.5pt; font-weight: 600; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-gray { background: #f3f4f6; color: #4b5563; }
+
+  /* Flow diagrams */
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 10px 0; font-size: 9.5pt; }
+  .flow-step { background: var(--c-accent-light); border: 1px solid #93c5fd; border-radius: 6px; padding: 5px 12px; font-weight: 500; }
+  .flow-arrow { color: var(--c-accent); font-weight: 700; }
+
+  /* Section separator */
+  .section-break { page-break-before: always; }
+
+  /* Lists */
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+
+  /* Sheet description grid */
+  .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+  .sheet-card { border: 1px solid var(--c-border); border-radius: 6px; padding: 10px; background: #fafafa; }
+  .sheet-card h4 { font-size: 10pt; font-weight: 700; color: var(--c-accent); margin-bottom: 4px; }
+  .sheet-card p { font-size: 9pt; margin: 2px 0; color: #4b5563; }
+
+  .key-value { display: grid; grid-template-columns: 160px 1fr; gap: 2px 12px; font-size: 10pt; margin: 8px 0; }
+  .key-value .k { font-weight: 600; color: #374151; }
+  .key-value .v { color: #4b5563; }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER PAGE ==================== -->
+<div class="cover">
+  <div class="cover-icon">🚚</div>
+  <h1>LMDS V5.5</h1>
+  <h2>Logistics Management Data System<br>คู่มือการใช้งานสำหรับแอดมิน</h2>
+  <div class="cover-version">Version 5.5.004</div>
+  <p style="font-size: 11pt; color: #cbd5e1; max-width: 500px; margin: 0 auto 20px;">
+    คู่มือนี้จัดทำจาก Source Code จริงทั้ง 22 ไฟล์<br>
+    เพื่อให้แอดมินเข้าใจระบบอย่างถูกต้องและครบถ้วน
+  </p>
+  <div class="cover-meta">
+    <p>จัดทำจาก: phaopanya-scgjwd Repository</p>
+    <p>แพลตฟอร์ม: Google Apps Script + Google Sheets</p>
+    <p>วันที่จัดทำ: 16 มิถุนายน 2569</p>
+  </div>
+</div>
+
+<!-- ==================== TABLE OF CONTENTS ==================== -->
+<div class="toc">
+  <h2>สารบัญ</h2>
+  <ul class="toc-list">
+    <li><span class="toc-num">1</span><a href="#ch1">ภาพรวมระบบ LMDS</a></li>
+    <li><span class="toc-num">2</span><a href="#ch2">เมนูหลักและโครงสร้างการเข้าถึง</a></li>
+    <li><span class="toc-num">3</span><a href="#ch3">กลุ่ม 1: Pipeline ล้างข้อมูล &amp; Master Data</a></li>
+    <li class="sub"><span class="toc-num">3.1</span><a href="#ch3-1">ขั้นตอนการรัน Pipeline</a></li>
+    <li class="sub"><span class="toc-num">3.2</span><a href="#ch3-2">Match Engine: การตัดสินใจจับคู่</a></li>
+    <li class="sub"><span class="toc-num">3.3</span><a href="#ch3-3">Review Queue: คิวรอตรวจสอบ</a></li>
+    <li><span class="toc-num">4</span><a href="#ch4">กลุ่ม 2: งานประจำวัน (SCG)</a></li>
+    <li class="sub"><span class="toc-num">4.1</span><a href="#ch4-1">ดึงข้อมูล SCG API</a></li>
+    <li class="sub"><span class="toc-num">4.2</span><a href="#ch4-2">จับคู่พิกัด (2-Tier Search)</a></li>
+    <li class="sub"><span class="toc-num">4.3</span><a href="#ch4-3">สรุปเจ้าของสินค้า &amp; Shipment</a></li>
+    <li><span class="toc-num">5</span><a href="#ch5">ระบบ &amp; ตั้งค่า</a></li>
+    <li class="sub"><span class="toc-num">5.1</span><a href="#ch5-1">การตั้งค่า API Key &amp; Cookie</a></li>
+    <li class="sub"><span class="toc-num">5.2</span><a href="#ch5-2">การจัดการรายชื่อ Admin</a></li>
+    <li class="sub"><span class="toc-num">5.3</span><a href="#ch5-3">Alias System &amp; Migration</a></li>
+    <li class="sub"><span class="toc-num">5.4</span><a href="#ch5-4">การป้องกันข้อมูล Sensitive</a></li>
+    <li><span class="toc-num">6</span><a href="#ch6">ชีตทั้งหมดในระบบ (20 ชีต)</a></li>
+    <li><span class="toc-num">7</span><a href="#ch7">การตรวจสอบระบบ (Audit &amp; Hardening)</a></li>
+    <li><span class="toc-num">8</span><a href="#ch8">ค่า Configuration สำคัญ</a></li>
+    <li><span class="toc-num">9</span><a href="#ch9">การจัดการ Cache</a></li>
+    <li><span class="toc-num">10</span><a href="#ch10">การแก้ปัญหาเบื้องต้น</a></li>
+    <li><span class="toc-num">A</span><a href="#app-a">ภาคผนวก: โครงสร้างไฟล์ทั้ง 22 ไฟล์</a></li>
+  </ul>
+</div>
+
+<!-- ==================== CHAPTER 1 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch1">1. ภาพรวมระบบ LMDS</h1>
+
+<p>LMDS (Logistics Management Data System) V5.5 เป็นระบบจัดการข้อมูลลอจิสติกส์ที่ทำงานบน Google Apps Script และ Google Sheets โดยมีจุดประสงค์หลักคือการรับข้อมูลการจัดส่งจาก SCG API แล้วจับคู่ชื่อปลายทาง (ShipToName) กับพิกัด GPS ที่ถูกต้อง รวมถึงสร้าง Master Data ของบุคคล สถานที่ พิกัด และจุดหมายปลายทาง เพื่อให้สามารถติดตามและวิเคราะห์การจัดส่งได้อย่างมีประสิทธิภาพ</p>
+
+<p>ระบบแบ่งออกเป็น 2 กลุ่มการทำงานหลัก ได้แก่ <strong>กลุ่ม 1: Master Data Pipeline</strong> ซึ่งรับผิดชอบการล้างข้อมูล การจับคู่ และการสร้าง Master Data และ <strong>กลุ่ม 2: Daily Operations</strong> ซึ่งรับผิดชอบการดึงข้อมูลจาก SCG API การจับคู่พิกัดสำหรับงานประจำวัน และการสร้างรายงานสรุป</p>
+
+<h2>สถาปัตยกรรมระบบ</h2>
+<p>ระบบ LMDS ประกอบด้วยไฟล์ Source Code ทั้งหมด 22 ไฟล์ แบ่งเป็น 3 กลุ่มตามโฟลเดอร์ ดังนี้:</p>
+<ul>
+  <li><strong>0_core_system/</strong> — ไฟล์แกนกลาง 6 ไฟล์: 00_App.gs (Entry Point), 01_Config.gs (Configuration), 02_Schema.gs (Schema), 03_SetupSheets.gs (Sheet Setup), 14_Utils.gs (Utilities), 19_Hardening.gs (Audit &amp; Security)</li>
+  <li><strong>1_group1_master_db/</strong> — ไฟล์กลุ่ม 1 จำนวน 9 ไฟล์: รับผิดชอบการทำงานของ Pipeline ตั้งแต่โหลดข้อมูลดิบ จนถึงจับคู่และสร้าง Master Data</li>
+  <li><strong>2_group2_daily_ops/</strong> — ไฟล์กลุ่ม 2 จำนวน 7 ไฟล์: รับผิดชอบการดึงข้อมูล SCG API จับคู่พิกัด และรายงานสรุปประจำวัน</li>
+</ul>
+
+<h2>ข้อมูลเวอร์ชัน</h2>
+<div class="key-value">
+  <span class="k">ชื่อระบบ</span><span class="v">LMDS V5.5</span>
+  <span class="k">เวอร์ชันปัจจุบัน</span><span class="v">5.5.004</span>
+  <span class="k">Schema Version</span><span class="v">5.5.004</span>
+  <span class="k">จำนวน Source Files</span><span class="v">22 ไฟล์</span>
+  <span class="k">จำนวนชีต</span><span class="v">20 ชีต</span>
+  <span class="k">จำนวน IDX Constant Sets</span><span class="v">17 ชุด</span>
+  <span class="k">แพลตฟอร์ม</span><span class="v">Google Apps Script + Google Sheets</span>
+</div>
+
+<!-- ==================== CHAPTER 2 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch2">2. เมนูหลักและโครงสร้างการเข้าถึง</h1>
+
+<p>เมนูหลักของ LMDS จะปรากฏที่แถบเมนูด้านบนของ Google Sheets ในชื่อ <strong>"LMDS V5.5"</strong> โดยจะถูกสร้างอัตโนมัติทุกครั้งที่เปิด Spreadsheet ผ่านฟังก์ชัน <code>onOpen()</code> ในไฟล์ 00_App.gs เมนูนี้เป็น Gateway เดียวสำหรับการเรียกใช้งานระบบทั้งหมด แบ่งเป็นหมวดหมู่ย่อยดังต่อไปนี้</p>
+
+<h2>เมนูระดับบนสุด</h2>
+<table>
+  <tr><th>รายการเมนู</th><th>ฟังก์ชัน</th><th>คำอธิบาย</th></tr>
+  <tr><td>Run Full Pipeline</td><td><code>runFullPipeline</code></td><td>รัน Pipeline กลุ่ม 1 ทั้งหมด (โหลด → Normalize → Match) ในครั้งเดียว</td></tr>
+  <tr><td>จับคู่พิกัดวันนี้</td><td><code>applyMasterCoordinatesToDailyJob</code></td><td>รัน Group 2: ดึงข้อมูล SCG + จับคู่พิกัด + สรุป</td></tr>
+</table>
+
+<h2>เมนูย่อย: กลุ่ม 1 ล้างข้อมูล &amp; Master</h2>
+<table>
+  <tr><th>รายการเมนู</th><th>ฟังก์ชัน</th><th>คำอธิบาย</th></tr>
+  <tr><td>รัน Full Pipeline (ทั้งหมด)</td><td><code>runFullPipeline</code></td><td>รันทั้ง 3 ขั้นตอนต่อเนื่อง</td></tr>
+  <tr><td>Step 1 — โหลดข้อมูลดิบจากแหล่ง</td><td><code>runLoadSource</code></td><td>โหลดข้อมูลจากชีต Source ที่ยังไม่ได้ประมวลผล</td></tr>
+  <tr><td>Step 2 — Normalize ชื่อ/ที่อยู่</td><td><code>runNormalize</code></td><td>ทำความสะอาดชื่อบุคคลและที่อยู่ (Thai Normalization)</td></tr>
+  <tr><td>Step 3 — Match Engine</td><td><code>runMatchEngine</code></td><td>จับคู่ข้อมูลกับ Master Data และบันทึกผล</td></tr>
+  <tr><td>เปิด Review Queue</td><td><code>openReviewQueue</code></td><td>เปิดชีต Q_REVIEW เพื่อตรวจสอบรายการที่ต้องวินิจฉัย</td></tr>
+  <tr><td>รันคำสั่งที่เลือกไว้ทั้งหมด</td><td><code>applyAllPendingDecisions</code></td><td>ดำเนินการตาม Decision ที่เลือกใน Q_REVIEW ทั้งหมด</td></tr>
+  <tr><td>รายงาน Data Quality</td><td><code>buildFullQualityReport</code></td><td>สร้างรายงานสถิติคุณภาพข้อมูล</td></tr>
+</table>
+
+<h2>เมนูย่อย: กลุ่ม 2 งานประจำวัน (SCG)</h2>
+<table>
+  <tr><th>รายการเมนู</th><th>ฟังก์ชัน</th><th>คำอธิบาย</th></tr>
+  <tr><td>ดึงข้อมูล SCG API</td><td><code>fetchDataFromSCGJWD</code></td><td>ดึงข้อมูลการจัดส่งจาก SCG JWD API มาเขียนลงตารางงานประจำวัน</td></tr>
+  <tr><td>จับคู่พิกัด</td><td><code>applyMasterCoordinatesToDailyJob</code></td><td>จับคู่ ShipToName กับพิกัด GPS ผ่าน 2-Tier Search</td></tr>
+  <tr><td>ล้างข้อมูลทั้งหมด</td><td><code>clearAllSCGSheets_UI</code></td><td>ล้างข้อมูลในชีตกลุ่ม 2 ทั้งหมด (ใช้ด้วยความระมัดระวัง)</td></tr>
+  <tr><td>ตั้งค่า SCG Cookie</td><td><code>setSCGCookie_UI</code></td><td>ตั้งค่า Cookie สำหรับเชื่อมต่อ SCG API</td></tr>
+</table>
+
+<h2>เมนูย่อย: ระบบ &amp; ตั้งค่า</h2>
+<table>
+  <tr><th>รายการเมนู</th><th>ฟังก์ชัน</th><th>คำอธิบาย</th></tr>
+  <tr><td>ตั้งค่า API Key</td><td><code>setupEnvironment</code></td><td>ตั้งค่า GEMINI_API_KEY ใน PropertiesService</td></tr>
+  <tr><td>ตั้งค่า SCG Cookie</td><td><code>setSCGCookie_UI</code></td><td>ตั้งค่า Cookie สำหรับ SCG API</td></tr>
+  <tr><td>ตั้งค่ารายชื่อ Admin</td><td><code>setupAdminList_UI</code></td><td>กำหนดอีเมลผู้มีสิทธิ์แอดมิน</td></tr>
+  <tr><td>สร้างชีตทั้งหมด</td><td><code>setupAllSheets</code></td><td>สร้างชีตที่ยังไม่มี + ตรวจ Header + Auto-Repair</td></tr>
+  <tr><td>อัปเดตฐานข้อมูลภูมิศาสตร์</td><td><code>buildGeoDictionary</code></td><td>สร้าง/อัปเดตข้อมูลจังหวัด-อำเภอ-ตำบลใน SYS_TH_GEO</td></tr>
+  <tr><td>เติมข้อมูลภูมิศาสตร์ (16 คอลัมน์)</td><td><code>populateGeoMetadata</code></td><td>เติม SearchKey, PostalKey, Norm ฯลฯ ใน SYS_TH_GEO</td></tr>
+  <tr><td>สร้าง Alias อัตโนมัติจากประวัติ</td><td><code>generatePersonAliasesFromHistory</code></td><td>วิเคราะห์ FACT_DELIVERY เพื่อสร้าง Alias ที่ยังไม่มี</td></tr>
+  <tr><td>Migration: Hybrid Alias System</td><td><code>MIGRATION_HybridAliasSystem</code></td><td>ย้ายข้อมูลจาก M_PERSON_ALIAS/M_PLACE_ALIAS → M_ALIAS (5 ขั้นตอน)</td></tr>
+  <tr><td>ตรวจสอบ Master UUID</td><td><code>assignMasterUuidIfMissing</code></td><td>ตรวจและเพิ่ม master_uuid ให้ทุกแถวใน M_PERSON/M_PLACE</td></tr>
+  <tr><td>ดึงชื่อจาก SCG ดิบ → M_ALIAS</td><td><code>populateAliasFromSCGRawData</code></td><td>ดึงชื่อปลายทางจากชีต Source ไปเขียนลง M_ALIAS</td></tr>
+  <tr><td>ป้องกันข้อมูล Sensitive</td><td><code>applySheetProtection_UI</code></td><td>ตั้ง Protected Ranges + Hidden Sheets สำหรับข้อมูล PII</td></tr>
+  <tr><td>Preflight Audit</td><td><code>runPreflightAudit</code></td><td>ตรวจสอบความพร้อมของระบบก่อนประมวลผล</td></tr>
+  <tr><td>Detect Duplicates</td><td><code>detectDoubleProcessing</code></td><td>ตรวจจับ Invoice ซ้ำใน FACT_DELIVERY</td></tr>
+  <tr><td>ตรวจสอบ System Integrity</td><td><code>checkSystemIntegrity</code></td><td>ตรวจสอบชีตที่จำเป็นมีครบไหม</td></tr>
+  <tr><td>วินิจฉัย Pipeline</td><td><code>diagnoseSystemState</code></td><td>วินิจฉัยสถานะ Pipeline ปัจจุบัน</td></tr>
+  <tr><td>รีเซ็ตสถานะ SYNC</td><td><code>resetSourceSyncStatus</code></td><td>ล้าง SYNC_STATUS เป็นว่าง เพื่อรัน Pipeline ใหม่</td></tr>
+  <tr><td>ล้างความจำระบบ (Clear Cache)</td><td><code>invalidateAllGlobalCaches</code></td><td>ล้าง RAM Cache + CacheService ทั้งหมด</td></tr>
+  <tr><td>ดู Version Info</td><td><code>showVersionInfo</code></td><td>แสดงข้อมูลเวอร์ชันของทุกโมดูล</td></tr>
+  <tr><td>ติดตั้ง Smart Navigation</td><td><code>installSmartNavTrigger</code></td><td>ติดตั้ง Installable Trigger สำหรับคลิกนำทางอัตโนมัติ</td></tr>
+</table>
+
+<!-- ==================== CHAPTER 3 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch3">3. กลุ่ม 1: Pipeline ล้างข้อมูล &amp; Master Data</h1>
+
+<p>กลุ่ม 1 เป็น Pipeline หลักของระบบที่ทำหน้าที่รับข้อมูลดิบจากชีต Source (SCG) แล้วจับคู่กับ Master Data ที่มีอยู่ หรือสร้างรายการใหม่หากไม่พบข้อมูลที่ตรงกัน กระบวนการนี้ประกอบด้วย 3 ขั้นตอนหลักที่ต้องทำตามลำดับ คือ โหลดข้อมูลดิบ → Normalize → Match Engine</p>
+
+<h2 id="ch3-1">3.1 ขั้นตอนการรัน Pipeline</h2>
+
+<p>สามารถรัน Pipeline ได้ 2 วิธี คือรันทั้งหมดในครั้งเดียว หรือรันทีละขั้นตอน การรันทีละขั้นตอนมีประโยชน์เมื่อต้องการตรวจสอบผลระหว่างขั้นตอน หรือเมื่อต้องการรันเฉพาะบางขั้นตอนที่ล้มเหลว</p>
+
+<div class="flow">
+  <span class="flow-step">Step 1: โหลดข้อมูลดิบ</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">Step 2: Normalize</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">Step 3: Match Engine</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">Review Queue</span>
+</div>
+
+<h3>Step 1: โหลดข้อมูลดิบจากแหล่ง (<code>runLoadSource</code>)</h3>
+<p>ขั้นตอนนี้จะอ่านข้อมูลจากชีต Source (SCG) และกรองเฉพาะแถวที่ยังไม่ได้ประมวลผล (SYNC_STATUS ไม่ใช่ SUCCESS และไม่ใช่ REVIEW) ระบบจะตรวจสอบ Invoice No ที่มีอยู่ใน FACT_DELIVERY แล้วข้ามแถวที่เคยประมวลผลแล้วโดยอัตโนมัติ พร้อมอัปเดต SYNC_STATUS เป็น SUCCESS ให้</p>
+
+<h3>Step 2: Normalize ชื่อ/ที่อยู่ (<code>runNormalize</code>)</h3>
+<p>ขั้นตอนนี้จะทำความสะอาดข้อมูลชื่อบุคคลและที่อยู่ผ่านโมดูล 05_NormalizeService.gs ซึ่งประกอบด้วย 7 ขั้นตอนสำหรับชื่อบุคคล ได้แก่: แยกเบอร์โทร, แยกเลขเอกสาร, แยกหมายเหตุการจัดส่ง, ตรวจชื่อบริษัท, ตัดคำนำหน้า, ลบอักขระพิเศษ และสร้างผลลัพธ์ Normalized</p>
+
+<h3>Step 3: Match Engine (<code>runMatchEngine</code>)</h3>
+<p>ขั้นตอนนี้เป็นหัวใจของ Pipeline โดยจะนำข้อมูลที่ผ่านการ Normalize แล้วไปจับคู่กับ Master Data ที่มีอยู่ ระบบจะใช้ LockService เพื่อป้องกันการรันซ้ำซ้อน และมี Time Guard จำกัดเวลาทำงานไม่เกิน 5 นาที (300,000 ms) หากเวลาใกล้หมด ระบบจะ flush ข้อมูลที่ประมวลผลแล้วและติดตั้ง Auto-Resume Trigger เพื่อรันต่อในครั้งถัดไปโดยอัตโนมัติ</p>
+
+<h2 id="ch3-2">3.2 Match Engine: การตัดสินใจจับคู่</h2>
+
+<p>Match Engine ใช้ระบบ Scoring เพื่อตัดสินใจว่าข้อมูลแต่ละรายการควรจับคู่อย่างไร โดยพิจารณาจากคะแนนความคล้ายคลึง (Confidence Score) เทียบกับค่าขีดแบ่ง (Threshold) ที่กำหนดไว้ใน AI_CONFIG ดังนี้</p>
+
+<table>
+  <tr><th>คะแนน</th><th>การตัดสินใจ</th><th>ผลลัพธ์</th></tr>
+  <tr><td>≥ 90</td><td><span class="badge badge-green">AUTO_MATCH</span></td><td>จับคู่อัตโนมัติ เขียนลง FACT_DELIVERY ทันที</td></tr>
+  <tr><td>70–89</td><td><span class="badge badge-yellow">NEEDS_REVIEW</span></td><td>ส่งเข้าคิว Q_REVIEW รอแอดมินวินิจฉัย</td></tr>
+  <tr><td>50–69</td><td><span class="badge badge-gray">IGNORE</span></td><td>ไม่พิจารณา (คะแนนต่ำเกินไป)</td></tr>
+  <tr><td>&lt; 50</td><td><span class="badge badge-red">CREATE_NEW</span></td><td>สร้างรายการใหม่ใน Master Data</td></tr>
+</table>
+
+<p>เมื่อ Match Engine ทำงานเสร็จ จะมีการเขียน Alias ใหม่ลงใน M_ALIAS โดยอัตโนมัติผ่าน <code>autoEnrichAliasesFromFactBatch_()</code> ซึ่งเป็น Single Writer สำหรับ M_ALIAS ใน Auto Pipeline (ห้ามเรียก <code>createGlobalAlias()</code> ใน Pipeline อัตโนมัติ)</p>
+
+<h2 id="ch3-3">3.3 Review Queue: คิวรอตรวจสอบ</h2>
+
+<p>เมื่อ Match Engine พบรายการที่มีคะแนน 70–89 จะถูกส่งเข้าชีต Q_REVIEW ซึ่งเป็นคิวรอให้แอดมินวินิจฉัย ระบบมี Dropdown ให้เลือก Decision ได้ 4 ตัวเลือก ดังนี้</p>
+
+<table>
+  <tr><th>Decision</th><th>คำอธิบาย</th><th>ผลลัพธ์</th></tr>
+  <tr><td><code>CREATE_NEW</code></td><td>สร้างรายการใหม่ใน Master Data</td><td>สร้าง Person/Place/Geo/Dest ใหม่ + เขียน FACT_DELIVERY</td></tr>
+  <tr><td><code>MERGE_TO_CANDIDATE</code></td><td>ผสานเข้ารายการที่มีอยู่</td><td>ใช้ Person/Place/Geo ที่ตรงกัน + เขียน FACT_DELIVERY</td></tr>
+  <tr><td><code>ESCALATE</code></td><td>ส่งต่อให้ผู้มีอำนาจสูงกว่า</td><td>เปลี่ยน Priority เป็นระดับสูง</td></tr>
+  <tr><td><code>IGNORE</code></td><td>ไม่สนใจรายการนี้</td><td>ข้ามรายการ ไม่บันทึกลง FACT_DELIVERY</td></tr>
+</table>
+
+<p>เมื่อเลือก Decision ในชีต Q_REVIEW ระบบจะผ่าน <code>onEdit()</code> trigger ประมวลผลทันที และทาสีแถวตามผลลัพธ์ นอกจากนี้ยังมีเมนู <strong>"รันคำสั่งที่เลือกไว้ทั้งหมด"</strong> (<code>applyAllPendingDecisions</code>) สำหรับดำเนินการทีเดียวหลายรายการ โดยมี Time Guard ป้องกัน Timeout เช่นเดียวกับ Match Engine</p>
+
+<div class="tip">หลังจากเลือก Decision ใน Q_REVIEW ระบบจะประมวลผลทันทีผ่าน onEdit Trigger ไม่จำเป็นต้องรันเมนูเพิ่มเติม ยกเว้นกรณีต้องการประมวลผลหลายรายการพร้อมกัน</div>
+
+<!-- ==================== CHAPTER 4 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch4">4. กลุ่ม 2: งานประจำวัน (SCG)</h1>
+
+<p>กลุ่ม 2 รับผิดชอบการดึงข้อมูลการจัดส่งจาก SCG API และจับคู่พิกัด GPS สำหรับงานประจำวัน โดยมี 18_ServiceSCG.gs เป็น Commander ที่ควบคุมขั้นตอนทั้งหมด ตั้งแต่ดึงข้อมูล จับคู่พิกัด ไปจนถึงสร้างรายงานสรุป</p>
+
+<h2 id="ch4-1">4.1 ดึงข้อมูล SCG API (<code>fetchDataFromSCGJWD</code>)</h2>
+
+<p>ขั้นตอนนี้จะดึงข้อมูลการจัดส่งจาก SCG JWD API ผ่าน URL <code>https://fsm.scgjwd.com/Monitor/SearchDelivery</code> โดยใช้ Cookie ที่เก็บใน PropertiesService หรือชีต Input (เซลล์ B1) ข้อมูลที่ได้จะถูกเขียนลงชีต "ตารางงานประจำวัน" พร้อมตรวจสอบ GPS Quality และทาสีแถวตามผลการตรวจสอบ</p>
+
+<p>ก่อนใช้งาน ต้องตั้งค่า Cookie ผ่านเมนู <strong>กลุ่ม 2 → ตั้งค่า SCG Cookie</strong> หรือ <strong>ระบบ → ตั้งค่า SCG Cookie</strong> เนื่องจาก Cookie มีอายุจำกัด หากดึงข้อมูลไม่สำเร็จ อาจต้องตั้งค่า Cookie ใหม่</p>
+
+<h2 id="ch4-2">4.2 จับคู่พิกัด — 2-Tier Search</h2>
+
+<p>ระบบค้นหาพิกัด GPS จาก ShipToName ใช้นโยบาย <strong>ShipToName-Only</strong> (ตั้งแต่ v5.4.003) ซึ่งใช้เฉพาะชื่อปลายทาง (ShipToName) เป็นฐานในการค้นหาเท่านั้น โดยไม่ใช้ ShipToAddress หรือ LatLong_SCG เนื่องจากข้อมูลเหล่านั้นไม่น่าเชื่อถือ</p>
+
+<h3>สถาปัตยกรรม 2-Tier Search</h3>
+<table>
+  <tr><th>Tier</th><th>ชื่อ</th><th>กลไก</th><th>ความเร็ว</th></tr>
+  <tr>
+    <td><span class="badge badge-green">Tier 0</span></td>
+    <td>M_ALIAS Fast Track</td>
+    <td>ShipToName → normalize → M_ALIAS reverse index → masterUuid → Dest → lat,lng</td>
+    <td>เร็วที่สุด (O(1) hash lookup)</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-blue">Tier 1</span></td>
+    <td>Person Anchor</td>
+    <td>ShipToName → resolvePerson() → getDestsByPersonId() → usage-dominant Dest</td>
+    <td>ปานกลาง (DB lookup)</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-red">NOT_FOUND</span></td>
+    <td>ไม่พบข้อมูล</td>
+    <td>เว้นว่าง LatLong_Actual — ไม่มี fallback ใดๆ</td>
+    <td>—</td>
+  </tr>
+</table>
+
+<p>เมื่อรัน <code>applyMasterCoordinatesToDailyJob</code> ระบบจะวนทุกแถวใน "ตารางงานประจำวัน" และเรียก <code>findBestGeoByPersonPlace()</code> สำหรับแต่ละ ShipToName ผลลัพธ์จะถูกเขียนลงคอลัมน์ LatLong_Actual พร้อมทาสีแถว:</p>
+<ul>
+  <li><span class="badge badge-green">เขียว</span> พบพิกัด (FOUND / FOUND_DOMINANT / FOUND_ALIAS_FAST)</li>
+  <li><span class="badge badge-red">แดง</span> ไม่พบพิกัด (NOT_FOUND)</li>
+</ul>
+
+<div class="warn">หากรันแล้วเกิด Timeout (เกิน 5 นาที) ระบบจะติดตั้ง Auto-Resume Trigger ให้รันต่อโดยอัตโนมัติ แต่หากต้องการรันเอง ให้รันเมนู "จับคู่พิกัด" อีกครั้ง — ระบบจะข้ามแถวที่มีพิกัดดีอยู่แล้ว</div>
+
+<h2 id="ch4-3">4.3 สรุปเจ้าของสินค้า &amp; Shipment</h2>
+
+<p>หลังจากจับคู่พิกัดเสร็จ ระบบจะสร้างรายงานสรุป 2 ชีตให้อัตโนมัติ:</p>
+<ul>
+  <li><strong>สรุป_เจ้าของสินค้า</strong> — สรุปจำนวน Invoice แยกตาม SoldToName (เจ้าของสินค้า) พร้อมจำนวน E-POD ที่ตรวจพบ โดยเช็คจากรายชื่อ EPOD_OWNERS: BETTERBE, SCG EXPRESS, เบทเตอร์แลนด์, JWD TRANSPORT</li>
+  <li><strong>สรุป_Shipment</strong> — สรุปจำนวน Invoice แยกตาม ShipmentNo และทะเบียนรถ พร้อมจำนวน E-POD</li>
+</ul>
+
+<!-- ==================== CHAPTER 5 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch5">5. ระบบ &amp; ตั้งค่า</h1>
+
+<h2 id="ch5-1">5.1 การตั้งค่า API Key &amp; Cookie</h2>
+
+<h3>Gemini API Key (<code>setupEnvironment</code>)</h3>
+<p>ระบบใช้ Gemini API (รุ่น gemini-1.5-flash) สำหรับการวิเคราะห์ข้อมูล แม้ว่าปัจจุบัน AI Reasoning ถูกปิดใช้งาน (<code>AI_CONFIG.USE_AI_REASONING = false</code>) แต่ยังคงต้องตั้งค่า API Key เพื่อให้ระบบผ่านการตรวจสอบ Preflight Audit คีย์จะถูกเก็บใน Script Properties ผ่าน <code>PropertiesService.getScriptProperties()</code> โดยตรวจสอบรูปแบบว่าขึ้นต้นด้วย <code>AIza</code> และมีความยาว 35 ตัวอักษร</p>
+
+<h3>SCG Cookie (<code>setSCGCookie_UI</code>)</h3>
+<p>Cookie สำหรับเชื่อมต่อ SCG API จะถูกเก็บใน Script Properties ผ่านคีย์ <code>SCG_COOKIE</code> (แนะนำ) หรือในเซลล์ B1 ของชีต Input (วิธีเก่า) หากใช้วิธีเก่า ระบบจะอ่านจากเซลล์ B1 แล้วย้ายไปเก็บใน PropertiesService ให้อัตโนมัติ Cookie มีอายุจำกัด หากดึงข้อมูล SCG ไม่สำเร็จ ให้ตั้งค่า Cookie ใหม่</p>
+
+<h2 id="ch5-2">5.2 การจัดการรายชื่อ Admin (<code>setupAdminList_UI</code>)</h2>
+
+<p>ระบบมี Authorization Guard ที่ตรวจสอบสิทธิ์ผู้ใช้ผ่านฟังก์ชัน <code>isAuthorizedUser_()</code> ก่อนให้รันฟังก์ชันที่สำคัญ เช่น setupAllSheets, generatePersonAliasesFromHistory, applySheetProtection_UI รายชื่อ Admin จะถูกเก็บใน Script Properties ผ่านคีย์ <code>ADMIN_EMAILS</code> เป็น comma-separated string</p>
+
+<h2 id="ch5-3">5.3 Alias System &amp; Migration</h2>
+
+<p>ระบบ LMDS V5.5 ใช้ Hybrid Alias Architecture ที่มี M_ALIAS เป็นตารางกลางสำหรับเชื่อมโยงชื่อสกปรก/ย่อ/ผิดไปยัง master_uuid ซึ่งสามารถแปลงเป็น Entity ID (personId/placeId) แล้วค้นหาพิกัดได้ เป็น Single Source of Truth สำหรับ Alias Resolution ที่ Group 2 ใช้ค้นหา</p>
+
+<div class="warn">Auto Pipeline เขียน M_ALIAS ที่ autoEnrichAliasesFromFactBatch_() เท่านั้น ห้ามเรียก createGlobalAlias() ใน Pipeline อัตโนมัติ — ฟังก์ชันนี้ใช้สำหรับ Migration/Admin เท่านั้น</div>
+
+<h3>Migration: Hybrid Alias System (<code>MIGRATION_HybridAliasSystem</code>)</h3>
+<p>การ Migration แบ่งเป็น 5 ขั้นตอน ดังนี้:</p>
+<ol>
+  <li>ตรวจสอบและเพิ่ม master_uuid ให้ M_PERSON และ M_PLACE</li>
+  <li>ย้ายข้อมูลจาก M_PERSON_ALIAS → M_ALIAS</li>
+  <li>ย้ายข้อมูลจาก M_PLACE_ALIAS → M_ALIAS</li>
+  <li>เพิ่ม Canonical Name ของ Person และ Place เข้า M_ALIAS</li>
+  <li>ดึงชื่อจาก FACT_DELIVERY → M_ALIAS</li>
+</ol>
+<p>ระบบมี Checkpoint Resume ผ่าน PropertiesService ทำให้หาก Migration หยุดกลางคัน สามารถรันต่อจากขั้นตอนที่ค้างไว้ได้</p>
+
+<h2 id="ch5-4">5.4 การป้องกันข้อมูล Sensitive (<code>applySheetProtection_UI</code>)</h2>
+
+<p>ฟังก์ชันนี้จะตั้งค่า Protected Ranges และ Hidden Sheets สำหรับข้อมูลที่มี PII (Personally Identifiable Information) ดังนี้:</p>
+<table>
+  <tr><th>ชีต</th><th>การป้องกัน</th><th>เหตุผล</th></tr>
+  <tr><td>ข้อมูลพนักงาน</td><td>Protected + Hidden</td><td>เลขบัตรประชาชน, เบอร์โทร</td></tr>
+  <tr><td>SCGนครหลวงJWDภูมิภาค</td><td>Protected + Hidden</td><td>ที่อยู่, Email, ชื่อลูกค้า</td></tr>
+  <tr><td>M_PERSON</td><td>Protected (ไม่ซ่อน)</td><td>ข้อมูลบุคคล (เบอร์โทร)</td></tr>
+  <tr><td>M_GEO_POINT</td><td>Protected (ไม่ซ่อน)</td><td>ข้อมูลพิกัด — เฉพาะ Script เท่านั้นที่เขียน</td></tr>
+</table>
+<p>เฉพาะ Script Owner / Admin เท่านั้นที่สามารถแก้ไขชีตเหล่านี้ได้</p>
+
+<!-- ==================== CHAPTER 6 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch6">6. ชีตทั้งหมดในระบบ (20 ชีต)</h1>
+
+<p>ระบบ LMDS V5.5 ใช้ชีตทั้งหมด 20 ชีต แบ่งเป็น 3 กลุ่ม ดังตารางต่อไปนี้</p>
+
+<h2>กลุ่ม 1: Master Data</h2>
+<table>
+  <tr><th>ชื่อชีต</th><th>คอลัมน์</th><th>คำอธิบาย</th></tr>
+  <tr><td><code>M_PERSON</code></td><td>10</td><td>ตารางหลักบุคคล — person_id, canonical_name, normalized_name, phone, first_seen, last_seen, usage_count, record_status, note, master_uuid</td></tr>
+  <tr><td><code>M_PERSON_ALIAS</code></td><td>6</td><td>ชื่อแทนบุคคล — alias_id, person_id, alias_name, match_score, created_at, active_flag</td></tr>
+  <tr><td><code>M_PLACE</code></td><td>14</td><td>ตารางหลักสถานที่ — place_id, canonical_name, ..., province, postcode, master_uuid</td></tr>
+  <tr><td><code>M_PLACE_ALIAS</code></td><td>6</td><td>ชื่อแทนสถานที่ — alias_id, place_id, alias_name, match_score, created_at, active_flag</td></tr>
+  <tr><td><code>M_ALIAS</code></td><td>8</td><td>ตารางกลาง Alias — alias_id, master_uuid, variant_name, entity_type, confidence, source, created_at, active_flag (Single Writer = autoEnrich)</td></tr>
+  <tr><td><code>M_GEO_POINT</code></td><td>14</td><td>พิกัด GPS — geo_id, lat, lng, radius_m, resolved_address, province, district, source, confidence, ..., extraction_method</td></tr>
+  <tr><td><code>M_DESTINATION</code></td><td>11</td><td>จุดหมายปลายทาง — dest_id, person_id, place_id, geo_id, lat, lng, route_label, delivery_date, usage_count, last_seen, record_status</td></tr>
+  <tr><td><code>FACT_DELIVERY</code></td><td>32</td><td>ประวัติการจัดส่ง — tx_id, source info, delivery info, match result, resolved_lat/lng, evidence</td></tr>
+  <tr><td><code>Q_REVIEW</code></td><td>22</td><td>คิวรอตรวจสอบ — review_id, issue_type, priority, raw data, candidates, match_score, recommend, status, decision</td></tr>
+  <tr><td><code>RPT_DATA_QUALITY</code></td><td>8</td><td>รายงานคุณภาพข้อมูล — report_date, total_records, auto_matched, reviewed, created_new, failed, match_rate, notes</td></tr>
+  <tr><td><code>MAPS_CACHE</code></td><td>10</td><td>แคช Geocoding — cache_key, address_input, lat, lng, resolved_address, source, created_at, hit_count, province, district</td></tr>
+</table>
+
+<h2>กลุ่ม 2: Daily Ops</h2>
+<table>
+  <tr><th>ชื่อชีต</th><th>คอลัมน์</th><th>คำอธิบาย</th></tr>
+  <tr><td><code>ตารางงานประจำวัน</code></td><td>29</td><td>ข้อมูลงานประจำวันจาก SCG API — InvoiceNo, ShipmentNo, ShipToName, LatLong_Actual, ShopKey ฯลฯ</td></tr>
+  <tr><td><code>Input</code></td><td>2</td><td>ฟอร์มแนวตั้ง — A1=COOKIE, A3=ShipmentNos (ไม่มี frozen rows)</td></tr>
+  <tr><td><code>ข้อมูลพนักงาน</code></td><td>8</td><td>ข้อมูลพนักงาน — ID, ชื่อ, เบอร์โทร, เลขบัตร, ทะเบียนรถ, ประเภทรถ, Email, ROLE</td></tr>
+  <tr><td><code>สรุป_เจ้าของสินค้า</code></td><td>6</td><td>สรุปตามเจ้าของสินค้า — SummaryKey, SoldToName, จำนวน, E-POD, LastUpdated</td></tr>
+  <tr><td><code>สรุป_Shipment</code></td><td>7</td><td>สรุปตาม Shipment — ShipmentKey, ShipmentNo, TruckLicense, จำนวน, E-POD, LastUpdated</td></tr>
+</table>
+
+<h2>ระบบ (System)</h2>
+<table>
+  <tr><th>ชื่อชีต</th><th>คอลัมน์</th><th>คำอธิบาย</th></tr>
+  <tr><td><code>SCGนครหลวงJWDภูมิภาค</code></td><td>37</td><td>ข้อมูลต้นทางจาก SCG — ข้อมูลการจัดส่งดิบทั้งหมด รวม SYNC_STATUS</td></tr>
+  <tr><td><code>SYS_CONFIG</code></td><td>4</td><td>ค่า Config ของระบบ — config_key, config_value, description, updated_at</td></tr>
+  <tr><td><code>SYS_LOG</code></td><td>6</td><td>Log ของระบบ — log_id, timestamp, module, level, message, details (เก็บ 5,000 แถวล่าสุด)</td></tr>
+  <tr><td><code>SYS_TH_GEO</code></td><td>16</td><td>ฐานข้อมูลภูมิศาสตร์ไทย — รหัสไปรษณีย์, ตำบล, อำเภอ, จังหวัด, search_key, postal_key ฯลฯ</td></tr>
+</table>
+
+<!-- ==================== CHAPTER 7 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch7">7. การตรวจสอบระบบ (Audit &amp; Hardening)</h1>
+
+<p>ระบบ LMDS มีเครื่องมือตรวจสอบหลายตัวสำหรับแอดมินใช้ตรวจสอบความพร้อมและคุณภาพของข้อมูล</p>
+
+<h2>Preflight Audit (<code>runPreflightAudit</code>)</h2>
+<p>ตรวจสอบความพร้อมของระบบก่อนรัน Pipeline โดยตรวจสอบ:</p>
+<ul>
+  <li>ชีตทั้งหมดมีอยู่ครบไหม (ตรวจจากรายการ SHEET ทั้งหมด)</li>
+  <li>จำนวนคอลัมน์ในแต่ละชีตตรงกับ Schema ไหม</li>
+  <li>GEMINI_API_KEY ตั้งค่าแล้วหรือยัง</li>
+  <li>มีแถวที่ไม่มี SYNC_STATUS ใน Source กี่แถว</li>
+</ul>
+<p>ผลลัพธ์จะแสดงเป็นรายการ หากทุกอย่างปกติจะแสดง "ระบบพร้อมทำงาน 100%"</p>
+
+<h2>Detect Duplicates (<code>detectDoubleProcessing</code>)</h2>
+<p>ตรวจจับ Invoice ซ้ำใน FACT_DELIVERY โดย Normalize Invoice No แล้วนับจำนวนที่ปรากฏ หากพบ Invoice ซ้ำ จะแสดงรายการพร้อมจำนวนครั้งที่ซ้ำ (แสดงสูงสุด 10 รายการ)</p>
+
+<h2>System Integrity (<code>checkSystemIntegrity</code>)</h2>
+<p>ตรวจสอบว่าชีตที่จำเป็นทั้งหมดมีอยู่ใน Spreadsheet หรือไม่ รวมถึงชีต M_ALIAS และ M_PLACE_ALIAS ที่เพิ่มเข้ามาใน v5.4</p>
+
+<h2>Diagnostic (<code>diagnoseSystemState</code>)</h2>
+<p>วินิจฉัยสถานะ Pipeline ปัจจุบัน โดยแสดงข้อมูลสถิติจากหลายแหล่ง เช่น จำนวนแถวที่ประมวลผลแล้ว จำนวนที่รอ Review จำนวนที่ยังไม่ได้ประมวลผล</p>
+
+<h2>Fix Missing Sync Status (<code>fixMissingSyncStatus</code>)</h2>
+<p>ซ่อมแซมแถวในชีต Source ที่ไม่มี SYNC_STATUS โดยเติมค่า 'PENDING' ให้อัตโนมัติ ฟังก์ชันนี้ถูกเรียกผ่านระบบ ไม่มีเมนูโดยตรง แต่สามารถเรียกจาก Script Editor ได้</p>
+
+<!-- ==================== CHAPTER 8 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch8">8. ค่า Configuration สำคัญ</h1>
+
+<p>ค่า Configuration ทั้งหมดถูกกำหนดในไฟล์ 01_Config.gs เป็น Single Source of Truth ดังต่อไปนี้</p>
+
+<h2>AI &amp; Matching Config (AI_CONFIG)</h2>
+<table>
+  <tr><th>คีย์</th><th>ค่า</th><th>คำอธิบาย</th></tr>
+  <tr><td>THRESHOLD_AUTO</td><td>90</td><td>Score ≥ 90 → จับคู่อัตโนมัติ (AUTO_MATCH)</td></tr>
+  <tr><td>THRESHOLD_REVIEW</td><td>70</td><td>Score 70–89 → ส่ง Review Queue (NEEDS_REVIEW)</td></tr>
+  <tr><td>THRESHOLD_IGNORE</td><td>50</td><td>Score &lt; 50 → ไม่พิจารณา</td></tr>
+  <tr><td>SCORE_MIN_THRESHOLD</td><td>60</td><td>Min score สำหรับ Person matching</td></tr>
+  <tr><td>PLACE_SCORE_MIN</td><td>55</td><td>Min score สำหรับ Place matching</td></tr>
+  <tr><td>MODEL</td><td>gemini-1.5-flash</td><td>รุ่น Gemini API ที่ใช้</td></tr>
+  <tr><td>BATCH_SIZE</td><td>20</td><td>จำนวน record ต่อ Batch</td></tr>
+  <tr><td>CACHE_TTL_SEC</td><td>21600</td><td>อายุ Cache (6 ชั่วโมง)</td></tr>
+  <tr><td>GEO_RADIUS_M</td><td>50</td><td>รัศมีค้นหา Geo Point (50 เมตร)</td></tr>
+  <tr><td>USE_AI_REASONING</td><td>false</td><td>ปิด AI Reasoning (ไม่เหมาะ production)</td></tr>
+  <tr><td>TIME_LIMIT_MS</td><td>300000</td><td>จำกัดเวลาทำงาน (5 นาที)</td></tr>
+</table>
+
+<h2>SCG Config (SCG_CONFIG)</h2>
+<table>
+  <tr><th>คีย์</th><th>ค่า</th><th>คำอธิบาย</th></tr>
+  <tr><td>API_URL</td><td>https://fsm.scgjwd.com/Monitor/SearchDelivery</td><td>SCG API Endpoint (fallback จาก PropertiesService)</td></tr>
+  <tr><td>INPUT_START_ROW</td><td>4</td><td>แถวเริ่มต้นของ Shipment No ในชีต Input</td></tr>
+  <tr><td>COOKIE_CELL</td><td>B1</td><td>ตำแหน่ง Cookie ในชีต Input (DEPRECATED — ใช้ PropertiesService)</td></tr>
+  <tr><td>GPS_THRESHOLD_METERS</td><td>50</td><td>รัศมี GPS ที่ยอมรับ (50 เมตร)</td></tr>
+  <tr><td>SYNC_DONE_VALUE</td><td>SUCCESS</td><td>ค่า SYNC_STATUS ที่ถือว่าประมวลผลแล้ว</td></tr>
+  <tr><td>EPOD_OWNERS</td><td>[BETTERBE, SCG EXPRESS, ...]</td><td>รายชื่อเจ้าของสินค้าที่ใช้ E-POD</td></tr>
+</table>
+
+<h2>App Constants (APP_CONST)</h2>
+<table>
+  <tr><th>คีย์</th><th>ค่า</th><th>คำอธิบาย</th></tr>
+  <tr><td>STATUS_ACTIVE</td><td>Active</td><td>สถานะแถวที่ใช้งานอยู่</td></tr>
+  <tr><td>STATUS_ARCHIVED</td><td>Archived</td><td>สถานะแถวที่เก็บถาวร</td></tr>
+  <tr><td>STATUS_MERGED</td><td>Merged</td><td>สถานะแถวที่ถูกผสาน</td></tr>
+  <tr><td>COLOR_FOUND</td><td>#b6d7a8</td><td>สีเขียว — พบพิกัด</td></tr>
+  <tr><td>COLOR_NOT_FOUND</td><td>#f4cccc</td><td>สีแดง — ไม่พบพิกัด</td></tr>
+  <tr><td>COLOR_FALLBACK</td><td>#ffe599</td><td>สีเหลือง — Fallback</td></tr>
+  <tr><td>COLOR_BRANCH</td><td>#cfe2f3</td><td>สีฟ้า — Branch</td></tr>
+  <tr><td>MAX_RETRIES</td><td>3</td><td>จำนวนครั้งลองใหม่สูงสุด</td></tr>
+  <tr><td>PIPELINE_BATCH</td><td>50</td><td>จำนวนแถวต่อ Batch ใน Pipeline</td></tr>
+</table>
+
+<!-- ==================== CHAPTER 9 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch9">9. การจัดการ Cache</h1>
+
+<p>ระบบ LMDS ใช้ Cache 3 ชั้นเพื่อเพิ่มความเร็วในการทำงาน โดยแต่ละชั้นมีคุณสมบัติแตกต่างกัน</p>
+
+<h2>ชั้นที่ 1: RAM Cache (ใน Execution)</h2>
+<p>เป็น Cache ที่เก็บในหน่วยความจำระหว่างการทำงานของ Script Execution เดียวกัน มีความเร็วสูงสุด แต่จะหายไปเมื่อ Execution จบ ตัวแปรหลักได้แก่:</p>
+<ul>
+  <li><code>_SOURCE_ROWS_RAM_CACHE</code> — แคชข้อมูล Source rows</li>
+  <li><code>_MAPS_SHEET_CACHE</code> — แคชข้อมูล MAPS_CACHE sheet</li>
+  <li><code>_GLOBAL_GEO_DICT_CACHE</code> — แคชฐานข้อมูลภูมิศาสตร์</li>
+  <li><code>_GLOBAL_GEO_DICT_CACHE_PLACE</code> — แคชข้อมูล Place ภูมิศาสตร์</li>
+  <li><code>_GLOBAL_GEO_POINTS_CACHE</code> — แคช Geo Points</li>
+  <li><code>_FACT_INVOICE_RAM_CACHE</code> — แคช Invoice lookup</li>
+  <li><code>_GEO_LATLNG_RAM_CACHE</code> — แคชพิกัด lat/lng</li>
+  <li><code>_ALIAS_ENRICHMENT_CONTEXT</code> — แคช Alias enrichment</li>
+</ul>
+
+<h2>ชั้นที่ 2: CacheService (Google Cache)</h2>
+<p>เป็น Cache ที่เก็บใน Google CacheService มีอายุสูงสุด 6 ชั่วโมง (21,600 วินาที) และมีขนาดจำกัด 100 KB ต่อคีย์ ระบบใช้ Chunked Cache Pattern เพื่อรองรับข้อมูลที่เกิน 100 KB โดยแบ่งเป็นก้อนละ 200 รายการ</p>
+
+<h2>ชั้นที่ 3: Sheet Cache (Google Sheets)</h2>
+<p>เป็น Cache ที่เก็บในชีต MAPS_CACHE สำหรับผลลัพธ์ Geocoding เป็น Persistent Storage ที่ไม่หายไป เมื่อ RAM Cache และ CacheService ไม่มีข้อมูล ระบบจะอ่านจากชีตแทน</p>
+
+<h2>การล้าง Cache</h2>
+<p>เมนู <strong>"ล้างความจำระบบ (Clear Cache)"</strong> (<code>invalidateAllGlobalCaches</code>) จะล้าง RAM Cache ทั้งหมด รวมถึงเรียก <code>invalidatePersonCache_()</code>, <code>invalidatePlaceCache_()</code>, <code>invalidateGeoCache_()</code> จากโมดูลอื่นๆ ด้วย</p>
+
+<div class="tip">ควรล้าง Cache เมื่อ: (1) แก้ไขข้อมูลในชีตโดยตรง, (2) รัน Pipeline ซ้ำหลังจากแก้ไข Master Data, (3) พบว่าข้อมูลที่แสดงไม่ตรงกับข้อมูลจริงในชีต</div>
+
+<!-- ==================== CHAPTER 10 ==================== -->
+<div class="section-break"></div>
+<h1 id="ch10">10. การแก้ปัญหาเบื้องต้น</h1>
+
+<h2>Pipeline รันไม่ผ่าน / Timeout</h2>
+<p>หาก Pipeline รันไม่ผ่าน อาจเกิดจาก Time Limit (5 นาที) ระบบจะติดตั้ง Auto-Resume Trigger ให้อัตโนมัติ แต่หากต้องการรันเอง:</p>
+<ol>
+  <li>รันเมนู <strong>"ล้างความจำระบบ"</strong> เพื่อล้าง Cache เก่า</li>
+  <li>รันเมนู <strong>"Step 3 — Match Engine"</strong> อีกครั้ง — ระบบจะข้ามแถวที่ประมวลผลแล้วอัตโนมัติ</li>
+  <li>หากยังไม่ผ่าน ให้ตรวจสอบ SYS_LOG เพื่อดู Error message</li>
+</ol>
+
+<h2>จับคู่พิกัดไม่เจอ (สีแดงเยอะ)</h2>
+<p>หากจับคู่พิกัดในตารางงานประจำวันได้ผล NOT_FOUND เยอะ:</p>
+<ol>
+  <li>ตรวจสอบว่า Alias ถูกสร้างครบไหม — รัน <strong>"สร้าง Alias อัตโนมัติจากประวัติ"</strong></li>
+  <li>ตรวจสอบ M_PERSON ว่ามีชื่อปลายทางอยู่ครบไหม</li>
+  <li>รัน <strong>"Migration: Hybrid Alias System"</strong> หากยังไม่เคยรัน</li>
+  <li>รัน <strong>"ดึงชื่อจาก SCG ดิบ → M_ALIAS"</strong> เพื่อเพิ่ม Alias จากข้อมูล SCG</li>
+</ol>
+
+<h2>ดึงข้อมูล SCG API ไม่สำเร็จ</h2>
+<p>หากดึงข้อมูล SCG ไม่สำเร็จ อาจเกิดจาก Cookie หมดอายุ:</p>
+<ol>
+  <li>เปิดเบราว์เซอร์และล็อกอิน SCG JWD Portal</li>
+  <li>คัดลอก Cookie จาก DevTools (Network → Request Headers → Cookie)</li>
+  <li>รันเมนู <strong>"ตั้งค่า SCG Cookie"</strong> แล้ววาง Cookie ใหม่</li>
+  <li>ลองดึงข้อมูลอีกครั้ง</li>
+</ol>
+
+<h2>ข้อมูลซ้ำใน FACT_DELIVERY</h2>
+<p>หากสงสัยว่ามีข้อมูลซ้ำ:</p>
+<ol>
+  <li>รันเมนู <strong>"Detect Duplicates"</strong> เพื่อตรวจสอบ</li>
+  <li>หากพบ Invoice ซ้ำ ให้ตรวจสอบแถวที่ซ้ำและลบรายการที่ไม่ถูกต้อง</li>
+  <li>รัน <strong>"รีเซ็ตสถานะ SYNC"</strong> เฉพาะเมื่อต้องการให้ระบบประมวลผลใหม่ทั้งหมด (ใช้ด้วยความระมัดระวัง)</li>
+</ol>
+
+<h2>ชีตหาย / Header ผิด</h2>
+<p>หากชีตหายไปหรือ Header ไม่ตรงกับ Schema:</p>
+<ol>
+  <li>รันเมนู <strong>"สร้างชีตทั้งหมด"</strong> — ระบบจะสร้างชีตที่หายไปและ Auto-Repair Header ที่ขาดหาย</li>
+  <li>คอลัมน์ที่ถูกเพิ่มโดย Auto-Repair จะมีสีแดงอ่อนเพื่อให้สังเกตได้ง่าย</li>
+</ol>
+
+<h2>Smart Navigation ไม่ทำงาน</h2>
+<p>Smart Navigation ใช้ Installable Trigger (ไม่ใช่ Simple Trigger) เพื่อให้มีสิทธิ์เรียก UI ได้ หากไม่ทำงาน:</p>
+<ol>
+  <li>รันเมนู <strong>"ติดตั้ง Smart Navigation"</strong> อีกครั้ง</li>
+  <li>ระบบจะลบ Trigger เก่าก่อนแล้วติดตั้งใหม่</li>
+</ol>
+
+<!-- ==================== APPENDIX A ==================== -->
+<div class="section-break"></div>
+<h1 id="app-a">ภาคผนวก: โครงสร้างไฟล์ทั้ง 22 ไฟล์</h1>
+
+<table>
+  <tr><th>#</th><th>ไฟล์</th><th>กลุ่ม</th><th>หน้าที่หลัก</th></tr>
+  <tr><td>00</td><td>App.gs</td><td>Core</td><td>Entry Point, Menu Controller, onEdit/onOpen Triggers, Smart Navigation</td></tr>
+  <tr><td>01</td><td>Config.gs</td><td>Core</td><td>Configuration Hub — SHEET{}, IDX{}, AI_CONFIG, SCG_CONFIG, APP_CONST</td></tr>
+  <tr><td>02</td><td>Schema.gs</td><td>Core</td><td>Schema Definitions — SCHEMA{}, validateSheetHeaders(), validateSchemaConsistency()</td></tr>
+  <tr><td>03</td><td>SetupSheets.gs</td><td>Core</td><td>Sheet Setup — setupAllSheets(), createSheetIfMissing_(), Logging Functions</td></tr>
+  <tr><td>04</td><td>SourceRepository.gs</td><td>Group 2</td><td>Source Data Hub — runLoadSource(), getAllSourceRows(), getUnprocessedRows()</td></tr>
+  <tr><td>05</td><td>NormalizeService.gs</td><td>Group 1</td><td>Thai Name Normalization — normalizePersonNameFull(), normalizePlaceName()</td></tr>
+  <tr><td>06</td><td>PersonService.gs</td><td>Group 1</td><td>Person CRUD — resolvePerson(), createPerson(), loadAllPersons_()</td></tr>
+  <tr><td>07</td><td>PlaceService.gs</td><td>Group 1</td><td>Place CRUD — resolvePlace(), createPlace(), loadAllPlaces_()</td></tr>
+  <tr><td>08</td><td>GeoService.gs</td><td>Group 1</td><td>Geo Operations — resolveGeo(), createGeoPoint(), loadAllGeos_()</td></tr>
+  <tr><td>09</td><td>DestinationService.gs</td><td>Group 1</td><td>Destination CRUD — resolveDestination(), createDestination(), getDestsByPersonId()</td></tr>
+  <tr><td>10</td><td>MatchEngine.gs</td><td>Group 1</td><td>Pipeline Core — runMatchEngine(), processOneRow(), makeMatchDecision(), M_ALIAS Single Writer</td></tr>
+  <tr><td>11</td><td>TransactionService.gs</td><td>Group 1</td><td>FACT_DELIVERY Writer — upsertFactDelivery(), findFactRowByInvoice_()</td></tr>
+  <tr><td>12</td><td>ReviewService.gs</td><td>Group 1</td><td>Review Queue — enqueueReview(), applyReviewDecision(), getReviewStats()</td></tr>
+  <tr><td>13</td><td>ReportService.gs</td><td>Group 1</td><td>Data Quality Report — buildFullQualityReport(), collectSystemStats_()</td></tr>
+  <tr><td>14</td><td>Utils.gs</td><td>Core</td><td>Utility Functions — generateShortId(), diceCoefficient(), parseLatLng(), safeUiAlert_()</td></tr>
+  <tr><td>15</td><td>GoogleMapsAPI.gs</td><td>Group 2</td><td>Maps Service — geocodeAddress(), reverseGeocode(), 3-Layer Cache</td></tr>
+  <tr><td>16</td><td>GeoDictionaryBuilder.gs</td><td>Group 1</td><td>Geo Dictionary — buildGeoDictionary(), populateGeoMetadata()</td></tr>
+  <tr><td>17</td><td>SearchService.gs</td><td>Group 2</td><td>Search Bridge — findBestGeoByPersonPlace(), runLookupEnrichment(), 2-Tier Search</td></tr>
+  <tr><td>18</td><td>ServiceSCG.gs</td><td>Group 2</td><td>SCG Commander — fetchDataFromSCGJWD(), applyMasterCoordinatesToDailyJob(), Summary Reports</td></tr>
+  <tr><td>19</td><td>Hardening.gs</td><td>Core</td><td>Audit &amp; Security — runPreflightAudit(), detectDoubleProcessing(), applySheetProtection_UI()</td></tr>
+  <tr><td>20</td><td>ThGeoService.gs</td><td>Group 1</td><td>Thai Geo Extraction — extractProvince_(), extractDistrict_()</td></tr>
+  <tr><td>21</td><td>AliasService.gs</td><td>Group 1</td><td>Hybrid Alias — fastLookupByShipToName(), MIGRATION_HybridAliasSystem(), UUID Converters</td></tr>
+</table>
+
+</body>
+</html>

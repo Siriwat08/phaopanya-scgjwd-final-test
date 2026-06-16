@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMDS V5.5 Architecture Mind Map</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+    background: #0c1222;
+    color: #e2e8f0;
+    overflow: hidden;
+    width: 3600px;
+    height: 2600px;
+  }
+
+  .mindmap {
+    position: relative;
+    width: 3600px;
+    height: 2600px;
+  }
+
+  /* ===== BACKGROUND ===== */
+  .bg-dots {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(100, 116, 139, 0.08) 1px, transparent 0);
+    background-size: 32px 32px;
+    z-index: 0;
+  }
+
+  .bg-radial-1 {
+    position: absolute;
+    width: 800px; height: 800px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.07) 0%, transparent 70%);
+    left: 42%; top: 35%;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+  }
+
+  .bg-radial-2 {
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+    left: 25%; top: 60%;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+  }
+
+  .bg-radial-3 {
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.05) 0%, transparent 70%);
+    left: 75%; top: 45%;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+  }
+
+  /* ===== SVG CONNECTORS ===== */
+  .svg-connectors {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* ===== ROOT NODE ===== */
+  .root-node {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 100;
+    text-align: center;
+  }
+
+  .root-box {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 35%, #a855f7 65%, #c084fc 100%);
+    padding: 30px 64px;
+    border-radius: 22px;
+    box-shadow:
+      0 0 80px rgba(139, 92, 246, 0.4),
+      0 0 40px rgba(139, 92, 246, 0.2),
+      0 10px 40px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+    border: 1.5px solid rgba(255,255,255,0.12);
+    position: relative;
+  }
+
+  .root-title {
+    font-size: 36px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -1px;
+    line-height: 1.2;
+  }
+
+  .root-subtitle {
+    font-size: 15px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.75);
+    margin-top: 6px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .root-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 3px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    margin-top: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ===== BRANCH COLUMNS ===== */
+  .col-left {
+    position: absolute;
+    left: 60px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    z-index: 10;
+    width: 720px;
+  }
+
+  .col-right {
+    position: absolute;
+    right: 60px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    z-index: 10;
+    width: 720px;
+  }
+
+  /* ===== BRANCH GROUP ===== */
+  .branch {
+    position: relative;
+  }
+
+  /* ===== BRANCH HEADER ===== */
+  .b-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    border-radius: 14px;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    position: relative;
+    z-index: 10;
+    border: 1.5px solid;
+    backdrop-filter: blur(10px);
+    width: fit-content;
+  }
+
+  .col-left .b-header {
+    margin-left: auto;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+  }
+
+  .col-right .b-header {
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+  }
+
+  .b-header .ico { font-size: 20px; line-height: 1; }
+
+  /* ===== COLOR THEMES ===== */
+  .c-blue .b-header { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.4); color: #93c5fd; }
+  .c-blue .leaf { border-color: rgba(59,130,246,0.25); }
+  .c-blue .leaf:hover { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.45); }
+  .c-blue .leaf-bar { background: #3b82f6; }
+
+  .c-purple .b-header { background: rgba(168,85,247,0.12); border-color: rgba(168,85,247,0.4); color: #d8b4fe; }
+  .c-purple .leaf { border-color: rgba(168,85,247,0.25); }
+  .c-purple .leaf:hover { background: rgba(168,85,247,0.08); border-color: rgba(168,85,247,0.45); }
+  .c-purple .leaf-bar { background: #a855f7; }
+
+  .c-teal .b-header { background: rgba(20,184,166,0.12); border-color: rgba(20,184,166,0.4); color: #5eead4; }
+  .c-teal .leaf { border-color: rgba(20,184,166,0.25); }
+  .c-teal .leaf:hover { background: rgba(20,184,166,0.08); border-color: rgba(20,184,166,0.45); }
+  .c-teal .leaf-bar { background: #14b8a6; }
+
+  .c-amber .b-header { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.4); color: #fcd34d; }
+  .c-amber .leaf { border-color: rgba(245,158,11,0.25); }
+  .c-amber .leaf:hover { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.45); }
+  .c-amber .leaf-bar { background: #f59e0b; }
+
+  .c-red .b-header { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+  .c-red .leaf { border-color: rgba(239,68,68,0.25); }
+  .c-red .leaf:hover { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.45); }
+  .c-red .leaf-bar { background: #ef4444; }
+
+  .c-cyan .b-header { background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.4); color: #67e8f9; }
+  .c-cyan .leaf { border-color: rgba(6,182,212,0.25); }
+  .c-cyan .leaf:hover { background: rgba(6,182,212,0.08); border-color: rgba(6,182,212,0.45); }
+  .c-cyan .leaf-bar { background: #06b6d4; }
+
+  .c-green .b-header { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.4); color: #86efac; }
+  .c-green .leaf { border-color: rgba(34,197,94,0.25); }
+  .c-green .leaf:hover { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.45); }
+  .c-green .leaf-bar { background: #22c55e; }
+
+  /* ===== LEAF CONTAINER ===== */
+  .leaves {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 8px;
+  }
+
+  .col-left .leaves {
+    align-items: flex-end;
+    padding-right: 16px;
+  }
+
+  .col-right .leaves {
+    align-items: flex-start;
+    padding-left: 16px;
+  }
+
+  /* ===== LEAF ITEM ===== */
+  .leaf {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #cbd5e1;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.2);
+    transition: all 0.15s;
+    position: relative;
+    backdrop-filter: blur(4px);
+    max-width: 580px;
+  }
+
+  .col-left .leaf {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+
+  .leaf-bar {
+    position: absolute;
+    width: 3px;
+    height: 60%;
+    top: 20%;
+    border-radius: 2px;
+  }
+
+  .col-left .leaf-bar { right: 0; border-radius: 2px 0 0 2px; }
+  .col-right .leaf-bar { left: 0; border-radius: 0 2px 2px 0; }
+
+  .leaf-code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: #f1f5f9;
+    background: rgba(255,255,255,0.06);
+    padding: 2px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  .leaf-desc {
+    font-size: 12.5px;
+    color: #94a3b8;
+    font-weight: 400;
+  }
+
+  .leaf-arrow {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* ===== BADGE TAGS ===== */
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+
+  .tag-amber { background: rgba(245,158,11,0.18); color: #fcd34d; }
+  .tag-purple { background: rgba(139,92,246,0.18); color: #c4b5fd; }
+  .tag-red { background: rgba(239,68,68,0.18); color: #fca5a5; }
+  .tag-teal { background: rgba(20,184,166,0.18); color: #5eead4; }
+  .tag-green { background: rgba(34,197,94,0.18); color: #86efac; }
+
+  .heart { color: #f87171; font-size: 14px; }
+
+  /* ===== FLOW STEP ===== */
+  .flow-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .col-left .flow-row { flex-direction: row-reverse; }
+
+  .flow-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #e2e8f0;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.25);
+    white-space: nowrap;
+  }
+
+  .flow-arrow {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* ===== WATERMARK ===== */
+  .watermark {
+    position: absolute;
+    bottom: 18px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(100, 116, 139, 0.25);
+    letter-spacing: 1.5px;
+    z-index: 200;
+  }
+</style>
+</head>
+<body>
+<div class="mindmap" id="mindmap">
+  <!-- Background -->
+  <div class="bg-dots"></div>
+  <div class="bg-radial-1"></div>
+  <div class="bg-radial-2"></div>
+  <div class="bg-radial-3"></div>
+
+  <!-- SVG Connectors -->
+  <svg class="svg-connectors" id="svg-c"></svg>
+
+  <!-- ROOT NODE -->
+  <div class="root-node" id="root">
+    <div class="root-box">
+      <div class="root-title">LMDS V5.5 Architecture</div>
+      <div class="root-subtitle">Logistics Master Data System</div>
+      <div class="root-badge">data-intent="technical"</div>
+    </div>
+  </div>
+
+  <!-- ===== LEFT BRANCHES ===== -->
+  <div class="col-left" id="col-left">
+
+    <!-- 1. Master DB -->
+    <div class="branch c-blue" id="L1">
+      <div class="b-header"><span class="ico">🟩</span> Group 1: Master DB</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">05_NormalizeService</span><span class="leaf-desc">ทำความสะอาดข้อมูล</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">06_PersonService</span><span class="leaf-desc">จัดการบุคคล</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">07_PlaceService</span><span class="leaf-desc">จัดการสถานที่</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">08_GeoService</span><span class="leaf-desc">จัดการพิกัด GPS</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">09_DestinationService</span><span class="leaf-desc">Trinity Intersection</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">10_MatchEngine</span><span class="leaf-desc"><span class="heart">♥</span> หัวใจ Pipeline</span><span class="tag tag-amber">8 Rules</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">21_AliasService</span><span class="leaf-desc">Hybrid Alias</span></div>
+      </div>
+    </div>
+
+    <!-- 2. Core System -->
+    <div class="branch c-purple" id="L2">
+      <div class="b-header"><span class="ico">🛡️</span> Core System</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">00_App</span><span class="leaf-desc">Entry Point & Menu</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">01_Config</span><span class="leaf-desc">Constants & IDX</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">02_Schema</span><span class="leaf-desc">Schema Definitions</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">03_SetupSheets</span><span class="leaf-desc">Sheet Setup & Logger</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">14_Utils</span><span class="leaf-desc">Utility Functions</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">19_Hardening</span><span class="leaf-desc">Preflight Audit</span></div>
+      </div>
+    </div>
+
+    <!-- 3. Thai Geo Reference -->
+    <div class="branch c-teal" id="L3">
+      <div class="b-header"><span class="ico">🗺️</span> Thai Geo Reference</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">16_GeoDictionaryBuilder</span><span class="leaf-desc">พจนานุกรมภูมิศาสตร์</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">20_ThGeoService</span><span class="leaf-desc">สกัดที่อยู่ไทย</span></div>
+      </div>
+    </div>
+
+    <!-- 4. Trinity Framework -->
+    <div class="branch c-amber" id="L4">
+      <div class="b-header"><span class="ico">📐</span> Trinity Framework</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">WHO</span><span class="leaf-arrow">→</span><span class="leaf-code">M_PERSON</span><span class="tag tag-purple">10 cols</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">WHERE-Address</span><span class="leaf-arrow">→</span><span class="leaf-code">M_PLACE</span><span class="tag tag-purple">14 cols</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">WHERE-Coordinate</span><span class="leaf-arrow">→</span><span class="leaf-code">M_GEO_POINT</span><span class="tag tag-purple">14 cols</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Intersection</span><span class="leaf-arrow">→</span><span class="leaf-code">M_DESTINATION</span><span class="tag tag-purple">11 cols</span></div>
+      </div>
+    </div>
+
+    <!-- 5. Hybrid Alias -->
+    <div class="branch c-red" id="L5">
+      <div class="b-header"><span class="ico">🏗️</span> Hybrid Alias</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">M_ALIAS</span><span class="leaf-desc">Global Alias Ledger</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">M_PERSON_ALIAS</span><span class="leaf-desc">Entity-specific</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">M_PLACE_ALIAS</span><span class="leaf-desc">Entity-specific</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">master_uuid</span><span class="leaf-desc">Cross-domain Identity</span><span class="tag tag-red">Key</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Single Writer Pattern</span><span class="tag tag-amber">Pattern</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT BRANCHES ===== -->
+  <div class="col-right" id="col-right">
+
+    <!-- 1. Daily Ops -->
+    <div class="branch c-cyan" id="R1">
+      <div class="b-header"><span class="ico">🟦</span> Group 2: Daily Ops</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">04_SourceRepository</span><span class="leaf-desc">อ่านข้อมูลดิบ</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">11_TransactionService</span><span class="leaf-desc">FACT_DELIVERY</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">12_ReviewService</span><span class="leaf-desc">Human-in-the-loop</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">13_ReportService</span><span class="leaf-desc">รายงานคุณภาพ</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">15_GoogleMapsAPI</span><span class="leaf-desc">Geocoding</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">17_SearchService</span><span class="leaf-desc">2-Tier Search</span><span class="tag tag-teal">2 Tiers</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-code">18_ServiceSCG</span><span class="leaf-desc">SCG API</span></div>
+      </div>
+    </div>
+
+    <!-- 2. Data Tables -->
+    <div class="branch c-green" id="R2">
+      <div class="b-header"><span class="ico">📊</span> Data Tables</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Master Tables</span><span class="tag tag-green">7 sheets</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Transaction Tables</span><span class="tag tag-green">2 sheets</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">System Tables</span><span class="tag tag-green">5 sheets</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Daily Ops Sheets</span><span class="tag tag-green">4 sheets</span></div>
+      </div>
+    </div>
+
+    <!-- 3. Pipeline Flow -->
+    <div class="branch c-blue" id="R3">
+      <div class="b-header"><span class="ico">🔄</span> Pipeline Flow</div>
+      <div class="leaves">
+        <div class="leaf" style="flex-wrap:wrap; gap:5px;"><span class="leaf-bar"></span>
+          <div class="flow-row">
+            <span class="flow-step">Ingestion</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Normalize</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Resolve</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Match</span><span class="flow-arrow">→</span>
+            <span class="flow-step">Execute</span>
+          </div>
+        </div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Time Guard 5 min + Auto-Resume</span><span class="tag tag-amber">Safety</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Batch Size 20 + Checkpoint</span><span class="tag tag-amber">Performance</span></div>
+      </div>
+    </div>
+
+    <!-- 4. 15+1 Coding Rules -->
+    <div class="branch c-amber" id="R4">
+      <div class="b-header"><span class="ico">⚖️</span> 15+1 Coding Rules</div>
+      <div class="leaves">
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">No Hardcode Index</span><span class="tag tag-amber">Rule #1</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Single Writer Pattern</span><span class="tag tag-amber">Rule</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Safe Batching</span><span class="tag tag-amber">Rule</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Full Version Only</span><span class="tag tag-amber">Rule</span></div>
+        <div class="leaf"><span class="leaf-bar"></span><span class="leaf-desc">Zero Hallucination</span><span class="tag tag-red">Principle</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watermark -->
+  <div class="watermark">LMDS V5.5 — Style B Left-Right Expanding Tree — data-intent="technical" — Connector v4-fix</div>
+</div>
+
+<script>
+// ===== Universal Recursive Connector Script v4-fix =====
+// Draws smooth curved SVG paths from root to branch headers,
+// then from branch headers to each leaf node.
+
+function drawConnectors() {
+  const svg = document.getElementById('svg-c');
+  const root = document.getElementById('root');
+  const map = document.getElementById('mindmap');
+
+  if (!svg || !root || !map) return;
+
+  const mR = map.getBoundingClientRect();
+  const rR = root.getBoundingClientRect();
+
+  // Root center and edges
+  const rCx = rR.left + rR.width / 2 - mR.left;
+  const rCy = rR.top + rR.height / 2 - mR.top;
+  const rLeft = rR.left - mR.left;
+  const rRight = rR.right - mR.left;
+
+  svg.innerHTML = '';
+
+  const colorMap = {
+    'L1': '#3b82f6', 'L2': '#a855f7', 'L3': '#14b8a6', 'L4': '#f59e0b', 'L5': '#ef4444',
+    'R1': '#06b6d4', 'R2': '#22c55e', 'R3': '#3b82f6', 'R4': '#f59e0b'
+  };
+
+  function createPath(d, color, width, opacity, dash) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width', String(width));
+    p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('opacity', String(opacity));
+    if (dash) p.setAttribute('stroke-dasharray', dash);
+    return p;
+  }
+
+  document.querySelectorAll('.branch').forEach(branch => {
+    const id = branch.id;
+    const color = colorMap[id] || '#64748b';
+    const isLeft = id.startsWith('L');
+    const header = branch.querySelector('.b-header');
+    if (!header) return;
+
+    const hR = header.getBoundingClientRect();
+    const hCx = hR.left + hR.width / 2 - mR.left;
+    const hCy = hR.top + hR.height / 2 - mR.top;
+
+    // Start from root edge, end at header edge
+    const startX = isLeft ? rLeft : rRight;
+    const endX = isLeft ? hR.right - mR.left : hR.left - mR.left;
+    const startY = rCy;
+    const endY = hCy;
+
+    // S-curve control points
+    const dx = Math.abs(endX - startX);
+    const cpX = dx * 0.45;
+
+    let d;
+    if (isLeft) {
+      d = `M ${startX} ${startY} C ${startX - cpX} ${startY}, ${endX + cpX} ${endY}, ${endX} ${endY}`;
+    } else {
+      d = `M ${startX} ${startY} C ${startX + cpX} ${startY}, ${endX - cpX} ${endY}, ${endX} ${endY}`;
+    }
+
+    // Glow
+    svg.appendChild(createPath(d, color, 8, 0.06, null));
+    // Main line
+    svg.appendChild(createPath(d, color, 2.5, 0.45, null));
+
+    // === Leaf connectors ===
+    const leaves = branch.querySelectorAll('.leaf');
+    const hEdgeX = isLeft ? hR.left - mR.left : hR.right - mR.left;
+
+    leaves.forEach(leaf => {
+      const lR = leaf.getBoundingClientRect();
+      const lEdgeX = isLeft ? lR.right - mR.left : lR.left - mR.left;
+      const lCy = lR.top + lR.height / 2 - mR.top;
+
+      // Vertical drop from header center, then curve to leaf
+      const midX = isLeft ? hEdgeX - 8 : hEdgeX + 8;
+      let ld;
+      if (isLeft) {
+        ld = `M ${hEdgeX} ${hCy + hR.height / 2} L ${midX} ${hCy + hR.height / 2} L ${midX} ${lCy} C ${midX - 6} ${lCy}, ${lEdgeX + 6} ${lCy}, ${lEdgeX} ${lCy}`;
+      } else {
+        ld = `M ${hEdgeX} ${hCy + hR.height / 2} L ${midX} ${hCy + hR.height / 2} L ${midX} ${lCy} C ${midX + 6} ${lCy}, ${lEdgeX - 6} ${lCy}, ${lEdgeX} ${lCy}`;
+      }
+
+      svg.appendChild(createPath(ld, color, 1.2, 0.2, '3 3'));
+    });
+  });
+}
+
+// Draw after everything loads
+document.fonts.ready.then(() => {
+  setTimeout(drawConnectors, 300);
+});
+</script>
+</body>
+</html>

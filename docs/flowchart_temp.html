@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMDS V5.5 Pipeline Flowchart</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans Thai', 'Inter', sans-serif;
+    background: #f0f2f5;
+    color: #1e293b;
+    padding: 40px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .canvas {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* ─── Title Header ─── */
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+    padding-bottom: 28px;
+    border-bottom: 3px solid #cbd5e1;
+  }
+  .header .badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #334155, #475569);
+    color: #f1f5f9;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 16px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.3;
+  }
+  .header .subtitle {
+    font-size: 15px;
+    color: #64748b;
+    margin-top: 8px;
+    font-weight: 400;
+  }
+
+  /* ─── Phase Group Card ─── */
+  .phase-group {
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
+    overflow: hidden;
+    margin-bottom: 0;
+    position: relative;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 24px;
+    border-left: 6px solid var(--phase-color);
+    background: var(--phase-bg);
+  }
+
+  .phase-num {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--phase-color);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px var(--phase-shadow);
+  }
+
+  .phase-title-wrap {
+    flex: 1;
+  }
+  .phase-title-wrap .en {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--phase-color);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .phase-title-wrap .th {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .phase-step-count {
+    font-size: 12px;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* ─── Steps Area ─── */
+  .phase-steps {
+    padding: 8px 24px 20px 24px;
+  }
+
+  /* ─── Step Row ─── */
+  .step-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 0;
+    position: relative;
+  }
+  .step-row + .step-row {
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .step-num {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--phase-color-light);
+    color: var(--phase-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .step-content {
+    flex: 1;
+  }
+  .step-content .step-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    line-height: 1.5;
+  }
+  .step-content .step-service {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 3px;
+    font-weight: 400;
+  }
+  .step-content .step-service code {
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: #475569;
+  }
+
+  /* ─── Rules Grid (Phase 4) ─── */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    padding: 4px 0 0 0;
+  }
+  .rule-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    transition: background 0.15s;
+  }
+  .rule-card.auto-match {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+  }
+  .rule-card.create-new {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+  .rule-card.review {
+    background: #fefce8;
+    border-color: #fde68a;
+  }
+  .rule-card.critical {
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+
+  .rule-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--phase-color);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .rule-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .rule-info .rule-cond {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #1e293b;
+    line-height: 1.3;
+  }
+  .rule-info .rule-dest {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 1px;
+    font-weight: 400;
+  }
+  .rule-info .rule-dest .tag {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .rule-info .rule-dest .tag.auto { background: #dcfce7; color: #166534; }
+  .rule-info .rule-dest .tag.create { background: #dbeafe; color: #1e40af; }
+  .rule-info .rule-dest .tag.rev { background: #fef9c3; color: #854d0e; }
+  .rule-info .rule-dest .tag.crit { background: #fee2e2; color: #991b1b; }
+
+  /* ─── Execution Outcomes (Phase 5) ─── */
+  .outcome-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding-top: 4px;
+  }
+  .outcome-card {
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+    border: 1px solid;
+  }
+  .outcome-card.auto-match-out {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+  }
+  .outcome-card.create-new-out {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+  .outcome-card.review-out {
+    background: #fefce8;
+    border-color: #fde68a;
+  }
+  .outcome-card .outcome-icon {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+  .outcome-card .outcome-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 4px;
+  }
+  .outcome-card .outcome-label.green { color: #166534; }
+  .outcome-card .outcome-label.blue { color: #1e40af; }
+  .outcome-card .outcome-label.amber { color: #854d0e; }
+  .outcome-card .outcome-desc {
+    font-size: 12.5px;
+    color: #475569;
+    line-height: 1.45;
+  }
+
+  /* ─── Enrichment Items (Phase 6) ─── */
+  .enrich-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 4px;
+  }
+  .enrich-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+  }
+  .enrich-item .ei-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--phase-color-light);
+    color: var(--phase-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .enrich-item .ei-text {
+    font-size: 13.5px;
+    color: #334155;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+  .enrich-item .ei-text code {
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: #475569;
+  }
+
+  /* ─── Phase Connector Arrow ─── */
+  .phase-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 0;
+    position: relative;
+  }
+  .phase-connector .arrow-line {
+    width: 3px;
+    height: 28px;
+    background: linear-gradient(to bottom, var(--from-color), var(--to-color));
+    border-radius: 2px;
+  }
+  .phase-connector .arrow-head {
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 12px solid var(--to-color);
+  }
+  .phase-connector .arrow-label {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 500;
+    margin-top: 2px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ─── Phase Color Variables ─── */
+  /* Scheme A extended for 6 phases — blue-gray progression */
+  .phase-1 {
+    --phase-color: #475569;
+    --phase-color-light: #e2e8f0;
+    --phase-bg: linear-gradient(90deg, #f8fafc 0%, #ffffff 100%);
+    --phase-shadow: rgba(71,85,105,0.25);
+  }
+  .phase-2 {
+    --phase-color: #0e7490;
+    --phase-color-light: #cffafe;
+    --phase-bg: linear-gradient(90deg, #f0fdfa 0%, #ffffff 100%);
+    --phase-shadow: rgba(14,116,144,0.25);
+  }
+  .phase-3 {
+    --phase-color: #0f766e;
+    --phase-color-light: #ccfbf1;
+    --phase-bg: linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%);
+    --phase-shadow: rgba(15,118,110,0.25);
+  }
+  .phase-4 {
+    --phase-color: #b45309;
+    --phase-color-light: #fef3c7;
+    --phase-bg: linear-gradient(90deg, #fffbeb 0%, #ffffff 100%);
+    --phase-shadow: rgba(180,83,9,0.25);
+  }
+  .phase-5 {
+    --phase-color: #7c3aed;
+    --phase-color-light: #ede9fe;
+    --phase-bg: linear-gradient(90deg, #f5f3ff 0%, #ffffff 100%);
+    --phase-shadow: rgba(124,58,237,0.25);
+  }
+  .phase-6 {
+    --phase-color: #be185d;
+    --phase-color-light: #fce7f3;
+    --phase-bg: linear-gradient(90deg, #fdf2f8 0%, #ffffff 100%);
+    --phase-shadow: rgba(190,24,93,0.25);
+  }
+
+  /* ─── Footer ─── */
+  .footer {
+    text-align: center;
+    padding: 28px 0 8px 0;
+    color: #94a3b8;
+    font-size: 12px;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="canvas">
+
+  <!-- ═══════════ TITLE ═══════════ -->
+  <div class="header">
+    <div class="badge">LMDS V5.5</div>
+    <h1>LMDS Pipeline Flowchart</h1>
+    <div class="subtitle">กระบวนการประมวลผลข้อมูล 6 เฟส — ตั้งแต่รับข้อมูลดิบจนถึงการสร้าง Alias</div>
+  </div>
+
+  <!-- ═══════════ PHASE 1 ═══════════ -->
+  <div class="phase-group phase-1">
+    <div class="phase-header">
+      <div class="phase-num">1</div>
+      <div class="phase-title-wrap">
+        <div class="en">Phase 1 — Ingestion</div>
+        <div class="th">รับข้อมูลดิบ</div>
+      </div>
+      <div class="phase-step-count">3 ขั้นตอน</div>
+    </div>
+    <div class="phase-steps">
+      <div class="step-row">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">อ่านข้อมูลจาก SCG API</div>
+          <div class="step-service"><code>18_ServiceSCG</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">กรองเฉพาะ SYNC_STATUS ≠ SUCCESS</div>
+          <div class="step-service"><code>04_SourceRepository</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">ตรวจ Invoice ซ้ำด้วย Set-based lookup</div>
+          <div class="step-service">Deduplication</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Arrow 1→2 ─── -->
+  <div class="phase-connector" style="--from-color:#475569;--to-color:#0e7490;">
+    <div class="arrow-line"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ═══════════ PHASE 2 ═══════════ -->
+  <div class="phase-group phase-2">
+    <div class="phase-header">
+      <div class="phase-num">2</div>
+      <div class="phase-title-wrap">
+        <div class="en">Phase 2 — Normalization</div>
+        <div class="th">ทำความสะอาด</div>
+      </div>
+      <div class="phase-step-count">4 ขั้นตอน</div>
+    </div>
+    <div class="phase-steps">
+      <div class="step-row">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-title">7-Step Person Normalization</div>
+          <div class="step-service"><code>05_NormalizeService</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <div class="step-title">4-Step Place Normalization</div>
+          <div class="step-service"><code>05_NormalizeService</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <div class="step-title">4-Level Address Enrichment</div>
+          <div class="step-service"><code>07_PlaceService</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">7</div>
+        <div class="step-content">
+          <div class="step-title">สกัดข้อมูลภูมิศาสตร์ไทย</div>
+          <div class="step-service"><code>20_ThGeoService</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Arrow 2→3 ─── -->
+  <div class="phase-connector" style="--from-color:#0e7490;--to-color:#0f766e;">
+    <div class="arrow-line"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ═══════════ PHASE 3 ═══════════ -->
+  <div class="phase-group phase-3">
+    <div class="phase-header">
+      <div class="phase-num">3</div>
+      <div class="phase-title-wrap">
+        <div class="en">Phase 3 — Resolution</div>
+        <div class="th">จับคู่ Master</div>
+      </div>
+      <div class="phase-step-count">4 ขั้นตอน</div>
+    </div>
+    <div class="phase-steps">
+      <div class="step-row">
+        <div class="step-num">8</div>
+        <div class="step-content">
+          <div class="step-title">Person — 5 กลยุทธ์ Candidate Search</div>
+          <div class="step-service"><code>06_PersonService</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">9</div>
+        <div class="step-content">
+          <div class="step-title">Place — 4 กลยุทธ์ + Branch Match</div>
+          <div class="step-service"><code>07_PlaceService</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">10</div>
+        <div class="step-content">
+          <div class="step-title">Geo — Grid-based Proximity 3×3</div>
+          <div class="step-service"><code>08_GeoService</code></div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">11</div>
+        <div class="step-content">
+          <div class="step-title">Destination — Trinity Intersection</div>
+          <div class="step-service"><code>09_DestinationService</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Arrow 3→4 ─── -->
+  <div class="phase-connector" style="--from-color:#0f766e;--to-color:#b45309;">
+    <div class="arrow-line"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ═══════════ PHASE 4 ═══════════ -->
+  <div class="phase-group phase-4">
+    <div class="phase-header">
+      <div class="phase-num">4</div>
+      <div class="phase-title-wrap">
+        <div class="en">Phase 4 — Match Engine</div>
+        <div class="th">ตัดสินใจ (8 Rules)</div>
+      </div>
+      <div class="phase-step-count">8 กฎ</div>
+    </div>
+    <div class="phase-steps">
+      <div class="rules-grid">
+        <!-- Rule 1 -->
+        <div class="rule-card critical">
+          <div class="rule-num">R1</div>
+          <div class="rule-info">
+            <div class="rule-cond">INVALID_LATLNG</div>
+            <div class="rule-dest">→ <span class="tag crit">REVIEW_INVALID</span> CRITICAL</div>
+          </div>
+        </div>
+        <!-- Rule 2 -->
+        <div class="rule-card review">
+          <div class="rule-num">R2</div>
+          <div class="rule-info">
+            <div class="rule-cond">LOW_QUALITY</div>
+            <div class="rule-dest">→ <span class="tag rev">REVIEW</span> HIGH</div>
+          </div>
+        </div>
+        <!-- Rule 3 -->
+        <div class="rule-card review">
+          <div class="rule-num">R3</div>
+          <div class="rule-info">
+            <div class="rule-cond">GEO_PROVINCE_CONFLICT</div>
+            <div class="rule-dest">→ <span class="tag rev">REVIEW</span> HIGH</div>
+          </div>
+        </div>
+        <!-- Rule 4 -->
+        <div class="rule-card auto-match">
+          <div class="rule-num">R4</div>
+          <div class="rule-info">
+            <div class="rule-cond">FULL_MATCH</div>
+            <div class="rule-dest">→ <span class="tag auto">AUTO_MATCH</span></div>
+          </div>
+        </div>
+        <!-- Rule 5 -->
+        <div class="rule-card auto-match">
+          <div class="rule-num">R5</div>
+          <div class="rule-info">
+            <div class="rule-cond">GEO_ANCHOR</div>
+            <div class="rule-dest">→ <span class="tag auto">AUTO_MATCH</span></div>
+          </div>
+        </div>
+        <!-- Rule 6 -->
+        <div class="rule-card auto-match">
+          <div class="rule-num">R6</div>
+          <div class="rule-info">
+            <div class="rule-cond">FUZZY_MATCH (≥90)</div>
+            <div class="rule-dest">→ <span class="tag auto">AUTO_MATCH</span></div>
+          </div>
+        </div>
+        <!-- Rule 7 -->
+        <div class="rule-card create-new">
+          <div class="rule-num">R7</div>
+          <div class="rule-info">
+            <div class="rule-cond">ALL_NEW_WITH_GEO</div>
+            <div class="rule-dest">→ <span class="tag create">CREATE_NEW</span></div>
+          </div>
+        </div>
+        <!-- Rule 8 -->
+        <div class="rule-card review">
+          <div class="rule-num">R8</div>
+          <div class="rule-info">
+            <div class="rule-cond">DEFAULT</div>
+            <div class="rule-dest">→ <span class="tag rev">REVIEW</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Arrow 4→5 ─── -->
+  <div class="phase-connector" style="--from-color:#b45309;--to-color:#7c3aed;">
+    <div class="arrow-line"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ═══════════ PHASE 5 ═══════════ -->
+  <div class="phase-group phase-5">
+    <div class="phase-header">
+      <div class="phase-num">5</div>
+      <div class="phase-title-wrap">
+        <div class="en">Phase 5 — Execution</div>
+        <div class="th">ประมวลผลผลลัพธ์</div>
+      </div>
+      <div class="phase-step-count">3 เส้นทาง</div>
+    </div>
+    <div class="phase-steps">
+      <div class="outcome-cards">
+        <div class="outcome-card auto-match-out">
+          <div class="outcome-icon">✅</div>
+          <div class="outcome-label green">AUTO_MATCH</div>
+          <div class="outcome-desc">บันทึก FACT_DELIVERY</div>
+        </div>
+        <div class="outcome-card create-new-out">
+          <div class="outcome-icon">🆕</div>
+          <div class="outcome-label blue">CREATE_NEW</div>
+          <div class="outcome-desc">สร้าง Master ใหม่ + FACT_DELIVERY</div>
+        </div>
+        <div class="outcome-card review-out">
+          <div class="outcome-icon">🔍</div>
+          <div class="outcome-label amber">REVIEW</div>
+          <div class="outcome-desc">ส่งเข้า Q_REVIEW<br>(Human-in-the-loop)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Arrow 5→6 ─── -->
+  <div class="phase-connector" style="--from-color:#7c3aed;--to-color:#be185d;">
+    <div class="arrow-line"></div>
+    <div class="arrow-head"></div>
+  </div>
+
+  <!-- ═══════════ PHASE 6 ═══════════ -->
+  <div class="phase-group phase-6">
+    <div class="phase-header">
+      <div class="phase-num">6</div>
+      <div class="phase-title-wrap">
+        <div class="en">Phase 6 — Enrichment</div>
+        <div class="th">สร้าง Alias</div>
+      </div>
+      <div class="phase-step-count">3 งาน</div>
+    </div>
+    <div class="phase-steps">
+      <div class="enrich-items">
+        <div class="enrich-item">
+          <div class="ei-icon">A</div>
+          <div class="ei-text">Auto-enrich Aliases (<code>M_ALIAS</code> + <code>M_PERSON_ALIAS</code> + <code>M_PLACE_ALIAS</code>)</div>
+        </div>
+        <div class="enrich-item">
+          <div class="ei-icon">W</div>
+          <div class="ei-text">Single Writer: <code>autoEnrichAliasesFromFactBatch_()</code></div>
+        </div>
+        <div class="enrich-item">
+          <div class="ei-icon">S</div>
+          <div class="ei-text">Batch Stats Update (Deferred)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <div class="footer">
+    LMDS V5.5 Pipeline — Phased Vertical Flowchart · Layout C
+  </div>
+
+</div>
+
+</body>
+</html>
