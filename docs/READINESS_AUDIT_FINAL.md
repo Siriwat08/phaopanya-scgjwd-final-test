@@ -2,7 +2,7 @@
 **Audit Date:** 2026-06-16
 **Auditor:** LMDS Supreme AI Engineer
 **Scope:** Full project audit before real-data deployment
-**Codebase:** 22 `.gs` files, 13,752 lines, 311 functions, 20 sheets, 17 IDX sets
+**Codebase:** 22 `.gs` files, 13,831 lines, 310 functions, 20 sheets, 17 IDX sets
 
 ---
 
@@ -29,7 +29,7 @@
 
 | # | Law | Status | Evidence |
 |---|-----|:------:|----------|
-| 1 | Clean Code | ✅ | camelCase สม่ำเสมอ, 311 ฟังก์ชันแยกหน้าที่ชัดเจน |
+| 1 | Clean Code | ✅ | camelCase สม่ำเสมอ, 310 ฟังก์ชันแยกหน้าที่ชัดเจน |
 | 2 | Single Responsibility | ✅ | 191 helper functions แตกจาก SRP Refactoring (REFACTOR Cycle 5) |
 | 3 | No Hardcode Index | ✅ | ทุก index ใช้ `*_IDX` constants — เจอ hardcoded `row[0]` 1 จุด ใน GeoDictBuilder แต่เป็น single-column projection (อ่านเฉพาะ 1 คอลัมน์) ถือว่ายอมรับได้ |
 | 4 | Batch Operations Only | ✅ | ไม่มี `appendRow`/`getValue`/`setValue` ใน loop — ทุกจุดใช้ `getValues`/`setValues` แบบ batch (PERF-001, PERF-006 ลด API calls 8-12x) |
@@ -249,7 +249,7 @@
 
 ก่อนจะบอกว่าพร้อม ผมต้อง **เช็คเองด้วยตา** ครับ ไม่ใช่เชื่อ README อย่างเดียว ขอตรวจให้เต็มรูปแบบ
 
-22 ไฟล์, 13,752 บรรทัด ตรงตาม README ครับ
+22 ไฟล์, 13,831 บรรทัด ตรงตาม README ครับ
 
 มาวางแผนการตรวจก่อนนะครับ — เนื่องจากงานนี้ซับซ้อนมาก ผมจะรันตามขั้นตอน LMDS Decision Workflow
 

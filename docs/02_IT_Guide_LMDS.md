@@ -910,4 +910,4 @@ APP_CONST = {
 > 4. **SYS_LOG auto-clean** ในโค้ด trigger เมื่อเกิน 5,001 แถว และเก็บไว้ 1,000 แถวล่าสุด (ไม่ใช่ 5,000 ตามที่ System Guide เขียน)
 > 5. **SHEET count** ในโค้ดมี 20 entries แต่ comment ใน Config บอก 21 (ผิด)
 >
-> **สถิติระบบ:** ฟังก์ชัน 311 | บรรทัดโค้ด 13,752 | IDX sets 17 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)
+> **สถิติระบบ:** ฟังก์ชัน 310 | บรรทัดโค้ด 13,831 | IDX sets 17 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)

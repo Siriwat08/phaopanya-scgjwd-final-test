@@ -9,8 +9,8 @@
 | **Platform** | Google Apps Script + Google Sheets |
 | **Core Engine** | MatchEngine V5.5 with Hybrid Alias Architecture |
 | **Total Files** | 22 `.gs` files |
-| **Total Lines** | 13,752 |
-| **Total Functions** | 311 (120 original + 18 SRP helpers + 173 Refactor helpers) |
+| **Total Lines** | 13,831 |
+| **Total Functions** | 310 (120 original + 18 SRP helpers + 172 Refactor helpers) |
 | **Total Sheets** | 20 |
 | **Total IDX Sets** | 17 |
 | **Compliance** | **16/16 PASS (100%)** |
@@ -173,8 +173,8 @@ LMDS V5.5 ผ่าน **5 Audit Cycles** ครบถ้วน — ทุก Is
 | **Critical Bugs ที่พบ** | 2 รายการ (ทั้งหมดแก้แล้ว) |
 | **Helper Functions ใหม่** | 191 ฟังก์ชัน (18 SRP + 173 Refactor) |
 | **Compliance Progression** | 8/16 → 13/16 → **16/16 PASS** |
-| **Lines of Code Growth** | ~8,700 → **13,752** (+58%) |
-| **Functions Growth** | ~138 → **311** (+125%) |
+| **Lines of Code Growth** | ~8,700 → **13,831** (+59%) |
+| **Functions Growth** | ~138 → **310** (+125%) |
 
 ```
 Cycle 1 (CRITICAL):   ████████░░░░░░░░░░  8/16 PASS (50%)

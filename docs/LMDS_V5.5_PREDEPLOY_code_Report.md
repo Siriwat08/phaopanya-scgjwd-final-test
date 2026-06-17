@@ -324,7 +324,7 @@
 | Group 0 (Core) | 00_App, 01_Config, 02_Schema, 03_SetupSheets, 14_Utils, 19_Hardening | ~3,987 | ~83 |
 | Group 1 (Master DB) | 05_NormalizeService, 06_PersonService, 07_PlaceService, 08_GeoService, 09_DestinationService, 10_MatchEngine, 16_GeoDictionaryBuilder, 20_ThGeoService, 21_AliasService | ~6,225 | ~156 |
 | Group 2 (Daily Ops) | 04_SourceRepository, 11_TransactionService, 12_ReviewService, 13_ReportService, 15_GoogleMapsAPI, 17_SearchService, 18_ServiceSCG | ~3,540 | ~72 |
-| **รวม** | **22 ไฟล์** | **13,752** | **311** |
+| **รวม** | **22 ไฟล์** | **13,831** | **310** |
 
 #### 8.2 Version History
 

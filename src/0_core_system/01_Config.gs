@@ -13,7 +13,7 @@
  *     - [SYNC] Documentation audit: 28 inconsistencies fixed
  *     - [FIX] IDX set count: 14 → 17 (added MAPS_CACHE_IDX, OWNER_SUM_IDX, SHIPMENT_SUM_IDX)
  *     - [FIX] Compliance: 15/15 → 16/16 (Rule 16: Security-First Design)
- *     - [FIX] Line count: ~11,000 → 13,703; Function count: 291 → 311
+ *     - [FIX] Line count: ~11,000 → 13,831; Function count: 291 → 310
  *     - [FIX] Sheet count: 13 → 20 in all documents
  *   v5.5.003 (2026-06-12) — post-REFACTOR sync:
  *     - [SYNC] Version header V5.4 → V5.5, VERSION → 5.5.003

@@ -703,7 +703,7 @@ function showVersionInfo() {
     `  13_ReportService.gs      v5.5.004\n` +
     `  14_Utils.gs              v5.5.004\n` +
     `  15_GoogleMapsAPI.gs      v5.5.004\n` +
-    `  16_GeoDictBuilder.gs     v5.5.004\n` +
+    `  16_GeoDictionaryBuilder.gs v5.5.004\n` +
     `  17_SearchService.gs      v5.5.004\n` +
     `  18_ServiceSCG.gs         v5.5.004\n` +
     `  19_Hardening.gs          v5.5.004\n` +

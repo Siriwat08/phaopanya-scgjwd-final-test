@@ -483,4 +483,4 @@ ADMIN มีบทบาทหลักในการ:
 >
 > **หมายเหตุ:** ข้อมูลในเอกสารนี้อ้างอิงจากโค้ดจริงใน Repository (APP_VERSION = 5.5.004) ซึ่งตรงกันกับ LMDS_System_Guide.md แล้ว ระบบ Search Service ใช้ 2 Tier เท่านั้น (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — ไม่ใช่ 6 Tier ตาม Guide ฉบับเก่าที่ถูกลบออกไปแล้ว
 >
-> **สถิติระบบ:** ฟังก์ชัน 311 | บรรทัดโค้ด 13,752 | IDX sets 17 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)
+> **สถิติระบบ:** ฟังก์ชัน 310 | บรรทัดโค้ด 13,831 | IDX sets 17 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)

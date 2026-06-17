@@ -3,7 +3,7 @@
 > **Logistics Master Data System (LMDS)** — ระบบจัดการข้อมูลหลักด้านโลจิสติกส์
 > เวอร์ชัน: V5.5.004 (post-SECURITY) | อัปเดตล่าสุด: 2026-06-15
 > แพลตฟอร์ม: Google Apps Script (GAS) บน Google Sheets
-> ฟังก์ชันทั้งหมด: 311 | บรรทัดโค้ด: 13,752 | Production Readiness: 95%
+> ฟังก์ชันทั้งหมด: 310 | บรรทัดโค้ด: 13,831 | Production Readiness: 95%
 
 ---
 

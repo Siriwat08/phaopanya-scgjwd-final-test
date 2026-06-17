@@ -7,7 +7,7 @@
 - **APIs:** Google Maps API (Geocoding), Gemini API (AI Reasoning)
 
 # 📂 Architecture & Domain Separation
-โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 311 ฟังก์ชัน 13,752 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
+โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 310 ฟังก์ชัน 13,831 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
 1. **🟩 Group 1 (The Brain & Master DB):** `05` ถึง `10`, `16`, `20`, และ `21`
    - *หน้าที่:* ทำความสะอาดข้อมูล, จับคู่ (MatchEngine), เป็นเจ้าของฐานข้อมูล `M_PERSON`, `M_PLACE`, `M_GEO_POINT`, `M_ALIAS`
    - *รวมถึง:* `16_GeoDictionaryBuilder` (สร้างพจนานุกรมภูมิศาสตร์สำหรับ Master DB) และ `20_ThGeoService` (บริการข้อมูลภูมิศาสตร์ไทยสำหรับ Master DB)
@@ -46,7 +46,7 @@
 - ใน block catch ต้องบันทึก log ด้วย: `logError('ModuleName', e.stack)` ห้ามเกิด Silent Fail
 
 # 🎯 Current Focus & Known Issues
-- **Focus:** V5.5.004 post-refactor — 5 audit cycles complete (BUGHUNT → REVIEW15 → REFACTOR → PREDEPLOY → SECURITY), 21 REF issues applied across 16 files, function count 311, 13,752 lines, production readiness 95%, 16/16 COMPLIANT
+- **Focus:** V5.5.004 post-refactor — 5 audit cycles complete (BUGHUNT → REVIEW15 → REFACTOR → PREDEPLOY → SECURITY), 21 REF issues applied across 16 files, function count 310, 13,831 lines, production readiness 95%, 16/16 COMPLIANT
 - **Gotchas:** ถ้าระบบขึ้นสีแดง `NOT_FOUND` ตอนโหลดงาน มักเกิดจาก Schema หัวคอลัมน์ในชีตไม่ตรงกับความยาวของ Array ในสคริปต์
 
 # ⚖️ The 16 Immutable Laws (รัฐธรรมนูญของโปรเจกต์)

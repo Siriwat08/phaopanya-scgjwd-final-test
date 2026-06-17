@@ -391,7 +391,7 @@ Hybrid Alias Architecture เป็นระบบจัดการชื่อ
 
 | ไฟล์ | บรรทัด | หน้าที่ | ฟังก์ชันสำคัญ | Dependencies |
 |------|--------|--------|--------------|-------------|
-| `00_App.gs` | 879 | จุดเริ่มระบบ, เมนู, Pipeline orchestration, Smart Navigation, Diagnostic | `onOpen()`, `onEdit()`, `runFullPipeline()`, `diagnoseSystemState()`, `safeRun()` | 01, 02, 10, 17, 13, 18, 16, 21 |
+| `00_App.gs` | 891 | จุดเริ่มระบบ, เมนู, Pipeline orchestration, Smart Navigation, Diagnostic | `onOpen()`, `onEdit()`, `runFullPipeline()`, `diagnoseSystemState()`, `safeRun()` | 01, 02, 10, 17, 13, 18, 16, 21 |
 | `01_Config.gs` | 699 | Single Source of Truth สำหรับค่าคงที่ (20 ชีต, 17 IDX sets, AI/SCG/APP configs) | `validateConfig()`, `getGeminiApiKey()`, `invalidateAllGlobalCaches()` | None (root) |
 | `02_Schema.gs` | 503 | นิยาม Header ทุกชีต (20 schema) + Validation | `getSheetHeaders()`, `validateSheetHeaders()`, `getColIndex()`, `validateSchemaConsistency()` | 01 |
 | `03_SetupSheets.gs` | 549 | สร้างชีตทั้งหมด, auto-repair, ระบบ Logging (SYS_LOG) | `setupAllSheets()`, `logInfo/Warn/Error/Debug()`, `clearOldLogs_()` | 01, 02, 14 |
@@ -403,9 +403,9 @@ Hybrid Alias Architecture เป็นระบบจัดการชื่อ
 | `09_DestinationService.gs` | 426 | Destination CRUD + Trinity Intersection | `resolveDestination()`, `createDestination()`, `getDestsByPersonId()`, `getDestsByPersonAndPlace()` | 01, 02, 14 |
 | `10_MatchEngine.gs` | 1,374 | หัวใจ Pipeline: 8 Rules + Single Writer M_ALIAS + Auto-Resume | `runMatchEngine()`, `processOneRow()`, `makeMatchDecision()`, `executeDecision()`, `resolveAndPersist_()`, `autoEnrichAliasesFromFactBatch_()` | 01, 02, 05, 06-09, 11, 12, 14 |
 | `11_TransactionService.gs` | 334 | FACT_DELIVERY upsert (32-col array) | `upsertFactDelivery()`, `findFactRowByInvoice_()` | 01, 02, 06-08, 14 |
-| `12_ReviewService.gs` | 702 | Human-in-the-loop management (4 decisions) | `enqueueReview()`, `applyReviewDecision()`, `applyAllPendingDecisions()` | 01, 02, 06-09, 11, 14 |
+| `12_ReviewService.gs` | 703 | Human-in-the-loop management (4 decisions) | `enqueueReview()`, `applyReviewDecision()`, `applyAllPendingDecisions()` | 01, 02, 06-09, 11, 14 |
 | `13_ReportService.gs` | 276 | รายงานคุณภาพข้อมูล (autoMatchRate vs processedRate) | `buildFullQualityReport()`, `highlightHighPriorityReviews()` | 01, 02, 06-09, 12 |
-| `14_Utils.gs` | 822 | ไลบรารีใช้ร่วม — String Similarity, GPS, AI, Retry, Cache, Stats | `diceCoefficient()`, `levenshteinDistance()`, `callGeminiAPI()`, `generateShortId()`, `safeUiAlert_()`, `normalizeInvoiceNo()`, `batchUpdateEntityStats_()`, `saveChunkedCache_()`, `loadChunkedCache_()`, `buildGlobalAliasDedupSet_()` | 01 |
+| `14_Utils.gs` | 888 | ไลบรารีใช้ร่วม — String Similarity, GPS, AI, Retry, Cache, Stats | `diceCoefficient()`, `levenshteinDistance()`, `callGeminiAPI()`, `generateShortId()`, `safeUiAlert_()`, `normalizeInvoiceNo()`, `batchUpdateEntityStats_()`, `saveChunkedCache_()`, `loadChunkedCache_()`, `buildGlobalAliasDedupSet_()` | 01 |
 | `15_GoogleMapsAPI.gs` | 473 | Geocoding + 3-layer Cache (RAM → Sheet → API) | `geocodeAddress()`, `reverseGeocode()`, `cachedGeoLookup_()`, `getRouteDistanceKm()`, `clearMapsCache()` | 01, 02, 14 |
 | `16_GeoDictionaryBuilder.gs` | 586 | สร้าง/จัดการพจนานุกรมภูมิศาสตร์ไทย + Chunked Cache | `buildGeoDictionary()`, `lookupByPostcode()`, `scanAddressAgainstDictionary()`, `stripThaiAdminPrefix_()`, `stripThaiProvincePrefix_()` | 01, 02, 05, 20, 14 |
 | `17_SearchService.gs` | 372 | สะพาน Group 2→1, 2-Tier Search for Daily Job (ShipToName-Only) | `findBestGeoByPersonPlace()`, `runLookupEnrichment()`, `lookupSingleRow()` | 01, 02, 05, 14, 21, 06, 09 |
@@ -419,8 +419,8 @@ Hybrid Alias Architecture เป็นระบบจัดการชื่อ
 | ตัวชี้วัด | ค่า |
 |----------|-----|
 | **Total Files** | 22 |
-| **Total Lines** | 13,752 |
-| **Total Functions** | 311 |
+| **Total Lines** | 13,831 |
+| **Total Functions** | 310 |
 | **Largest File** | `10_MatchEngine.gs` (1,374 บรรทัด) |
 | **Smallest File** | `20_ThGeoService.gs` (326 บรรทัด) |
 | **Most Dependencies** | `10_MatchEngine.gs`, `12_ReviewService.gs` (6+ modules) |
