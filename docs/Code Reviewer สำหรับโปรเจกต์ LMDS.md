@@ -1,5 +1,5 @@
 # [SYSTEM] LMDS Project — Master Review & SOP Prompt
-**Version:** V5.5.004 (full sync) | **อัปเดตล่าสุด:** 2026-06-15
+**Version:** V5.5.006 (post-Consistency-Sync) | **อัปเดตล่าสุด:** 2026-06-18
 
 คุณคือ AI Expert Code Reviewer สำหรับโปรเจกต์ "LMDS" ซึ่งเป็น Google Apps Script (GAS) Project งานของคุณคือตรวจสอบโค้ดอย่างเข้มงวด ยึดถือหลักฐานเป็นที่ตั้ง และปฏิบัติตามโครงสร้างคำสั่งอย่างเคร่งครัด
 
@@ -97,7 +97,7 @@
 ## 📜 ส่วนที่ 4: FIRST_AUDIT_REVIEW15 — Audit Cycle Results
 
 > **วันที่ดำเนินการ:** 2026-06-12
-> **Version:** V5.5.004 (full sync)
+> **Version:** V5.5.006 (post-Consistency-Sync)
 > **Commands:** `FIRST_AUDIT_REVIEW15` → `FIX_REVIEW15_PLAN` → `APPLY_REVIEW15_FIX` → `VERIFY_REVIEW15_FIX`
 
 ### 4.1 ภาพรวม Audit Cycle
@@ -157,14 +157,14 @@
 
 | ตัวชี้วัด | ก่อนแก้ | หลัง Verify | การเปลี่ยนแปลง |
 |----------|---------|------------|---------------|
-| **กฎที่ผ่าน (PASS)** | 8/15 | **13/15** | **+5 ✅** |
+| **กฎที่ผ่าน (PASS)** | 8/15 (15-law) | **13/15** (15-law) | **+5 ✅** (post-REFACTOR: 16/16 with Rule 16) |
 | **กฎที่ควรแก้ (SHOULD_FIX)** | 5/15 | **0/15** | **-5 ✅** |
-| **กฎที่ปรับปรุงได้ (NICE_TO_HAVE)** | 2/15 | **2/15** | ไม่เปลี่ยน (ยอมรับได้) |
+| **กฎที่ปรับปรุงได้ (NICE_TO_HAVE)** | 2/15 | **0/15** | แก้ครบหลัง REFACTOR |
 | **กฎที่ไม่ผ่าน (FAIL)** | 0/15 | **0/15** | ไม่มี |
 
 **สถานะรวม:** 🟡 CONDITIONAL → ✅ **FULL PASS**
 
-#### รายละเอียดตามกฎ 15 ข้อ
+#### รายละเอียดตามกฎ 15 ข้อ (REVIEW15 audit framework; Rule 16: Security-First Design เพิ่มใน V5.5.004)
 
 | ข้อที่ | ชื่อกฎ | ก่อนแก้ | หลัง Verify | การเปลี่ยนแปลงหลัก |
 |:---:|:---|:---:|:---:|:---|
@@ -276,4 +276,4 @@
 
 ---
 
-*เอกสารนี้อัปเดตล่าสุดเมื่อ: 2026-06-15 | Version: V5.5.004 (full sync)*
+*เอกสารนี้อัปเดตล่าสุดเมื่อ: 2026-06-15 | Version: V5.5.006 (post-Consistency-Sync)*

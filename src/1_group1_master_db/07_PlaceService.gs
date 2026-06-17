@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.004
+ * VERSION: 5.5.006
  * FILE: 07_PlaceService.gs
  * LMDS V5.5 — Place Master Service
  * ===================================================
@@ -7,7 +7,11 @@
  *   จัดการ Master Place — ฐานข้อมูลสถานที่จัดส่ง
  *   เป็น Single Source of Truth สำหรับข้อมูลสถานที่
  * ===================================================
- *   v5.5.004 (2026-06-15) — full sync cycle:
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
+ *     - [SYNC] Documentation consistency: line count 13,831, function count 310
+ *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
+ *   v5.5.004 (2026-06-15) — full sync cycle:
  *     - [SYNC] All 22 files version bump 5.5.003 → 5.5.004
  *     - [SYNC] Documentation audit: 28 inconsistencies fixed
  *   v5.5.003 (2026-06-12) — post-REFACTOR sync:
@@ -693,7 +697,7 @@ function updatePlaceStats(placeId) {
 
 /**
  * loadCachedGeoRowsForPlace_ — [FIX-02 v5.4.003] โหลดข้อมูลภูมิศาสตร์แบบเบาสำหรับ PlaceService
- * ใช้ _GLOBAL_GEO_DICT_CACHE_PLACE แยกจาก _GLOBAL_GEO_DICT_CACHE ของ 16_GeoDictBuilder
+ * ใช้ _GLOBAL_GEO_DICT_CACHE_PLACE แยกจาก _GLOBAL_GEO_DICT_CACHE ของ 16_GeoDictionaryBuilder
  * คืนเฉพาะ 4 fields: postcode, subDistrict, district, province
  * @return {Array<{postcode, subDistrict, district, province}>}
  */

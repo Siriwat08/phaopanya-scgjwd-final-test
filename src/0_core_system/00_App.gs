@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.004
+ * VERSION: 5.5.006
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,11 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.004 (2026-06-15) — full sync cycle:
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
+ *     - [SYNC] Documentation consistency: line count 13,831, function count 310
+ *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
+ *   v5.5.004 (2026-06-15) — full sync cycle:
  *     - [SYNC] All 22 files version bump 5.5.003 → 5.5.004
  *     - [SYNC] Documentation audit: 28 inconsistencies fixed
  *   v5.5.003 (2026-06-12) — post-REFACTOR sync:
@@ -687,28 +691,28 @@ function showVersionInfo() {
     `Schema: v${SCHEMA_VERSION}\n` +
     `Audit Cycles: 5 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.004\n` +
-    `  01_Config.gs             v5.5.004\n` +
-    `  02_Schema.gs             v5.5.004\n` +
-    `  03_SetupSheets.gs        v5.5.004\n` +
-    `  04_SourceRepository.gs   v5.5.004\n` +
-    `  05_NormalizeService.gs   v5.5.004\n` +
-    `  06_PersonService.gs      v5.5.004\n` +
-    `  07_PlaceService.gs       v5.5.004\n` +
-    `  08_GeoService.gs         v5.5.004\n` +
-    `  09_DestinationService.gs v5.5.004\n` +
-    `  10_MatchEngine.gs        v5.5.004\n` +
-    `  11_TransactionService.gs v5.5.004\n` +
-    `  12_ReviewService.gs      v5.5.004\n` +
-    `  13_ReportService.gs      v5.5.004\n` +
-    `  14_Utils.gs              v5.5.004\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.004\n` +
-    `  16_GeoDictionaryBuilder.gs v5.5.004\n` +
-    `  17_SearchService.gs      v5.5.004\n` +
-    `  18_ServiceSCG.gs         v5.5.004\n` +
-    `  19_Hardening.gs          v5.5.004\n` +
-    `  20_ThGeoService.gs       v5.5.004\n` +
-    `  21_AliasService.gs       v5.5.004\n\n` +
+    `  00_App.gs                v5.5.006\n` +
+    `  01_Config.gs             v5.5.006\n` +
+    `  02_Schema.gs             v5.5.006\n` +
+    `  03_SetupSheets.gs        v5.5.006\n` +
+    `  04_SourceRepository.gs   v5.5.006\n` +
+    `  05_NormalizeService.gs   v5.5.006\n` +
+    `  06_PersonService.gs      v5.5.006\n` +
+    `  07_PlaceService.gs       v5.5.006\n` +
+    `  08_GeoService.gs         v5.5.006\n` +
+    `  09_DestinationService.gs v5.5.006\n` +
+    `  10_MatchEngine.gs        v5.5.006\n` +
+    `  11_TransactionService.gs v5.5.006\n` +
+    `  12_ReviewService.gs      v5.5.006\n` +
+    `  13_ReportService.gs      v5.5.006\n` +
+    `  14_Utils.gs              v5.5.006\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.006\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.006\n` +
+    `  17_SearchService.gs      v5.5.006\n` +
+    `  18_ServiceSCG.gs         v5.5.006\n` +
+    `  19_Hardening.gs          v5.5.006\n` +
+    `  20_ThGeoService.gs       v5.5.006\n` +
+    `  21_AliasService.gs       v5.5.006\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

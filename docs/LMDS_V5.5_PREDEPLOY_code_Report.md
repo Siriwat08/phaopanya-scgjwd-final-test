@@ -1,5 +1,5 @@
 # 🚀 LMDS V5.5 — การประเมินความพร้อม Production [CMD: PREDEPLOY]
-## วันที่: 2026-06-15 | เวอร์ชัน: V5.5.004
+## วันที่: 2026-06-18 | เวอร์ชัน: V5.5.006 (post-Consistency-Sync; original audit 2026-06-12)
 
 ---
 
@@ -162,7 +162,7 @@
 
 ---
 
-#### เฟส 2: PERFORMANCE (12 Issues → 13 Files)
+#### เฟส 2: PERFORMANCE (12 Issues → 10 Files)
 
 | Issue ID | ปัญหา | การแก้ไข | ผลกระทบ |
 |----------|-------|---------|---------|
@@ -236,7 +236,7 @@
 | Bidirectional coupling | AliasService ↔ PersonService | แก้แล้ว (UUID → Utils) | ลด coupling |
 | Phantom calls | 0 (verified) | 0 (verified) | ไม่มี broken refs |
 
-**ฟังก์ชันใหม่ที่สร้างจาก Refactor (18 ฟังก์ชัน):**
+**ฟังก์ชันใหม่ที่สร้างจาก Refactor (172 ฟังก์ชัน):**
 
 | ฟังก์ชัน | ไฟล์ | วัตถุประสงค์ |
 |----------|------|-------------|
@@ -324,7 +324,7 @@
 | Group 0 (Core) | 00_App, 01_Config, 02_Schema, 03_SetupSheets, 14_Utils, 19_Hardening | ~3,987 | ~83 |
 | Group 1 (Master DB) | 05_NormalizeService, 06_PersonService, 07_PlaceService, 08_GeoService, 09_DestinationService, 10_MatchEngine, 16_GeoDictionaryBuilder, 20_ThGeoService, 21_AliasService | ~6,225 | ~156 |
 | Group 2 (Daily Ops) | 04_SourceRepository, 11_TransactionService, 12_ReviewService, 13_ReportService, 15_GoogleMapsAPI, 17_SearchService, 18_ServiceSCG | ~3,540 | ~72 |
-| **รวม** | **22 ไฟล์** | **13,831** | **310** |
+| **รวม** | **22 ไฟล์** | **13,919** | **310** |
 
 #### 8.2 Version History
 
@@ -334,7 +334,7 @@
 | V5.5.001 | 2026-05-24 | CRITICAL + Single Writer | 8 CRIT + Pattern |
 | V5.5.002 | 2026-06-04 | PERFORMANCE + REVIEW15 | 12 PERF + 5 REV |
 | V5.5.003 | 2026-06-05 | SECURITY + REFACTOR | 7 SEC + 21 REF |
-| V5.5.004 | 2026-06-15 | PREDEPLOY + REVIEW15 + Full Compliance | 16/16 COMPLIANT, Production Ready |
+| V5.5.004 | 2026-06-12 | PREDEPLOY + REVIEW15 + Full Compliance | 16/16 COMPLIANT, Production Ready |
 
 #### 8.3 Test Coverage Summary
 
@@ -423,7 +423,7 @@
 ---
 
 **ผู้ประเมิน:** Automated Assessment System
-**วันที่ประเมิน:** 2026-06-15
-**เวอร์ชันโค้ด:** V5.5.004
+**วันที่ประเมิน:** 2026-06-12
+**เวอร์ชันโค้ด:** V5.5.006 (post-Consistency-Sync; original V5.5.004)
 **เวอร์ชันเอกสาร:** 1.0
 **อ้างอิง:** LMDS_V5.5_VERIFY_REFACTOR_FIX_Report.md

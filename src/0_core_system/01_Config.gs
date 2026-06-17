@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.004
+ * VERSION: 5.5.006
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,10 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
+ *     - [SYNC] Documentation consistency: line count 13,831, function count 310
+ *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
  *   v5.5.004 (2026-06-15) — full sync cycle:
  *     - [SYNC] All 22 files version bump 5.5.003 → 5.5.004
  *     - [SYNC] Documentation audit: 28 inconsistencies fixed
@@ -39,7 +43,7 @@
  * DEPENDENCIES:
  *   DEFINES:
  *     - APP_VERSION, SCHEMA_VERSION, APP_NAME (Metadata)
- *     - SHEET{} (7 core sheets + 10 operation sheets + M_ALIAS + 2 summaries = 20)
+ *     - SHEET{} (7 master + 4 system + 1 source + 1 cache + 5 daily ops + 2 summaries = 20)
  *     - *_IDX{} (Person, PersonAlias, Place, PlaceAlias, Alias, Geo, Dest, Fact, Review, ThGeo, Employee, Src, Data, SysLog, MapsCache, OwnerSum, ShipmentSum = 17)
  *     - AI_CONFIG, SCG_CONFIG, APP_CONST (System configs)
  *     - _GLOBAL_* CACHE variables (RAM cache layer)
@@ -77,12 +81,12 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.004';
-const SCHEMA_VERSION = '5.5.004';
+const APP_VERSION = '5.5.006';
+const SCHEMA_VERSION = '5.5.006';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs
-let _GLOBAL_GEO_DICT_CACHE = null;        // สำหรับ 16_GeoDictBuilder (8 fields: postcode,subDistrict,district,province,searchKey,postalKey,noteType,noteScope)
+let _GLOBAL_GEO_DICT_CACHE = null;        // สำหรับ 16_GeoDictionaryBuilder (8 fields: postcode,subDistrict,district,province,searchKey,postalKey,noteType,noteScope)
 let _GLOBAL_GEO_DICT_CACHE_PLACE = null;   // [FIX-02 v5.4.003] สำหรับ 07_PlaceService (4 fields: postcode,subDistrict,district,province)
 let _GLOBAL_GEO_POINTS_CACHE = null;
 

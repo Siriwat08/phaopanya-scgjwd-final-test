@@ -661,4 +661,4 @@ MIGRATION_HybridAliasSystem()
 
 ---
 
-> **📌 อัปเดต V5.5 (2026-06-12):** หลังผ่านการตรวจสอบคุณภาพโค้ด FIRST_AUDIT_REVIEW15 ระบบ Hybrid Alias Architecture ได้รับการยืนยันว่า **เสถียรและทำงานได้ถูกต้อง** — Phantom Call ที่ค้างอยู่ใน `invalidateGlobalAliasCache_()` ได้รับการแก้ไขเป็น `CacheService.removeAll()` โดยตรง, Critical Bug `newRows.push(r)` → `newRows.push(aliasRow)` ใน 19_Hardening.gs ได้รับการ Hot-Fix, และ Single Writer Pattern ยังคงสมบูรณ์ ผล Compliance: 8/15 PASS → 13/15 PASS
+> **📌 อัปเดต V5.5 (2026-06-12):** หลังผ่านการตรวจสอบคุณภาพโค้ด FIRST_AUDIT_REVIEW15 ระบบ Hybrid Alias Architecture ได้รับการยืนยันว่า **เสถียรและทำงานได้ถูกต้อง** — Phantom Call ที่ค้างอยู่ใน `invalidateGlobalAliasCache_()` ได้รับการแก้ไขเป็น `CacheService.removeAll()` โดยตรง, Critical Bug `newRows.push(r)` → `newRows.push(aliasRow)` ใน 19_Hardening.gs ได้รับการ Hot-Fix, และ Single Writer Pattern ยังคงสมบูรณ์ ผล Compliance: 8/16 PASS → 16/16 PASS

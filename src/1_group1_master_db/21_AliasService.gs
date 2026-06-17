@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.004
+ * VERSION: 5.5.006
  * FILE: 21_AliasService.gs
  * LMDS V5.5 — Hybrid Alias Architecture (Global M_ALIAS + Entity-Specific Views)
  * ===================================================
@@ -8,7 +8,11 @@
  *   เป็น Single Source of Truth สำหรับ Alias Resolution ที่ Group 2 ใช้ค้นหา
  *   ⚠️ Auto Pipeline ไม่เขียน M_ALIAS ที่นี่ — เขียนที่ autoEnrichAliasesFromFactBatch_() เท่านั้น
  * ===================================================
- *   v5.5.004 (2026-06-15) — full sync cycle:
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
+ *     - [SYNC] Documentation consistency: line count 13,831, function count 310
+ *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
+ *   v5.5.004 (2026-06-15) — full sync cycle:
  *     - [SYNC] All 22 files version bump 5.5.003 → 5.5.004
  *     - [SYNC] Documentation audit: 28 inconsistencies fixed
  *   v5.5.003 (2026-06-12) — post-REFACTOR sync:

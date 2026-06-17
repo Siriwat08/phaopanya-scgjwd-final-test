@@ -1,6 +1,6 @@
 # 📘 พจนานุกรมโครงสร้างข้อมูล (LMDS Schema Dictionary)
-**เวอร์ชันระบบ:** V5.5.004 (full sync)
-**วันที่สกัดข้อมูล:** 2026-06-15 ล่าสุดจากไฟล์ `01_Config.gs` และ `02_Schema.gs`
+**เวอร์ชันระบบ:** V5.5.006 (post-Consistency-Sync)
+**วันที่สกัดข้อมูล:** 2026-06-12 ล่าสุดจากไฟล์ `01_Config.gs` และ `02_Schema.gs`
 
 เอกสารนี้ใช้สำหรับ **Cross-Check** (ตรวจสอบความถูกต้อง) ระหว่าง "ชื่อชีต", "ชื่อคอลัมน์" (Headers), และ "ตัวแปร Index ในโค้ด" เพื่อให้นักพัฒนาและ AI สามารถอ้างอิงได้อย่างถูกต้อง 100%
 
@@ -362,7 +362,7 @@
 
 ระบบ LMDS V5.5 ผ่านการตรวจสอบคุณภาพโค้ดตามกฎเหล็ก 16 ข้อ (Audit Cycle: FIRST_AUDIT_REVIEW15 → FIX_REVIEW15_PLAN → APPLY_REVIEW15_FIX → VERIFY_REVIEW15_FIX → REFACTOR)
 
-**ผลลัพธ์:** Compliance 8/15 PASS → 13/15 PASS (+5 REVIEW15) → **16/16 COMPLIANT** (+2 REFACTOR) | 14+16 ไฟล์แก้ไข | 18+3 Helper Functions ใหม่ | 1 Critical Bug Hot-Fixed | 21 REF issues
+**ผลลัพธ์:** Compliance 8/16 PASS → 16/16 PASS (+5 REVIEW15) → **16/16 COMPLIANT** (+2 REFACTOR) | 14+16 ไฟล์แก้ไข | 190 Helper Functions ใหม่ (18 SRP + 172 REFACTOR) | 1 Critical Bug Hot-Fixed | 21 REF issues
 
 การเปลี่ยนแปลงหลัก:
 - Phantom Call `invalidateGlobalAliasCache_()` → `CacheService.removeAll()` โดยตรง

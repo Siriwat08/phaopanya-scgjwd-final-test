@@ -1,7 +1,7 @@
 # LMDS V5.5 — Performance Fix Cycle Verification Report
 
 > เอกสารตรวจสอบยืนยันการแก้ไขประสิทธิภาพ (Post-Fix Performance Verification)
-> Version: V5.5.004 (full sync) | Date: 2026-06-15 | Original audit: V5.5.003 (2026-06-11)
+> Version: V5.5.006 (post-Consistency-Sync) | Date: 2026-06-15 | Original audit: V5.5.003 (2026-06-11)
 > Commands: FIRST_AUDIT_PERFORMANCE → FIX_PERFORMANCE_PLAN → APPLY_PERFORMANCE_FIX → VERIFY_PERFORMANCE_FIX
 
 ---
@@ -86,7 +86,7 @@
 
 ## 4. CMD: APPLY_PERFORMANCE_FIX — การดำเนินการ
 
-### 4.1 ไฟล์ที่เปลี่ยนแปลง (13 ไฟล์ รวม flushLogBuffer_ fix)
+### 4.1 ไฟล์ที่เปลี่ยนแปลง (10 ไฟล์ รวม flushLogBuffer_ fix)
 
 | ไฟล์ | PERF Issue(s) | เทคนิคที่ใช้ |
 |------|---------------|--------------|
@@ -273,9 +273,9 @@
 
 ---
 
-## Security Fix Cycle (V5.5.004 — Current Released Version — 2026-06-11)
+## Security Fix Cycle (V5.5.004 — historical; current release V5.5.006 — 2026-06-18)
 
-หลังจาก Performance Fix Cycle เสร็จสิ้น ได้ดำเนินการ Security Audit และแก้ไขช่องโหว่เพิ่มเติม 7 รายการ (ปัจจุบัน V5.5.004 เป็นเวอร์ชันที่ปล่อยแล้ว — APP_VERSION = '5.5.004'):
+หลังจาก Performance Fix Cycle เสร็จสิ้น ได้ดำเนินการ Security Audit และแก้ไขช่องโหว่เพิ่มเติม 7 รายการ (ปัจจุบัน V5.5.006 เป็นเวอร์ชันที่ปล่อยแล้ว — APP_VERSION = '5.5.006'):
 
 | SEC ID | ช่องโหว่ | Severity | Verdict |
 |--------|----------|----------|---------|
@@ -297,7 +297,7 @@
 
 ระบบ LMDS V5.5 ผ่านการตรวจสอบคุณภาพโค้ดตามกฎเหล็ก 16 ข้อ (Audit Cycle: FIRST_AUDIT_REVIEW15 → FIX_REVIEW15_PLAN → APPLY_REVIEW15_FIX → VERIFY_REVIEW15_FIX)
 
-**ผลลัพธ์:** Compliance 8/15 PASS → 13/15 PASS (+5) | 14 ไฟล์แก้ไข | 18 Helper Functions ใหม่ | 1 Critical Bug Hot-Fixed
+**ผลลัพธ์:** Compliance 8/16 → 13/16 → 16/16 PASS (+3 from REFACTOR) | 14 ไฟล์แก้ไข | 18 Helper Functions ใหม่ | 1 Critical Bug Hot-Fixed
 
 การเปลี่ยนแปลงหลัก:
 - Phantom Call `invalidateGlobalAliasCache_()` → `CacheService.removeAll()` โดยตรง

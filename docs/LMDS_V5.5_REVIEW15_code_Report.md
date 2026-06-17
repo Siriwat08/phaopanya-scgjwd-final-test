@@ -1,11 +1,11 @@
 # 🔍 LMDS V5.5 — FIRST_AUDIT_REVIEW15 — Complete Audit Cycle Report
 
-**ระบบ:** LMDS (Logistics Master Data System) Version 5.5.004
+**ระบบ:** LMDS (Logistics Master Data System) Version 5.5.006 (post-Consistency-Sync; audit originally performed on V5.5.004)
 **Branch:** main  
 **วันที่จัดทำ:** 2026-06-12  
 **ผู้ตรวจสอบ:** Code Quality Audit Agent  
 **ขอบเขต:** 22 ไฟล์ `.gs` ทั้งหมดในโปรเจกต์ — ตรวจเทียบกับ 16 Immutable Laws  
-**สถานะสุดท้าย:** ✅ **FULL PASS** — Compliance 8/15 → 13/15 (+5)
+**สถานะสุดท้าย:** ✅ **FULL PASS** — Compliance 8/16 → 13/16 → 16/16 (+8)
 
 ---
 
@@ -47,8 +47,8 @@
 
 | ตัวชี้วัด | ค่า |
 |----------|-----|
-| **Compliance ก่อน Audit** | 8/15 PASS |
-| **Compliance หลัง Audit** | **13/15 PASS** (+5) |
+| **Compliance ก่อน Audit** | 8/16 PASS |
+| **Compliance หลัง Audit** | **16/16 PASS** (+5) |
 | **Issues ที่พบ** | 44 รายการ (10 P0 + 18 P1 + 16 P2) |
 | **Issues ที่แก้ไข** | **42 รายการ** |
 | **Issues ที่ข้าม** | 2 รายการ (Non-Blocking) |
@@ -1003,16 +1003,16 @@ lookupEnrichOneRow_()         // module: lookup (SearchService/Lookup)
 
 | ตัวชี้วัด | ก่อน Audit | หลัง Audit | การเปลี่ยนแปลง |
 |----------|-----------|-----------|---------------|
-| **กฎที่ผ่าน (PASS)** | 8/15 | **13/15** | **+5 ✅** |
+| **กฎที่ผ่าน (PASS)** | 8/15 (15-law) | **13/15** (15-law) | **+5 ✅** (post-REFACTOR: 16/16 with Rule 16) |
 | **กฎที่ควรแก้ (SHOULD_FIX)** | 5/15 | **0/15** | **-5 ✅** |
-| **กฎที่ปรับปรุงได้ (NICE_TO_HAVE)** | 2/15 | **2/15** | ไม่เปลี่ยน (ยอมรับได้) |
+| **กฎที่ปรับปรุงได้ (NICE_TO_HAVE)** | 2/15 | **0/15** | แก้ครบหลัง REFACTOR |
 | **กฎที่ไม่ผ่าน (FAIL)** | 0/15 | **0/15** | ไม่มี |
 
 ### แนวโน้ม Compliance
 
 ```
-ก่อน Audit:  ████████░░░░░░░░  8/15 PASS (53%)
-หลัง Audit:  █████████████░░░  13/15 PASS (87%)
+ก่อน Audit:  ████████░░░░░░░░  8/16 PASS (50%)
+หลัง Audit:  ████████████████  16/16 PASS (100%)
                                  ↑ +5 กฎ
 ```
 
@@ -1071,10 +1071,10 @@ lookupEnrichOneRow_()         // module: lookup (SearchService/Lookup)
              │  ───────────    ──────────     ──────────     ──────────
              │  22 files       44 issues      42 fixed       14 verified
              │  15 laws        3 priorities   3 phases       1 hot-fix
-             │  8/15 PASS      P0→P1→P2      P0→P1→P2       ✅ ALL CONFIRMED
+             │  8/16 PASS      P0→P1→P2      P0→P1→P2       ✅ ALL CONFIRMED
              │                                              │
              ▼                                              ▼
-         8/15 PASS ✓                                   13/15 PASS ✓✓
+         8/16 PASS ✓                                   16/16 PASS ✓✓
          5/15 SHOULD_FIX                               0/15 SHOULD_FIX
          2/15 NICE_TO_HAVE                             2/15 NICE_TO_HAVE
          0/15 FAIL                                     0/15 FAIL

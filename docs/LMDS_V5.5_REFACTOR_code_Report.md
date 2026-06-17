@@ -1,5 +1,5 @@
 # 📋 LMDS V5.5 — รายงานตรวจสอบ Refactor [CMD: VERIFY_REFACTOR_FIX]
-## วันที่: 2026-06-12 | เวอร์ชัน: V5.5.004 (full sync)
+## วันที่: 2026-06-13 | เวอร์ชัน: V5.5.006 (post-Consistency-Sync)
 
 ---
 
@@ -48,7 +48,7 @@
 | `matchEnrichEntityAliases_()` | 10_MatchEngine.gs | L481 | ✅ มีอยู่จริง |
 | `flushLookupResults_()` | 17_SearchService.gs | L296 | ✅ มีอยู่จริง |
 | `transformGeoMetadataRow_()` | 20_ThGeoService.gs | L257 | ✅ มีอยู่จริง |
-| `flushGeoMetadataBatch_()` | 20_ThGeoService.gs | L311 | ✅ มีอยู่จริง |
+| `flushGeoMetadataBatch_()` | 20_ThGeoService.gs | L310 | ✅ มีอยู่จริง |
 | `collectSystemStats_()` | 13_ReportService.gs | L131 | ✅ มีอยู่จริง |
 | `computeReportMetrics_()` | 13_ReportService.gs | L210 | ✅ มีอยู่จริง |
 | `findMatchingPerson_()` | 21_AliasService.gs | L1064 | ✅ มีอยู่จริง |
@@ -248,7 +248,7 @@
 | **การแก้ไข** | แยกเป็น `transformGeoMetadataRow_()` (pure transform) + `flushGeoMetadataBatch_()` (batch write) |
 | **หลักฐานจากโค้ด** | `20_ThGeoService.gs` L162: `function populateGeoMetadata()` — ตอนนี้เป็น orchestrator |
 | | L257: `function transformGeoMetadataRow_(rawRow)` — pure function, ไม่มี side effects |
-| | L311: `function flushGeoMetadataBatch_(sheet, rows, startRow)` — batch write helper |
+| | L310: `function flushGeoMetadataBatch_(sheet, rows, startRow)` — batch write helper |
 | | L205: เรียก `transformGeoMetadataRow_(row)` ใน loop |
 | | L209: เรียก `flushGeoMetadataBatch_(sheet, batchRows, 2 + batchStart)` หลัง loop |
 | **Verdict** | ✅ **ผ่าน** — Transform แยกจาก Write ได้อย่างสมบูรณ์ |
@@ -549,7 +549,7 @@
 | `resolveAndPersistMerge_()` | 10_MatchEngine.gs L1261 | ✅ | ผ่าน |
 | `migrateStep1_AssignUuid_()` | 21_AliasService.gs L675 | ✅ | ผ่าน |
 | `transformGeoMetadataRow_()` | 20_ThGeoService.gs L257 | ✅ | ผ่าน |
-| `flushGeoMetadataBatch_()` | 20_ThGeoService.gs L311 | ✅ | ผ่าน |
+| `flushGeoMetadataBatch_()` | 20_ThGeoService.gs L310 | ✅ | ผ่าน |
 | `collectSystemStats_()` | 13_ReportService.gs L131 | ✅ | ผ่าน |
 | `computeReportMetrics_()` | 13_ReportService.gs L210 | ✅ | ผ่าน |
 | `findMatchingPerson_()` | 21_AliasService.gs L1064 | ✅ | ผ่าน |
@@ -617,5 +617,5 @@
 
 **ผู้ตรวจสอบ:** Automated Verification System
 **วันที่ตรวจสอบ:** 2026-06-12
-**เวอร์ชันโค้ด:** V5.5.004
+**เวอร์ชันโค้ด:** V5.5.006 (post-Consistency-Sync; original V5.5.004)
 **เวอร์ชันเอกสาร:** 1.0

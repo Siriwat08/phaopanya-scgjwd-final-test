@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.004
+ * VERSION: 5.5.006
  * FILE: 04_SourceRepository.gs
  * LMDS V5.5 — Source Data Repository
  * ===================================================
@@ -7,7 +7,11 @@
  *   จัดการข้อมูลต้นทาง (Source Sheet) สำหรับ Pipeline
  *   เป็น Single Entry Point สำหรับการอ่านและเขียนข้อมูลต้นฉบับ
  * ===================================================
- *   v5.5.004 (2026-06-15) — full sync cycle:
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
+ *     - [SYNC] Documentation consistency: line count 13,831, function count 310
+ *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
+ *   v5.5.004 (2026-06-15) — full sync cycle:
  *     - [SYNC] All 22 files version bump 5.5.003 → 5.5.004
  *     - [SYNC] Documentation audit: 28 inconsistencies fixed
  *   v5.5.003 (2026-06-12) — post-REFACTOR sync:

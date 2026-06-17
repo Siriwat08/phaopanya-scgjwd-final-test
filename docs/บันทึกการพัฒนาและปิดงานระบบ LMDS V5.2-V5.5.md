@@ -81,21 +81,21 @@
 | 83 | Security Audit: ตรวจพบ 7 ช่องโหว่ด้านความปลอดภัย (3 HIGH, 4 MEDIUM) | `[CMD: FIRST_AUDIT_SECURITY]` — ตรวจ Cookie, AuthZ, PII, API Key, Protected Ranges | พบ 7 รายการ |
 | 84 | Security Fix: แก้ไขช่องโหว่ทั้ง 7 รายการ | SEC-001~007: Cookie→Properties, AuthZ Guard, Sanitization, PII Removal, Protected Ranges, API Header, Email Mask | 7/7 ✅ FIX_CONFIRMED |
 | 85 | Security Verification: Regression Test ผ่าน | ตรวจสอบ 22 ไฟล์ — ไม่พบ Regression, ไม่พบ Behavior Change | ผ่านทุกรายการ |
-| 86 | Code Quality Audit (FIRST_AUDIT_REVIEW15): ตรวจสอบกฎเหล็ก 15 ข้อ | `[CMD: FIRST_AUDIT_REVIEW15]` — ตรวจ Clean Code, Hardcode Index, Phantom Calls, Dead Code, SRP | Compliance 8/15 → 13/15 PASS (+5) |
+| 86 | Code Quality Audit (FIRST_AUDIT_REVIEW15): ตรวจสอบกฎเหล็ก 15 ข้อ | `[CMD: FIRST_AUDIT_REVIEW15]` — ตรวจ Clean Code, Hardcode Index, Phantom Calls, Dead Code, SRP | Compliance 8/15 (15-law framework) → 13/15 (+5) → 16/16 (16-law framework after Rule 16 added) |
 | 87 | Code Quality Fix: แก้ไข SHOULD_FIX ทั้ง 5 ข้อ + 1 Critical Bug | Phantom Call→CacheService.removeAll(), Hardcode→*_IDX, Dead Code ลบ, 18 Helper Functions แยก, Critical Bug Hot-Fix | 14 ไฟล์แก้ไข, 18 Helpers ใหม่, 1 Critical Bug Hot-Fixed |
-| 88 | Code Quality Verification: ผ่านการยืนยันทั้งหมด | ตรวจสอบ 22 ไฟล์ — Compliance 13/16 PASS, ไม่พบ Regression | ผ่านทุกรายการ |
+| 88 | Code Quality Verification: ผ่านการยืนยันทั้งหมด | ตรวจสอบ 22 ไฟล์ — Compliance 16/16 PASS, ไม่พบ Regression | ผ่านทุกรายการ |
 | 89 | REFACTOR Cycle: วิเคราะห์และวางแผนปรับโครงสร้าง | `[CMD: FIRST_AUDIT_REFACTOR]` — วิเคราะห์ฟังก์ชันที่ยาวเกิน, ทับซ้อน, หรือโครงสร้างพัง | 21 REF issues วางแผน |
 | 90 | REFACTOR Execution: ปรับโครงสร้าง 21 จุด ใน 16 ไฟล์ | REF-001 (resolveAndPersist_ gateway), REF-006 (populateGeoMetadata split), REF-014 (stripThaiAdminPrefix_/stripThaiProvincePrefix_), REF-016 (cachedGeoLookup_ 3-layer cache) + 17 จุดอื่น | 16 ไฟล์เปลี่ยนแปลง, 3+ helper functions ใหม่ |
-| 91 | REFACTOR Verification: ผ่านการยืนยันทั้งหมด | ตรวจสอบ 22 ไฟล์ — Compliance **16/16 COMPLIANT**, ไม่พบ Regression, Business Logic ไม่เปลี่ยน | ผ่านทุกรายการ |
+| 91 | REFACTOR Verification: ผ่านการยืนยันทั้งหมด | ตรวจสอบ 22 ไฟล์ — Compliance **16/16 COMPLIANT** (Rule 16 Security-First Design เพิ่มใน V5.5.004), ไม่พบ Regression, Business Logic ไม่เปลี่ยน | ผ่านทุกรายการ |
 | 92 | PREDEPLOY Check: ตรวจสอบสถานะระบบครั้งสุดท้าย | `[CMD: PREDEPLOY]` — ตรวจสอบทุกหมวด (Critical, Performance, Quality) | ✅ PASSED — Production Readiness 95% |
 
 ---
 
 ## FIRST_AUDIT_REVIEW15 + REFACTOR — ผลการตรวจสอบคุณภาพโค้ด (2026-06-12)
 
-ระบบ LMDS V5.5 ผ่านการตรวจสอบคุณภาพโค้ดตามกฎเหล็ก 16 ข้อ (Audit Cycle: FIRST_AUDIT_REVIEW15 → FIX_REVIEW15_PLAN → APPLY_REVIEW15_FIX → VERIFY_REVIEW15_FIX → REFACTOR → PREDEPLOY)
+ระบบ LMDS V5.5 ผ่านการตรวจสอบคุณภาพโค้ดตามกฎเหล็ก (เดิม 15 ข้อใน REVIEW15 cycle; ปัจจุบัน 16 ข้อหลังเพิ่ม Rule 16: Security-First Design ใน V5.5.004) (Audit Cycle: FIRST_AUDIT_REVIEW15 → FIX_REVIEW15_PLAN → APPLY_REVIEW15_FIX → VERIFY_REVIEW15_FIX → REFACTOR → PREDEPLOY)
 
-**ผลลัพธ์:** Compliance 8/16 PASS → 13/16 PASS (+5 REVIEW15) → **16/16 COMPLIANT** (+3 REFACTOR รวม Rule 16: Security-First Design) | 14+16 ไฟล์แก้ไข | 18+172 Helper Functions ใหม่ | 1 Critical Bug Hot-Fixed | 21 REF issues | Production Readiness 95%
+**ผลลัพธ์:** Compliance 8/16 PASS → 13/16 PASS (+5 REVIEW15) → **16/16 COMPLIANT** (+3 REFACTOR, Rule 16 added in V5.5.004) | 14+16 ไฟล์แก้ไข | 190 Helper Functions ใหม่ (18 SRP + 172 REFACTOR) | 1 Critical Bug Hot-Fixed | 21 REF issues | Production Readiness 95%
 
 การเปลี่ยนแปลงหลัก:
 - Phantom Call `invalidateGlobalAliasCache_()` → `CacheService.removeAll()` โดยตรง

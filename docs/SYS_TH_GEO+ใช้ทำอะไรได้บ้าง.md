@@ -443,7 +443,7 @@ function _emptyGeoResult() {
 
 ---
 
-## 📌 อัปเดต V5.5.003 (2026-06-12)
+## 📌 อัปเดต V5.5.006 (2026-06-18)
 
 หลังการตรวจสอบคุณภาพโค้ด FIRST_AUDIT_REVIEW15 ได้เพิ่ม **Time Guard + Checkpoint** ให้กับ 2 ฟังก์ชันที่ใช้ข้อมูล SYS_TH_GEO ซึ่งอาจรันนานเมื่อข้อมูลมีมาก:
 
@@ -452,7 +452,7 @@ function _emptyGeoResult() {
 
 การเปลี่ยนแปลงนี้ตอบสนองกฎข้อ 5 (Resumable State) และลดความเสี่ยง Timeout สำหรับข้อมูลขนาดใหญ่
 
-### 📌 อัปเดต REFACTOR (V5.5.003 post-REFACTOR)
+### 📌 อัปเดต V5.5.006 (post-Consistency-Sync)
 
 หลังการ REFACTOR cycle ได้เพิ่มการปรับโครงสร้าง `populateGeoMetadata()` ใน `20_ThGeoService.gs`:
 
