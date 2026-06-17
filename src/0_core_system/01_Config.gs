@@ -39,7 +39,7 @@
  * DEPENDENCIES:
  *   DEFINES:
  *     - APP_VERSION, SCHEMA_VERSION, APP_NAME (Metadata)
- *     - SHEET{} (7 core sheets + 9 operation sheets + M_ALIAS + 2 summaries = 20)
+ *     - SHEET{} (7 core sheets + 10 operation sheets + M_ALIAS + 2 summaries = 20)
  *     - *_IDX{} (Person, PersonAlias, Place, PlaceAlias, Alias, Geo, Dest, Fact, Review, ThGeo, Employee, Src, Data, SysLog, MapsCache, OwnerSum, ShipmentSum = 17)
  *     - AI_CONFIG, SCG_CONFIG, APP_CONST (System configs)
  *     - _GLOBAL_* CACHE variables (RAM cache layer)

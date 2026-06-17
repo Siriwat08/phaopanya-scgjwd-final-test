@@ -393,7 +393,7 @@ Hybrid Alias Architecture เป็นระบบจัดการชื่อ
 |------|--------|--------|--------------|-------------|
 | `00_App.gs` | 891 | จุดเริ่มระบบ, เมนู, Pipeline orchestration, Smart Navigation, Diagnostic | `onOpen()`, `onEdit()`, `runFullPipeline()`, `diagnoseSystemState()`, `safeRun()` | 01, 02, 10, 17, 13, 18, 16, 21 |
 | `01_Config.gs` | 699 | Single Source of Truth สำหรับค่าคงที่ (20 ชีต, 17 IDX sets, AI/SCG/APP configs) | `validateConfig()`, `getGeminiApiKey()`, `invalidateAllGlobalCaches()` | None (root) |
-| `02_Schema.gs` | 503 | นิยาม Header ทุกชีต (20 schema) + Validation | `getSheetHeaders()`, `validateSheetHeaders()`, `getColIndex()`, `validateSchemaConsistency()` | 01 |
+| `02_Schema.gs` | 503 | นิยาม Header ทุกชีต (19 schema) + Validation | `getSheetHeaders()`, `validateSheetHeaders()`, `getColIndex()`, `validateSchemaConsistency()` | 01 |
 | `03_SetupSheets.gs` | 549 | สร้างชีตทั้งหมด, auto-repair, ระบบ Logging (SYS_LOG) | `setupAllSheets()`, `logInfo/Warn/Error/Debug()`, `clearOldLogs_()` | 01, 02, 14 |
 | `04_SourceRepository.gs` | 631 | อ่าน/กรอง/สร้าง Object จากข้อมูลดิบ + Caching | `getAllSourceRows()`, `getUnprocessedRows()`, `updateSyncStatus_()` | 01, 02, 14 |
 | `05_NormalizeService.gs` | 484 | ทำความสะอาดชื่อและที่อยู่ภาษาไทย (80+ prefixes) | `normalizePersonNameFull()`, `normalizePlaceName()`, `buildThaiPhoneticKey()`, `normalizeForCompare()` | 14 |
@@ -506,7 +506,7 @@ makeMatchDecision(ctx)
 ### 9.1 Group 1: Full Pipeline Flow
 
 ```
-onOpen() → สร้างเมนู "LMDS V5.4"
+onOpen() → สร้างเมนู "🚚 LMDS V5.5"
     │
     ▼ ผู้ใช้กด "Run Full Pipeline"
 runFullPipeline()
@@ -751,7 +751,7 @@ var SHEET = Object.freeze({
 
 ### 13.2 Schema System (`02_Schema.gs`)
 
-**SCHEMA Object** (frozen, 20 sheet schemas):
+**SCHEMA Object** (frozen, 19 sheet schemas — `SHEET.SOURCE` ไม่มี SCHEMA entry แยกต่างหาก):
 - แต่ละ schema เป็น array ของ column header names
 - `validateSchemaConsistency()` ตรวจสอบว่า schema ตรงกับ IDX constants
 - `getColIndex(schemaKey, colName)` สำหรับ dynamic column lookup

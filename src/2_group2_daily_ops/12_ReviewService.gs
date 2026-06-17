@@ -5,14 +5,14 @@
  * [FIX BUG-B2] v5.4.003: updateReviewRowStatus_() helper — 1 setValues แทน 5× setValue
  * [FIX BUG-B2] v5.4.003: applyAllPendingDecisions — Time Guard + Batch Status
  * [FIX BUG-A2] v5.4.003: applyAllPendingDecisions — เพิ่ม try-catch outer
- * [FIX v5.5.005] แก้ Syntax Error บรรทัด 259 (try block ไม่มี catch/finally)
- * [FIX v5.5.005] เพิ่ม return statement ใน applyReviewDecision() — ทำให้ Review เขียน FACT_DELIVERY ได้
- * [FIX v5.5.005] ลบ dead code resolveGeoAndDest_() — ละเมิดกฎ Architecture
+ * [FIX v5.5.004] แก้ Syntax Error บรรทัด 259 (try block ไม่มี catch/finally)
+ * [FIX v5.5.004] เพิ่ม return statement ใน applyReviewDecision() — ทำให้ Review เขียน FACT_DELIVERY ได้
+ * [FIX v5.5.004] ลบ dead code resolveGeoAndDest_() — ละเมิดกฎ Architecture
  * ===================================================
  * PURPOSE:
  * จัดการคิวรีวิว Q_REVIEW — พักข้อมูลที่ต้องให้คนตัดสินใจ
  * ===================================================
- * v5.5.005 (2026-06-16) — CRITICAL Fix:
+ * v5.5.004 (2026-06-15) — CRITICAL Fix (post-sync):
  * - [FIX] Syntax Error: Missing catch/finally after try (line 259)
  * - [FIX] applyReviewDecision() ไม่มี return statement → Review ไม่เขียน FACT_DELIVERY
  * - [FIX] ลบ dead code resolveGeoAndDest_()
@@ -166,7 +166,7 @@ function enqueueReview(srcObj, decision, personResult, placeResult, geoResult) {
 // SECTION 2: applyAllPendingDecisions
 // [FIX BUG-B2] Time Guard (ป้องกัน Timeout กับ Queue ใหญ่)
 // [FIX BUG-A2] try-catch outer
-// [FIX v5.5.005] แก้ Syntax Error — ลบ try block ที่ไม่มี catch/finally
+// [FIX v5.5.004] แก้ Syntax Error — ลบ try block ที่ไม่มี catch/finally
 // ============================================================
 
 function applyAllPendingDecisions() {
@@ -369,14 +369,14 @@ function batchUpdateReviewStatus_(sheet, updates) {
 // [FIX BUG-B2] ใช้ updateReviewRowStatus_() แทน 5× setValue
 // [REF-004] Refactored to Decision Router (~30 lines) + helper functions
 // [REF-013] buildSrcObjFromReview_ extracted for srcObj construction
-// [FIX v5.5.005] เพิ่ม return statement — ทำให้ Review เขียน FACT_DELIVERY ได้
+// [FIX v5.5.004] เพิ่ม return statement — ทำให้ Review เขียน FACT_DELIVERY ได้
 // ============================================================
 
 /**
  * applyReviewDecision — [REF-004] Decision Router
  * Delegates to step-specific helpers for each decision type.
  * Preserves all existing behavior.
- * [FIX v5.5.005] เพิ่ม return statement เพื่อส่ง factRowData กลับไป caller
+ * [FIX v5.5.004] เพิ่ม return statement เพื่อส่ง factRowData กลับไป caller
  */
 function applyReviewDecision(reviewId, decisionVal, rowData, optTargetRow) {
   // [FIX B1 v5.5.002] เพิ่ม try-catch outer — menu entry point ต้องมี error handling
@@ -417,7 +417,7 @@ function applyReviewDecision(reviewId, decisionVal, rowData, optTargetRow) {
     }
 
     // [REF-004] Decision Router — delegates to helpers
-    // [FIX v5.5.005] เก็บ result จาก helper เพื่อ return กลับไป caller
+    // [FIX v5.5.004] เก็บ result จาก helper เพื่อ return กลับไป caller
     let result = null;
 
     switch (decisionVal) {
@@ -440,7 +440,7 @@ function applyReviewDecision(reviewId, decisionVal, rowData, optTargetRow) {
 
     logInfo('ReviewService', 'applyReviewDecision: ' + reviewId + ' → ' + decisionVal + ' โดย ' + reviewer);
 
-    // [FIX v5.5.005] return result เพื่อให้ caller ได้ factRowData
+    // [FIX v5.5.004] return result เพื่อให้ caller ได้ factRowData
     return result;
 
   } catch (e) {

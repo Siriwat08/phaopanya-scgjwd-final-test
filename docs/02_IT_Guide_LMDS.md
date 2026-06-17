@@ -908,6 +908,6 @@ APP_CONST = {
 > 2. **Search Service ในโค้ดใช้ 2 Tier เท่านั้น** (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — นี่คือการใช้งานจริง (System Guide ฉบับเก่าอธิบาย 6 Tier ซึ่งเป็นแบบเก่าที่ถูกลบออกไปแล้ว)
 > 3. **ID Format ในโค้ด** ใช้ prefix + 12 hex chars (เช่น Person = `PA3F7B2C9D0E1`) แต่ System Guide แสดงแบบสั้น 6 chars (เช่น `PS3k7x`)
 > 4. **SYS_LOG auto-clean** ในโค้ด trigger เมื่อเกิน 5,001 แถว และเก็บไว้ 1,000 แถวล่าสุด (ไม่ใช่ 5,000 ตามที่ System Guide เขียน)
-> 5. **SHEET count** ในโค้ดมี 20 entries แต่ comment ใน Config บอก 21 (ผิด)
+> 5. **SHEET count** ในโค้ดมี 20 entries และ comment ใน Config (`01_Config.gs` line 42) บอก "7 core + 10 operation + M_ALIAS + 2 summaries = 20" — ตรงกัน 100%
 >
 > **สถิติระบบ:** ฟังก์ชัน 310 | บรรทัดโค้ด 13,831 | IDX sets 17 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)
