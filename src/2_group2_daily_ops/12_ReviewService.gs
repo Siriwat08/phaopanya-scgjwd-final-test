@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.010
+ * VERSION: 5.5.011
  * FILE: 12_ReviewService.gs
  * LMDS V5.5 — Review Queue Service
  * [FIX BUG-B2] v5.4.003: updateReviewRowStatus_() helper — 1 setValues แทน 5× setValue
@@ -196,7 +196,13 @@ function enqueueReview(srcObj, decision, personResult, placeResult, geoResult) {
     newRow[REVIEW_IDX.CAND_GEOS] = candGeoIds;
     newRow[REVIEW_IDX.CAND_DESTS] = JSON.stringify([]);
     newRow[REVIEW_IDX.MATCH_SCORE] = decision ? (decision.confidence || 0) : 0;
-    newRow[REVIEW_IDX.RECOMMEND] = 'MANUAL_REVIEW';
+    // [V5.5.011] สร้าง recommended_action ที่มี ID จริง เพื่อให้ผู้ review คลิกแล้วนำทางได้
+    //   ก่อนหน้านี้ใส่ค่าคงที่ 'MANUAL_REVIEW' ทำให้ Smart Navigation ไม่สามารถ parse ID และนำทางได้
+    //   ตอนนี้ระบบจะแนะนำ action ที่เหมาะสมตามข้อมูลที่มี:
+    //     - มี candidate Person → "MERGE_TO_CANDIDATE:PS-XXXX" (เร็วสุด คลิกได้เลย)
+    //     - มี candidate Place  → "MERGE_TO_CANDIDATE:PL-XXXX"
+    //     - ไม่มี candidate     → "CREATE_NEW" (ให้ reviewer ตัดสินใจ)
+    newRow[REVIEW_IDX.RECOMMEND] = buildRecommendedAction_(personResult, placeResult, geoResult, decision);
     newRow[REVIEW_IDX.STATUS] = 'Pending';
     newRow[REVIEW_IDX.REVIEWER] = '';
     newRow[REVIEW_IDX.REVIEWED_AT] = '';
@@ -208,6 +214,63 @@ function enqueueReview(srcObj, decision, personResult, placeResult, geoResult) {
   } catch (e) {
     logError('ReviewService', 'enqueueReview ล้มเหลว: ' + e.message);
     return null;
+  }
+}
+
+// ============================================================
+// SECTION 1.5: buildRecommendedAction_ [V5.5.011]
+// สร้างค่า recommended_action ที่มี ID จริง เพื่อให้ Smart Navigation
+// สามารถ parse ID และนำทางไปยัง Master/FACT sheet ได้เมื่อผู้ review คลิก
+// ============================================================
+
+/**
+ * buildRecommendedAction_ — สร้างคำแนะนำ action พร้อม ID สำหรับคอลัมน์ recommended_action
+ *
+ * รูปแบบผลลัพธ์ที่เป็นไปได้:
+ *   - "MERGE_TO_CANDIDATE:PS-XXXX"     มี candidate Person → แนะนำ merge
+ *   - "MERGE_TO_CANDIDATE:PL-XXXX"     มี candidate Place (ไม่มี Person) → แนะนำ merge
+ *   - "CREATE_NEW"                     ไม่มี candidate → แนะนำสร้างใหม่
+ *   - "MANUAL_REVIEW"                  กรณีพิเศษที่ไม่สามารถตัดสินใจอัตโนมัติได้
+ *
+ * Smart Navigation ใน 00_App.gs จะ parse ID (PS-XXXX หรือ PL-XXXX)
+ * และนำทางไปยัง M_PERSON/M_PLACE + FACT_DELIVERY เพื่อให้ reviewer ยืนยัน
+ *
+ * @param {Object|null} personResult - { personId, status, confidence } จาก resolvePerson
+ * @param {Object|null} placeResult  - { placeId, status, confidence } จาก resolvePlace
+ * @param {Object|null} geoResult    - { geoId, candidateGeoIds } จาก GeoService
+ * @param {Object|null} decision     - { reason, priority, confidence } จาก MatchEngine
+ * @return {string} recommended action string พร้อม ID สำหรับ navigation
+ */
+function buildRecommendedAction_(personResult, placeResult, geoResult, decision) {
+  try {
+    // ดึง ID จาก candidate results
+    var personId = personResult && personResult.personId
+      ? String(personResult.personId).trim() : '';
+    var placeId = placeResult && placeResult.placeId
+      ? String(placeResult.placeId).trim() : '';
+
+    // กรณี 1: มี candidate Person → แนะนำ MERGE_TO_CANDIDATE พร้อม Person ID
+    if (personId) {
+      return 'MERGE_TO_CANDIDATE:' + personId;
+    }
+
+    // กรณี 2: มี candidate Place (แต่ไม่มี Person) → แนะนำ MERGE ด้วย Place ID
+    if (placeId) {
+      return 'MERGE_TO_CANDIDATE:' + placeId;
+    }
+
+    // กรณี 3: มี Geo candidate แต่ไม่มี Person/Place → CREATE_NEW
+    // (มีพิกัด GPS ใกล้เคียง แต่เป็นร้านใหม่)
+    if (geoResult && geoResult.geoId) {
+      return 'CREATE_NEW:GP-' + String(geoResult.geoId).trim();
+    }
+
+    // กรณี 4: ไม่มี candidate ใดเลย → CREATE_NEW ล้วน
+    return 'CREATE_NEW';
+  } catch (e) {
+    // Fallback: ใช้ค่าเดิมเพื่อไม่ให้ break review queue
+    logDebug('ReviewService', 'buildRecommendedAction_ fallback: ' + e.message);
+    return 'MANUAL_REVIEW';
   }
 }
 

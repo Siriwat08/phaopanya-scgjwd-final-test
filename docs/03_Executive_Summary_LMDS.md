@@ -29,7 +29,7 @@
 | รายการ | รายละเอียด |
 |:---|:---|
 | **ชื่อระบบ** | LMDS (Logistics Master Data System) |
-| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.008, System Guide = V5.5.008) |
+| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.011, System Guide = V5.5.011) |
 | **แพลตฟอร์ม** | Google Workspace (Google Sheets + Google Apps Script) |
 | **ลูกค้า** | SCG JWD Logistics |
 | **ขอบเขตการใช้งาน** | การขนส่งสินค้าในประเทศไทย |

@@ -244,7 +244,7 @@ autoEnrichAliasesFromFactBatch_() → M_ALIAS + M_PERSON_ALIAS + M_PLACE_ALIAS
 |:---|:---|:---|
 | LAST_PIPELINE_RUN | 2025-01-15T10:30:00 | เวลา Pipeline ล่าสุด |
 | GEO_DICT_BUILT | true | สถานะการสร้าง Geo Dictionary |
-| SCHEMA_VERSION | 5.5.008 | เวอร์ชัน Schema ปัจจุบัน |
+| SCHEMA_VERSION | 5.5.011 | เวอร์ชัน Schema ปัจจุบัน |
 
 ---
 
@@ -900,11 +900,11 @@ APP_CONST = {
 
 > **เอกสารฉบับนี้จัดทำสำหรับทีม IT ที่ดูแลระบบ LMDS V5.5**
 >
-> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.008) | **วันที่:** มิถุนายน 2569
+> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.011) | **วันที่:** มิถุนายน 2569
 >
 > **✅ หมายเหตุ — เวอร์ชันซิงค์แล้ว:**
 >
-> 1. **APP_VERSION ในโค้ด = `5.5.008`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.008 ได้รับการแก้ไขแล้ว)
+> 1. **APP_VERSION ในโค้ด = `5.5.011`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.011 ได้รับการแก้ไขแล้ว)
 > 2. **Search Service ในโค้ดใช้ 2 Tier เท่านั้น** (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — นี่คือการใช้งานจริง (System Guide ฉบับเก่าอธิบาย 6 Tier ซึ่งเป็นแบบเก่าที่ถูกลบออกไปแล้ว)
 > 3. **ID Format ในโค้ด** ใช้ prefix + 12 hex chars (เช่น Person = `PA3F7B2C9D0E1`) แต่ System Guide แสดงแบบสั้น 6 chars (เช่น `PS3k7x`)
 > 4. **SYS_LOG auto-clean** ในโค้ด trigger เมื่อเกิน 5,001 แถว และเก็บไว้ 1,000 แถวล่าสุด (ไม่ใช่ 5,000 ตามที่ System Guide เขียน)

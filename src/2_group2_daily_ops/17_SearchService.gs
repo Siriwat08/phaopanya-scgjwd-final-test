@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.010
+ * VERSION: 5.5.011
  * FILE: 17_SearchService.gs
  * LMDS V5.5 — Search Service (The Bridger — Group 2)
  * ===================================================
@@ -127,8 +127,15 @@
  *   - LatLong_SCG ถูกลบออกจาก logic ทั้งหมด
  *   - ถ้าหาไม่เจอ → คืน NOT_FOUND เว้นว่าง ไม่ fallback ใดๆ
  *
- * Tier 0: ShipToName → M_ALIAS → masterUuid → dest → lat,lng (เร็วสุด)
- * Tier 1: ShipToName → resolvePerson() → getDestsByPersonId() (usage-dominant)
+ * [V5.5.011] Same-Clean-Process-as-Sheet1 Policy:
+ *   - ก่อนหน้านี้ใช้แค่ String(rawPerson).trim() ส่งตรงเข้า lookup
+ *   - ทำให้ ShipToName จาก Sheet2 ไม่ผ่านกระบวนการทำความสะอาดเหมือน Sheet1
+ *   - ผลลัพธ์คือค้นไม่เจอแม้จะเป็นร้านเดียวกัน เพราะในชื่อมี "จำกัด"/"ร้าน"/เบอร์โทร ฯลฯ
+ *   - ตอนนี้ผ่าน normalizePersonNameFull ก่อน → ได้ cleanName เหมือน Sheet1
+ *   - แล้วลองค้นด้วย cleanName ก่อน, หากไม่เจอค่อย fallback ด้วย rawName
+ *
+ * Tier 0: ShipToName → normalizePersonNameFull → M_ALIAS → masterUuid → dest → lat,lng (เร็วสุด)
+ * Tier 1: ShipToName → normalizePersonNameFull → resolvePerson() → getDestsByPersonId() (usage-dominant)
  * NOT_FOUND: เว้นว่าง LatLong_Actual
  *
  * @param {string} rawPerson - ShipToName จาก ตารางงานประจำวัน
@@ -140,23 +147,54 @@ function findBestGeoByPersonPlace(rawPerson) {
       'ShipToName ว่างหรือสั้นเกิน');
   }
 
-  const cleanName = String(rawPerson).trim();
+  const rawName = String(rawPerson).trim();
+
+  // [V5.5.011] ทำความสะอาดชื่อแบบเดียวกับ Sheet1 ก่อนนำไปค้นหา
+  // normalizePersonNameFull จะ:
+  //   1. ดึงเบอร์โทรออก
+  //   2. ดึงเลขเอกสารออก
+  //   3. ดึง Delivery Notes (ฝากยาม, COD, ด่วน ฯลฯ) ออก
+  //   4. ตัด Company Suffix (จำกัด, บจก., หจก. ฯลฯ) และ Chain Store (ร้าน, ร้านค้า)
+  //   5. ตัดคำนำหน้า (นาย, นาง, บริษัท ฯลฯ)
+  //   6. ล้างช่องว่างและอักขระพิเศษ
+  // ทำให้ cleanName สามารถจับคู่กับ M_ALIAS/M_PERSON ที่บันทึกจาก Sheet1 ได้แม่นยำขึ้น
+  let cleanName = rawName;
+  let normResult = null;
+  try {
+    if (typeof normalizePersonNameFull === 'function') {
+      normResult = normalizePersonNameFull(rawName);
+      if (normResult && normResult.cleanName && normResult.cleanName.length >= 2) {
+        cleanName = normResult.cleanName;
+      }
+    }
+  } catch (normErr) {
+    // ถ้า normalize ล้มเหลว ใช้ rawName ต่อไป
+    logDebug('SearchService', 'normalizePersonNameFull ล้มเหลว ใช้ rawName: ' + normErr.message);
+  }
 
   // ─── Tier 0: M_ALIAS Fast Track ───────────────────────────────────
-  // ShipToName → normalize → M_ALIAS reverse index → masterUuid → dest
+  // ลองค้นด้วย cleanName ก่อน (หลังทำความสะอาด), หากไม่เจอค่อยลอง rawName
   if (typeof fastLookupByShipToName === 'function') {
-    const fastResult = fastLookupByShipToName(cleanName);
+    let fastResult = fastLookupByShipToName(cleanName);
+    if (!fastResult && cleanName !== rawName) {
+      // Fallback: ลองด้วย rawName เผื่อ M_ALIAS เก็บ variant แบบ raw ไว้
+      fastResult = fastLookupByShipToName(rawName);
+    }
     if (fastResult && fastResult.lat != null && fastResult.lng != null) {
+      const reason = cleanName !== rawName
+        ? `M_ALIAS Fast Track (cleaned): "${rawName}" → "${cleanName}"`
+        : `M_ALIAS Fast Track: "${cleanName}"`;
       return buildSearchResult_(
         fastResult.lat, fastResult.lng,
         'FOUND_ALIAS_FAST', fastResult.confidence, fastResult.destId,
-        `M_ALIAS Fast Track: "${cleanName}"`
+        reason
       );
     }
   }
 
   // ─── Tier 1: resolvePerson → M_DESTINATION ────────────────────────
-  // ShipToName → normalize → M_PERSON candidate → usage-dominant dest
+  // resolvePerson จะเรียก normalizePersonNameFull ภายในอยู่แล้ว
+  // แต่ส่ง cleanName เข้าไปเพื่อหลีกเลี่ยงการ normalize ซ้ำ และใช้ผลลัพธ์ที่เราคำนวณแล้ว
   const personResult = resolvePerson(cleanName);
   const personId     = personResult ? personResult.personId : null;
 
@@ -166,19 +204,25 @@ function findBestGeoByPersonPlace(rawPerson) {
 
     if (dests.length > 0) {
       const top = dests[0];
+      const reason = cleanName !== rawName
+        ? `Person match (cleaned): "${rawName}" → "${cleanName}" → usageCount:${top.usageCount}`
+        : `Person match: "${cleanName}" → usageCount:${top.usageCount}`;
       return buildSearchResult_(
         top.lat, top.lng,
         'FOUND_DOMINANT', 90, top.destId,
-        `Person match: "${cleanName}" → usageCount:${top.usageCount}`
+        reason
       );
     }
   }
 
   // ไม่พบ — เว้นว่าง LatLong_Actual
+  const reason = cleanName !== rawName
+    ? `ไม่พบข้อมูล — ShipToName:"${rawName}" (cleaned: "${cleanName}")`
+    : `ไม่พบข้อมูล — ShipToName:"${cleanName}"`;
   return buildSearchResult_(
     null, null,
     'NOT_FOUND', 0, null,
-    `ไม่พบข้อมูล — ShipToName:"${cleanName}"`
+    reason
   );
 }
 

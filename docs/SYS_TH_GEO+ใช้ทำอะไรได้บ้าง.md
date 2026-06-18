@@ -467,9 +467,9 @@ function _emptyGeoResult() {
    - ใช้ใน `transformGeoMetadataRow_()` สำหรับสร้างคอลัมน์ `_clean` (ตำบล_clean, อำเภอ_clean) และ `province_norm`
    - ก่อน REFACTOR: ตรรกะตัดคำฝังอยู่ใน body ของ `populateGeoMetadata()` ทำให้ยากต่อการทดสอบและนำกลับมาใช้ซ้ำ
 
-### 📌 อัปเดต V5.5.007 + V5.5.008 (post-CACHE-CLEANUP, 2026-06-18)
+### 📌 อัปเดต V5.5.007 + V5.5.011 (post-CACHE-CLEANUP, 2026-06-18)
 
-หลังการตรวจสอบ CACHE AUDIT (V5.5.007 + V5.5.008) ได้แก้ไขปัญหา cache ที่เกี่ยวข้องกับ SYS_TH_GEO ใน `20_ThGeoService.gs` และ `16_GeoDictionaryBuilder.gs` รวม 6 รายการ:
+หลังการตรวจสอบ CACHE AUDIT (V5.5.007 + V5.5.011) ได้แก้ไขปัญหา cache ที่เกี่ยวข้องกับ SYS_TH_GEO ใน `20_ThGeoService.gs` และ `16_GeoDictionaryBuilder.gs` รวม 6 รายการ:
 
 5. **`populateGeoMetadata()` ใช้ invalidate*Cache_* แทน null manual (P2 #12):** ก่อนหน้านี้ null `_GLOBAL_GEO_DICT_*` cache ด้วยมือโดยตรง ซึ่งซ้ำซ้อนกับ invalidator functions ตอนนี้เรียกใช้ `invalidateGeoDictCache_()` และ `invalidatePlaceCache_()` ที่ centralized แล้ว
 6. **`flushLogBuffer_()` ใน finally block (P2 #11):** เพิ่มการ flush log ใน finally block ของ `populateGeoMetadata()` เพื่อป้องกัน loss ของ log entries เมื่อเกิด error กลางทาง

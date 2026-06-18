@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.010
+ * VERSION: 5.5.011
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,19 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX:
+ *     - [ADD SCHEMA] เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] ใน 02_Schema.gs (37 คอลัมน์ตรงกับ SRC_IDX)
+ *       ก่อนหน้านี้ SHEET.SOURCE มีเฉพาะ SRC_IDX ใน Config แต่ไม่มีใน SCHEMA → Single Source of Truth ไม่ครบ
+ *     - [ADD VALIDATE] เพิ่ม SHEET.SOURCE + SHEET.DAILY_JOB เข้าใน validateConfig() และ validateSchemaConsistency()
+ *       ทำให้ตรวจจับ mismatch ระหว่าง SCHEMA.length vs IDX.keys ได้ตั้งแต่เริ่มระบบ
+ *     - [FIX SEARCH] findBestGeoByPersonPlace ใน 17_SearchService.gs ผ่าน normalizePersonNameFull ก่อนค้นหา
+ *       ทำให้ SHIP_TO_NAME จาก Sheet2 ผ่านกระบวนการทำความสะอาดเหมือน Sheet1
+ *       ลอก cleanName ก่อน หากไม่เจอค่อย fallback ด้วย rawName — เพิ่ม match rate
+ *     - [FIX Q_REVIEW NAV] enqueueReview สร้าง recommended_action ที่มี ID จริง (ไม่ใช่แค่ "MANUAL_REVIEW")
+ *       เช่น "MERGE_TO_CANDIDATE:PS-XXXX" หรือ "CREATE_NEW"
+ *     - [FIX Q_REVIEW NAV] handleSelectionChange_ ใน 00_App.gs รองรับการคลิกที่คอลัมน์ RECOMMEND (P)
+ *       parse ID จาก string แล้วนำทางไป Master/FACT — แก้ปัญหา "กดแล้วไม่พาไป"
+ *     - [DOC] อัปเดตเอกสารทุกไฟล์จาก V5.5.008 → V5.5.011 ให้เป็นปัจจุบัน
  *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
  *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
  *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
@@ -123,8 +136,8 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.010';
-const SCHEMA_VERSION = '5.5.010';
+const APP_VERSION = '5.5.011';
+const SCHEMA_VERSION = '5.5.011';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs
@@ -744,6 +757,9 @@ function validateConfig() {
       { name: SHEET.M_ALIAS,        idx: ALIAS_IDX,              label: 'M_ALIAS'        },
       { name: SHEET.OWNER_SUMMARY,  idx: OWNER_SUM_IDX,          label: 'OWNER_SUMMARY'  },
       { name: SHEET.SHIPMENT_SUM,   idx: SHIPMENT_SUM_IDX,       label: 'SHIPMENT_SUM'   },
+      // [ADD v5.5.011] เพิ่มการตรวจ SOURCE และ DAILY_JOB — ก่อนหน้านี้ไม่ได้ตรวจใน validateConfig
+      { name: SHEET.SOURCE,         idx: SRC_IDX,                label: 'SOURCE (SCGนครหลวงJWDภูมิภาค)' },
+      { name: SHEET.DAILY_JOB,      idx: DATA_IDX,               label: 'DAILY_JOB (ตารางงานประจำวัน)' },
     ];
     checks.forEach(item => {
       const schemaArr = SCHEMA[item.name];

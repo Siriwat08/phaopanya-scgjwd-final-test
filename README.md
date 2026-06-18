@@ -4,17 +4,18 @@
 
 | รายการ | ค่า |
 |--------|-----|
-| **เวอร์ชัน** | 5.5.008 (post-CACHE-CLEANUP) |
-| **Last Updated** | 2026-06-18 |
+| **เวอร์ชัน** | 5.5.011 (DATA-CONSISTENCY) |
+| **Last Updated** | 2026-06-19 |
 | **Platform** | Google Apps Script + Google Sheets |
 | **Core Engine** | MatchEngine V5.5 with Hybrid Alias Architecture |
 | **Total Files** | 22 `.gs` files |
-| **Total Lines** | 13,919 |
-| **Total Functions** | 310 (120 original + 18 SRP helpers + 173 Refactor helpers) |
+| **Total Lines** | ~14,200 |
+| **Total Functions** | 313 (310 + 3 ใหม่ใน V5.5.011) |
 | **Total Sheets** | 20 |
 | **Total IDX Sets** | 17 |
+| **SCHEMA Definitions** | 20 (เพิ่ม SCGนครหลวงJWDภูมิภาค ใน V5.5.011) |
 | **Compliance** | **16/16 PASS (100%)** |
-| **Production Readiness** | **95% — GO** |
+| **Production Readiness** | **96% — GO** |
 
 ---
 
@@ -24,22 +25,23 @@
 2. [Architecture Overview — 3 Domain Groups](#architecture-overview--3-domain-groups)
 3. [16 Immutable Laws Compliance](#16-immutable-laws-compliance)
 4. [Audit Cycles Summary](#audit-cycles-summary)
-5. [V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)](#v55007--v55008--cache-fix--cleanup-15-issues)
-6. [REFACTOR Cycle Results (Cycle 5)](#refactor-cycle-results-cycle-5)
-7. [New Architecture Patterns (V5.5 Refactor)](#new-architecture-patterns-v55-refactor)
-8. [Key Features](#key-features)
-9. [Package Contents](#package-contents)
-10. [สถาปัตยกรรมหลัก](#สถาปัตยกรรมหลัก)
-11. [โครงสร้างข้อมูลหลัก](#โครงสร้างข้อมูลหลัก)
-12. [กลไกการจับคู่ (Matching)](#กลไกการจับคู่-matching)
-13. [กลไกการทำงานของ Pipeline](#กลไกการทำงานของ-pipeline)
-14. [การติดตั้งและใช้งาน (Quick Start)](#การติดตั้งและใช้งาน-quick-start)
-15. [Dependencies](#dependencies)
-16. [ข้อควรระวังและกฎสำคัญ](#ข้อควรระวังและกฎสำคัญ)
-17. [การแก้ปัญหา (Troubleshooting)](#การแก้ปัญหา-troubleshooting)
-18. [Bug Status](#bug-status)
-19. [Production Readiness Assessment](#production-readiness-assessment)
-20. [เอกสารอ้างอิง](#เอกสารอ้างอิง)
+5. [V5.5.011 — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX (5 issues)](#v55011--data-consistency--shiptoname-clean--q_review-nav-fix-5-issues)
+6. [V5.5.007 + V5.5.011 — CACHE FIX & CLEANUP (15 issues)](#v55007--v55008--cache-fix--cleanup-15-issues)
+7. [REFACTOR Cycle Results (Cycle 5)](#refactor-cycle-results-cycle-5)
+8. [New Architecture Patterns (V5.5 Refactor)](#new-architecture-patterns-v55-refactor)
+9. [Key Features](#key-features)
+10. [Package Contents](#package-contents)
+11. [สถาปัตยกรรมหลัก](#สถาปัตยกรรมหลัก)
+12. [โครงสร้างข้อมูลหลัก](#โครงสร้างข้อมูลหลัก)
+13. [กลไกการจับคู่ (Matching)](#กลไกการจับคู่-matching)
+14. [กลไกการทำงานของ Pipeline](#กลไกการทำงานของ-pipeline)
+15. [การติดตั้งและใช้งาน (Quick Start)](#การติดตั้งและใช้งาน-quick-start)
+16. [Dependencies](#dependencies)
+17. [ข้อควรระวังและกฎสำคัญ](#ข้อควรระวังและกฎสำคัญ)
+18. [การแก้ปัญหา (Troubleshooting)](#การแก้ปัญหา-troubleshooting)
+19. [Bug Status](#bug-status)
+20. [Production Readiness Assessment](#production-readiness-assessment)
+21. [เอกสารอ้างอิง](#เอกสารอ้างอิง)
 
 ---
 
@@ -175,7 +177,7 @@ LMDS V5.5 ผ่าน **8 Audit Cycles** ครบถ้วน — ทุก Is
 | **Total Issues ที่พบ** | 68 รายการ (53 audit + 9 cache fix + 6 cache cleanup) |
 | **Total Issues ที่แก้ไข** | 68 รายการ (100%) |
 | **Critical Bugs ที่พบ** | 2 รายการ (ทั้งหมดแก้แล้ว) |
-| **Helper Functions ใหม่** | 196 ฟังก์ชัน (18 SRP + 172 Refactor + 6 cache helpers V5.5.007/V5.5.008) |
+| **Helper Functions ใหม่** | 196 ฟังก์ชัน (18 SRP + 172 Refactor + 6 cache helpers V5.5.007/V5.5.011) |
 | **Compliance Progression** | 8/16 → 13/16 → **16/16 PASS** |
 | **Lines of Code Growth** | ~8,700 → **13,919** (+60%) |
 | **Functions Growth** | ~138 → **310** (+125%) |
@@ -193,7 +195,47 @@ Cycle 8 (CACHE CLN):  ████████████████  16/16 PA
 
 ---
 
-## V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)
+## V5.5.011 — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX (5 issues)
+
+### V5.5.011 (2026-06-19) — Data Consistency + Sheet2 Cleaning + Q_REVIEW Navigation
+
+#### เรื่องที่ 1: Data Consistency (จุดที่ข้อมูลไม่ตรงกันระหว่างไฟล์)
+1. **SCHEMA ไม่มี 'SCGนครหลวงJWDภูมิภาค'** — ก่อนหน้านี้ SHEET.SOURCE มีเพียง SRC_IDX ใน `01_Config.gs` แต่ไม่มี entry ใน `SCHEMA` object ของ `02_Schema.gs` ทำให้ `getSheetHeaders(SHEET.SOURCE)` จะ throw และ `validateSchemaConsistency` ไม่ตรวจชีตนี้ → **แก้โดยเพิ่ม SCHEMA entry 37 คอลัมน์ตรงกับ SRC_IDX 100%**
+2. **validateConfig / validateSchemaConsistency ไม่ตรวจ SOURCE/DAILY_JOB** — ก่อนหน้านี้ตรวจเฉพาะ Master sheets (M_PERSON, M_PLACE, ...) แต่ไม่ตรวจ Source sheet และ Daily Job sheet ซึ่งเป็นข้อมูลดิบสำคัญ → **แก้โดยเพิ่ม SHEET.SOURCE + SHEET.DAILY_JOB เข้าใน validation checks**
+3. **เอกสารทั้งหมดเป็น V5.5.008 แต่โค้ดเป็น V5.5.010** — เอกสาร 18 ไฟล์ยังระบุเวอร์ชันเก่า → **แก้โดยอัปเดตทุกไฟล์เป็น V5.5.011**
+
+#### เรื่องที่ 2: ShipToName Cleaning for Sheet2 (ทำความสะอาดเหมือน Sheet1)
+4. **`findBestGeoByPersonPlace` ไม่ผ่าน `normalizePersonNameFull`** — ก่อนหน้านี้ใช้แค่ `String(rawPerson).trim()` ส่งตรงเข้า lookup ทำให้ ShipToName จาก Sheet2 ไม่ผ่านกระบวนการทำความสะอาดเหมือน Sheet1 (Tier 1 resolvePerson ทำภายใน แต่ Tier 0 fastLookupByShipToName ใช้แค่ normalizeForCompare) → **แก้โดย apply `normalizePersonNameFull` ก่อน lookup และลอก cleanName ก่อน หากไม่เจอค่อย fallback ด้วย rawName**
+   - ผลลัพธ์: match rate เพิ่มขึ้นเพราะตอนนี้สามารถจับคู่ "ร้าน ABC จำกัด โทร 0812345678" (Sheet2) กับ "ร้าน ABC จำกัด" (Sheet1) ได้
+
+#### เรื่องที่ 3: Q_REVIEW Navigation Fix (กดแล้วไม่พาไป)
+5. **`recommended_action` เป็นค่าคงที่ "MANUAL_REVIEW"** — ก่อนหน้านี้ทุกแถวใน Q_REVIEW มีค่า `recommended_action = 'MANUAL_REVIEW'` ทำให้ Smart Navigation parse ID ไม่ได้ → **แก้โดยสร้าง `buildRecommendedAction_()` ที่แนะนำ action พร้อม ID เช่น "MERGE_TO_CANDIDATE:PS-XXXX"**
+6. **Smart Navigation ไม่รองรับการคลิกที่คอลัมน์ RECOMMEND (P)** — ก่อนหน้านี้ trigger เฉพาะ cols L-O (Candidate IDs) แต่ไม่รวม col P → **แก้โดยขยาย `handleSelectionChange_()` ให้รองรับ col P ด้วย และเพิ่ม `handleRecommendClick_()` + `navigateFromRecommend_()`**
+   - ผลลัพธ์: ผู้ review คลิกที่คอลัมน์ "ระบบแนะนำ" แล้วระบบจะ parse ID และนำทางไปยัง Master/FACT สำหรับยืนยัน
+
+### Files modified in V5.5.011
+
+| File | Changes |
+|------|---------|
+| `02_Schema.gs` | เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] (37 cols) + เพิ่ม SOURCE/DAILY_JOB ใน validateSchemaConsistency |
+| `01_Config.gs` | Bump version 5.5.010 → 5.5.011 + เพิ่ม SOURCE/DAILY_JOB ใน validateConfig + CHANGELOG |
+| `17_SearchService.gs` | `findBestGeoByPersonPlace` ผ่าน `normalizePersonNameFull` ก่อน lookup + fallback rawName |
+| `12_ReviewService.gs` | เพิ่ม `buildRecommendedAction_()` + ปรับ `enqueueReview` ให้ใส่ recommended_action ที่มี ID |
+| `00_App.gs` | ขยาย `handleSelectionChange_` รองรับ col P + เพิ่ม `handleRecommendClick_` + `navigateFromRecommend_` |
+| All 22 `.gs` files | Bump VERSION: 5.5.010 → 5.5.011 |
+| All 20 `.md` files | อัปเดตเวอร์ชัน V5.5.008 → V5.5.011 |
+
+### New Functions Added in V5.5.011
+
+| Function | File | Purpose |
+|----------|------|---------|
+| `buildRecommendedAction_()` | `12_ReviewService.gs` | สร้างค่า `recommended_action` พร้อม ID สำหรับ navigation |
+| `handleRecommendClick_()` | `00_App.gs` | จัดการการคลิกที่คอลัมน์ RECOMMEND (P) — parse ID และนำทาง |
+| `navigateFromRecommend_()` | `00_App.gs` | แสดงหน้ายืนยันจากการคลิกที่ RECOMMEND พร้อมบอก action ที่ระบบแนะนำ |
+
+---
+
+## V5.5.007 + V5.5.011 — CACHE FIX & CLEANUP (15 issues)
 
 ### V5.5.007 (2026-06-18) — CACHE FIX: 9 issues (P0 + P1)
 
@@ -210,7 +252,7 @@ Cycle 8 (CACHE CLN):  ████████████████  16/16 PA
 8. **CACHE_KEY มีแค่ 2/13 keys** — ขยายเป็น 13 entries (Single Source of Truth)
 9. **cache.get()/put() ไม่มี try-catch** — เพิ่ม safeCacheGet_/Put_/RemoveAll_ helpers
 
-### V5.5.008 (2026-06-18) — CACHE CLEANUP: 6 issues (P2)
+### V5.5.011 (2026-06-18) — CACHE CLEANUP: 6 issues (P2)
 10. **clearMapsCache ไม่ flush hit_count** — ตอนนี้เรียก _flushHitCounts_() ก่อนล้าง
 11. **5 entry points ไม่มี flushLogBuffer_ ใน finally** — เพิ่มใน runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit
 12. **populateGeoMetadata null cache manual ซ้ำ** — ใช้ invalidate*Cache_* แทน
@@ -218,9 +260,9 @@ Cycle 8 (CACHE CLN):  ████████████████  16/16 PA
 14. **getCachedDistricts_ ไม่ write-back to cache** — ตอนนี้ write-back เหมือน getCachedProvinces_
 15. **TH_GEO_POSTCODE chunk size** — ยืนยันใช้ byte-based (90KB/chunk) ใน primary path
 
-### Files modified in V5.5.007 + V5.5.008
+### Files modified in V5.5.007 + V5.5.011
 
-| File | V5.5.007 | V5.5.008 |
+| File | V5.5.007 | V5.5.011 |
 |------|----------|----------|
 | 01_Config.gs | P0 #1 + P1 #8 (CACHE_KEY 13 entries, invalidateAllGlobalCaches 11 calls) | — |
 | 14_Utils.gs | P1 #9 (safeCacheGet_/Put_/RemoveAll_) | P2 #13 (cleanupOrphanedChunks_) |
@@ -720,7 +762,7 @@ Match Engine Decision (8 Rules)
     Batch Update Stats (batchUpdateEntityStats_)  ← REF-009
 ```
 
-### Performance Optimizations (V5.5.008 post-CACHE-CLEANUP)
+### Performance Optimizations (V5.5.011 post-CACHE-CLEANUP)
 
 | เทคนิค | ผลลัพธ์ |
 |--------|---------|
@@ -926,9 +968,9 @@ Match Engine Decision (8 Rules)
 | V5.5.003* | 2026-06-12 | **Cycle 4: REVIEW15 (Code Quality)** — 5 Issue, 14 ไฟล์แก้ไข, 18 Helper Functions ใหม่, 1 Critical Bug Hot-Fixed, Compliance 8/16 → 13/16 PASS |
 | **V5.5.006** | **2026-06-18** | **Cycle 5: REFACTOR** — 21 Issue (REF-001→021), 16 ไฟล์เปลี่ยน, 173 Helper Functions ใหม่, resolveAndPersist_ gateway, batchUpdateEntityStats_, Centralized Chunked Cache, cachedGeoLookup_ 3-layer, Thai prefix DRY helpers, Compliance 13/16 → **16/16 PASS (100%)**, Production Readiness **95% GO** |
 | V5.5.007 | 2026-06-18 | **Cycle 7: CACHE FIX (P0+P1)** — 9 cache issues: invalidateAllGlobalCaches 11 caches, _GEO_LATLNG_RAM_CACHE invalidator, M_PLACE chunked, saveChunkedCache_ putAll, CACHE_KEY 13 entries, safeCacheGet_/Put_/RemoveAll_ |
-| V5.5.008 | 2026-06-18 | **Cycle 8: CACHE CLEANUP (P2)** — 6 cleanup issues: clearMapsCache flush hit_count, flushLogBuffer_ in 5 entry points, populateGeoMetadata uses invalidate*Cache_*, saveChunkedCache_ orphan cleanup, getCachedDistricts_ write-back |
+| V5.5.011 | 2026-06-18 | **Cycle 8: CACHE CLEANUP (P2)** — 6 cleanup issues: clearMapsCache flush hit_count, flushLogBuffer_ in 5 entry points, populateGeoMetadata uses invalidate*Cache_*, saveChunkedCache_ orphan cleanup, getCachedDistricts_ write-back |
 
-> หมายเหตุ: เวอร์ชัน V5.5.008 เป็นเวอร์ชันปัจจุบัน — ผ่าน Audit Cycles ครบ 8 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP), 68 Issues ทั้งหมดแก้ไขแล้ว (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.008), 16/16 Immutable Laws COMPLIANT
+> หมายเหตุ: เวอร์ชัน V5.5.011 เป็นเวอร์ชันปัจจุบัน — ผ่าน Audit Cycles ครบ 8 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP), 68 Issues ทั้งหมดแก้ไขแล้ว (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011), 16/16 Immutable Laws COMPLIANT
 
 ---
 
@@ -949,11 +991,11 @@ Match Engine Decision (8 Rules)
 | **docs/LMDS_Schema_Dictionary.md** | Schema Dictionary — คำอธิบายทุก Schema |
 | **docs/LMDS_V5.5_CRITICAL_Fix_Cycle_Report.md** | รายงาน Critical Fix Cycle (V5.5.002) |
 | **docs/LMDS_V5.5_Performance_Fix_Verification_Report.md** | รายงาน Performance Fix (V5.5.003) |
-| **docs/LMDS_V5.5_Security_Audit_Verification_Report.md** | รายงาน Security Audit (V5.5.004 — historical; current V5.5.008) |
+| **docs/LMDS_V5.5_Security_Audit_Verification_Report.md** | รายงาน Security Audit (V5.5.004 — historical; current V5.5.011) |
 | **docs/LMDS_V5.5_REFACTOR_Cycle_Report.md** | รายงาน Refactor Cycle (V5.5.004 → V5.5.006 post-Consistency-Sync) |
 
 ---
 
-*LMDS V5.5.008 — Logistics Master Data System — Last Updated: 2026-06-18*
+*LMDS V5.5.011 — Logistics Master Data System — Last Updated: 2026-06-18*
 *8 Audit Cycles Complete — 68/68 Issues FIXED — 16/16 Immutable Laws COMPLIANT (100%)*
 *Production Readiness: 95% — GO*

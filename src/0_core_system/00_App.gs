@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.010
+ * VERSION: 5.5.011
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -277,7 +277,9 @@ function installSmartNavTrigger() {
   safeUiAlert_(
     '✅ ติดตั้ง Smart Navigation สำเร็จ!\n\n' +
     (deletedCount > 0 ? `(ลบ Trigger เก่า ${deletedCount} ตัว)\n\n` : '') +
-    'วิธีใช้: ไปที่ชีต Q_REVIEW แล้วคลิกที่ช่อง Candidate ID (คอลัมน์ L-O)\n' +
+    'วิธีใช้: ไปที่ชีต Q_REVIEW แล้วคลิกที่:\n' +
+    '  • คอลัมน์ Candidate ID (L-O) — นำทางไป Master/FACT ของ candidate นั้น\n' +
+    '  • คอลัมน์ recommended_action (P) — นำทางตามที่ระบบแนะนำ [V5.5.011]\n\n' +
     'ระบบจะถามว่าต้องการนำทางไปตารางหลัก (Master) หรือ ประวัติขนส่ง (FACT)'
   );
   } catch (err) {
@@ -312,6 +314,12 @@ function autoInstallSmartNav_() {
  * handleSelectionChange_ — [FIX v5.2.016] ฟังก์ชันหลักสำหรับ Smart Navigation
  * [REFACTOR v5.5.001] แยก sub-functions เพื่อลดความยาว (97→42 บรรทัด) — กฎข้อ 1.1
  * ถูกเรียกโดย Installable Trigger (มีสิทธิ์ getUi/alert/toast ครบ)
+ *
+ * [V5.5.011] ขยายขอบเขตการนำทาง:
+ *   - คลิกที่ Candidate ID columns (L-O, idx 11-14) → นำทางไป Master/FACT (พฤติกรรมเดิม)
+ *   - คลิกที่ Recommended Action column (P, idx 16) → parse ID จากคำแนะนำ
+ *     เช่น "MERGE_TO_CANDIDATE:PS-XXXX" → นำทางไปยัง PS-XXXX ใน M_PERSON + FACT_DELIVERY
+ *     ทำให้ผู้ review คลิกที่คอลัมน์ "ระบบแนะนำ" แล้วระบบพาไปหน้ายืนยันได้ตามที่เคยทำงาน
  */
 function handleSelectionChange_(e) {
   if (!e || !e.range) return;
@@ -321,7 +329,17 @@ function handleSelectionChange_(e) {
 
     const col = e.range.getColumn();
     const row = e.range.getRow();
-    if (row <= 1 || col < REVIEW_IDX.CAND_PERSONS + 1 || col > REVIEW_IDX.CAND_DESTS + 1) return;
+    if (row <= 1) return;
+
+    // [V5.5.011] กรณี A: คลิกที่คอลัมน์ RECOMMEND (idx 16, col P)
+    //   parse ID จาก string เช่น "MERGE_TO_CANDIDATE:PS-XXXX" แล้วนำทาง
+    if (col === REVIEW_IDX.RECOMMEND + 1) {
+      handleRecommendClick_(sheet, row, e.range);
+      return;
+    }
+
+    // กรณี B: คลิกที่ Candidate ID columns (idx 11-14, cols L-O) — พฤติกรรมเดิม
+    if (col < REVIEW_IDX.CAND_PERSONS + 1 || col > REVIEW_IDX.CAND_DESTS + 1) return;
 
     const cellValue = String(e.range.getValue() || '').trim();
     if (!cellValue) return;
@@ -349,6 +367,129 @@ function handleSelectionChange_(e) {
     navigateToMasterOrFact_(ss, targetId, targetSheet, targetRowIndex, factSheet, factRowIndex, targetSheetName);
   } catch (err) {
     try { logError('SmartNav', err.message, err); } catch (_) {}
+  }
+}
+
+/**
+ * handleRecommendClick_ — [V5.5.011] จัดการการคลิกที่คอลัมน์ RECOMMEND (recommended_action)
+ *
+ * ค่าในคอลัมน์ RECOMMEND อาจเป็น:
+ *   - "MERGE_TO_CANDIDATE:PS-XXXX" → parse PS-XXXX แล้วนำทางไป M_PERSON + FACT_DELIVERY
+ *   - "MERGE_TO_CANDIDATE:PL-XXXX" → parse PL-XXXX แล้วนำทางไป M_PLACE + FACT_DELIVERY
+ *   - "CREATE_NEW:GP-XXXX"         → parse GP-XXXX แล้วนำทางไป M_GEO_POINT + FACT_DELIVERY
+ *   - "CREATE_NEW"                 → แจ้งเตือนให้ reviewer ยืนยันด้วยตนเอง (ไม่มี ID สำหรับนำทาง)
+ *   - "MANUAL_REVIEW"              → แจ้งเตือนให้ reviewer พิจารณาเอง
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - Q_REVIEW sheet
+ * @param {number} row - 1-based row number
+ * @param {GoogleAppsScript.Spreadsheet.Range} cell - the clicked cell
+ */
+function handleRecommendClick_(sheet, row, cell) {
+  const cellValue = String(cell.getValue() || '').trim();
+  if (!cellValue) return;
+
+  // Parse ID จาก string รูปแบบ "ACTION:ID"
+  // รองรับ prefix: PS (Person), PL (Place), GP (GeoPoint), DE/DS (Destination)
+  const idMatch = cellValue.match(/(PS|PL|GP|DE|DS)[\w\-]+/i);
+  if (!idMatch) {
+    // ไม่มี ID ในคำแนะนำ (เช่น "CREATE_NEW" ล้วน หรือ "MANUAL_REVIEW")
+    // แสดงคำอธิบายให้ reviewer ทราบ
+    const reviewId = String(sheet.getRange(row, REVIEW_IDX.REVIEW_ID + 1).getValue() || '').trim();
+    const rawPerson = String(sheet.getRange(row, REVIEW_IDX.RAW_PERSON + 1).getValue() || '').trim();
+    const ui = SpreadsheetApp.getUi();
+    ui.alert(
+      '📋 คำแนะนำจากระบบ',
+      'Review ID: ' + reviewId + '\n' +
+      'ชื่อปลายทาง: ' + rawPerson + '\n\n' +
+      'ระบบแนะนำ: ' + cellValue + '\n\n' +
+      'การกระทำที่เหมาะสม:\n' +
+      (cellValue === 'CREATE_NEW'
+        ? '→ สร้างระเบียนใหม่ใน M_PERSON/M_PLACE (ไม่มี candidate ให้ merge)'
+        : '→ ตรวจสอบด้วยตนเองและเลือก Decision ในคอลัมน์ V'),
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  const targetId = idMatch[0].toUpperCase().trim();
+  const prefix = targetId.substring(0, 2);
+  const targetSheetName = resolveTargetSheetName_(prefix);
+  if (!targetSheetName) return;
+
+  const ss = sheet.getParent();
+  const targetSheet = ss.getSheetByName(targetSheetName);
+  if (!targetSheet || targetSheet.getLastRow() < 2) {
+    SpreadsheetApp.getUi().alert(
+      '⚠️ ไม่พบข้อมูล',
+      'ไม่พบชีต ' + targetSheetName + ' หรือชีตว่างเปล่า',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return;
+  }
+
+  const targetRowIndex = findRowByIdInSheet_(targetSheet, targetId);
+  if (targetRowIndex === -1) {
+    SpreadsheetApp.getUi().alert(
+      '⚠️ ไม่พบ ID',
+      'ไม่พบ ' + targetId + ' ในชีต ' + targetSheetName,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return;
+  }
+
+  const factSheet = ss.getSheetByName(SHEET.FACT_DELIVERY);
+  const factColIdx = resolveFactColIdx_(prefix);
+  const factRowIndex = (factSheet && factSheet.getLastRow() >= 2 && factColIdx !== -1)
+    ? findRowByIdInSheetByCol_(factSheet, targetId, factColIdx) : -1;
+
+  // [V5.5.011] แสดงหน้ายืนยันพร้อมบอกว่าเป็นการกระทำที่ระบบแนะนำ
+  navigateFromRecommend_(ss, cellValue, targetId, targetSheet, targetRowIndex,
+    factSheet, factRowIndex, targetSheetName);
+}
+
+/**
+ * navigateFromRecommend_ — [V5.5.011] นำทางจากการคลิกที่ RECOMMEND column
+ * แสดงหน้าต่างยืนยันพร้อมบอกว่าเป็นคำแนะนำจากระบบ และให้ reviewer ยืนยัน
+ *
+ * @param {Spreadsheet} ss
+ * @param {string} recommendAction - ค่า recommended_action เช่น "MERGE_TO_CANDIDATE:PS-XXXX"
+ * @param {string} targetId - ID ที่ parse ได้ เช่น "PS-XXXX"
+ * @param {Sheet} targetSheet - ชีต Master เป้าหมาย
+ * @param {number} targetRowIndex - 1-based row index ใน Master sheet
+ * @param {Sheet} factSheet - ชีต FACT_DELIVERY
+ * @param {number} factRowIndex - 1-based row index ใน FACT_DELIVERY (-1 ถ้าไม่พบ)
+ * @param {string} targetSheetName - ชื่อชีต Master
+ */
+function navigateFromRecommend_(ss, recommendAction, targetId, targetSheet, targetRowIndex,
+  factSheet, factRowIndex, targetSheetName) {
+  const ui = SpreadsheetApp.getUi();
+
+  // แยก action ออกจาก ID เช่น "MERGE_TO_CANDIDATE:PS-XXXX" → "MERGE_TO_CANDIDATE"
+  const actionOnly = recommendAction.split(':')[0];
+
+  const msg = '🎯 ระบบแนะนำ: ' + actionOnly + '\n' +
+    'สำหรับ ID: ' + targetId + '\n\n' +
+    'ต้องการให้ระบบนำทางไปยังส่วนใด?\n\n' +
+    '👉 [YES] ไปยังหน้าข้อมูลหลัก Master (' + targetSheetName + ' แถวที่ ' + targetRowIndex + ')\n' +
+    '👉 [NO] ไปยังหน้าประวัติการส่งสินค้าจริง (FACT_DELIVERY ' +
+    (factRowIndex !== -1 ? 'แถวที่ ' + factRowIndex : '- ไม่พบประวัติ') + ')\n' +
+    '👉 [CANCEL] ยกเลิกการนำทาง';
+
+  const response = ui.alert('🚀 Smart Navigation (จากคำแนะนำระบบ)', msg, ui.ButtonSet.YES_NO_CANCEL);
+  if (response === ui.Button.YES) {
+    targetSheet.activate();
+    targetSheet.getRange(targetRowIndex, 1, 1, targetSheet.getLastColumn()).activate();
+    ss.toast('🎯 นำทางไปยังตารางหลัก ' + targetSheetName + ' แถว ' + targetRowIndex + ' สำเร็จ',
+      'LMDS Navigation');
+  } else if (response === ui.Button.NO) {
+    if (factRowIndex !== -1) {
+      factSheet.activate();
+      factSheet.getRange(factRowIndex, 1, 1, factSheet.getLastColumn()).activate();
+      ss.toast('🎯 นำทางไปยังประวัติขนส่ง FACT_DELIVERY แถว ' + factRowIndex + ' สำเร็จ',
+        'LMDS Navigation');
+    } else {
+      safeUiAlert_('❌ ไม่พบประวัติของ ' + targetId + ' ในชีต FACT_DELIVERY');
+    }
   }
 }
 

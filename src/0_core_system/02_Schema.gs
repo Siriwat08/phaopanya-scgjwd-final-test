@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.010
+ * VERSION: 5.5.011
  * FILE: 02_Schema.gs
  * LMDS V5.5 — Sheet Schema Definitions
  * ===================================================
@@ -7,7 +7,14 @@
  *   กำหนด Schema ของทุก Sheet ในระบบ รวมถึง Column Headers และ Validation Rules
  *   เป็น Single Source of Truth สำหรับโครงสร้างข้อมูล
  * ===================================================
- *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
+ *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SCHEMA SOURCE:
+ *     - [ADD SCHEMA] เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] (37 คอลัมน์) ที่ขาดหายไป
+ *       ก่อนหน้านี้ SHEET.SOURCE มีเพียง SRC_IDX ใน 01_Config.gs แต่ไม่มีใน SCHEMA
+ *       ทำให้ getSheetHeaders(SHEET.SOURCE) จะ throw และ validateSchemaConsistency ไม่ตรวจชีตนี้
+ *       ตอนนี้ SCHEMA เป็น Single Source of Truth จริงๆ สำหรับทุกชีต
+ *     - [ADD VALIDATE] เพิ่ม SHEET.SOURCE และ SHEET.DAILY_JOB เข้าใน validateSchemaConsistency()
+ *       ตรวจ SCHEMA.length vs IDX.keys ตั้งแต่ระบบเริ่ม ป้องกัน runtime error
+ *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
  *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
  *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
  *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
@@ -425,6 +432,54 @@ const SCHEMA = Object.freeze({
     'LastUpdated',            // [6] Fix: เดิม วันที่อัปเดต
   ],
 
+  /**
+   * SCGนครหลวงJWDภูมิภาค — 37 คอลัมน์ (ข้อมูลดิบจากคนขับ)
+   * [ADD v5.5.011] เพิ่ม SCHEMA สำหรับ SHEET.SOURCE ที่ขาดหายไป
+   *   ก่อนหน้านี้มีเพียง SRC_IDX ใน 01_Config.gs แต่ไม่มีใน SCHEMA
+   *   ทำให้ getSheetHeaders(SHEET.SOURCE) และ validateSchemaConsistency ไม่ทำงานสำหรับชีตนี้
+   *   ตอนนี้ SCHEMA เป็น Single Source of Truth จริงๆ สำหรับทุกชีต
+   *   ลำดับและชื่อคอลัมน์ตรงกับ SRC_IDX ใน 01_Config.gs 100%
+   */
+  'SCGนครหลวงJWDภูมิภาค': [
+    'head',                            // [0]  SRC_IDX.ROW_ID          ลำดับ
+    'ID_SCGนครหลวงJWDภูมิภาค',        // [1]  SRC_IDX.SOURCE_ID
+    'วันที่ส่งสินค้า',                  // [2]  SRC_IDX.DELIVERY_DATE
+    'เวลาที่ส่งสินค้า',                 // [3]  SRC_IDX.DELIVERY_TIME
+    'จุดส่งสินค้าปลายทาง',              // [4]  SRC_IDX.LATLNG_COMBINED  lat,lng รวมจริง 100%
+    'ชื่อ - นามสกุล',                   // [5]  SRC_IDX.DRIVER_NAME     (คนขับ)
+    'ทะเบียนรถ',                       // [6]  SRC_IDX.TRUCK_LICENSE
+    'Shipment No',                     // [7]  SRC_IDX.SHIPMENT_NO
+    'Invoice No',                      // [8]  SRC_IDX.INVOICE_NO
+    'รูปถ่ายบิลส่งสินค้า',              // [9]  SRC_IDX.BILL_PHOTO
+    'รหัสลูกค้า',                       // [10] SRC_IDX.CUSTOMER_CODE
+    'ชื่อเจ้าของสินค้า',               // [11] SRC_IDX.SOLD_TO_NAME   (บริษัทผู้ขาย)
+    'ชื่อปลายทาง',                     // [12] SRC_IDX.RAW_PERSON_NAME ← rawPersonName (สกปรก)
+    'Email พนักงาน',                   // [13] SRC_IDX.EMPLOYEE_EMAIL
+    'LAT',                             // [14] SRC_IDX.LAT             ← lat จริง 100%
+    'LONG',                            // [15] SRC_IDX.LNG             ← lng จริง 100%
+    'ID_Doc_Return',                   // [16] SRC_IDX.DOC_RETURN_ID
+    'คลังสินค้า',                       // [17] SRC_IDX.WAREHOUSE
+    'ที่อยู่ปลายทาง',                   // [18] SRC_IDX.RAW_ADDRESS     ← rawAddress (สกปรก)
+    'รูปสินค้าตอนส่ง',                  // [19] SRC_IDX.PHOTO_PRODUCT
+    'รูปหน้าร้าน/บ้าน',                 // [20] SRC_IDX.PHOTO_STORE
+    'หมายเหตุ',                        // [21] SRC_IDX.REMARK
+    'เดือน',                           // [22] SRC_IDX.MONTH
+    'ระยะทางจากคลัง_Km',               // [23] SRC_IDX.DIST_FROM_WH
+    'ชื่อที่อยู่จาก_LatLong',           // [24] SRC_IDX.RESOLVED_ADDR   ← rawPlaceName (สะอาดจาก GoogleMap)
+    'SM_Link_SCG',                     // [25] SRC_IDX.SM_LINK
+    'ID_พนักงาน',                      // [26] SRC_IDX.EMPLOYEE_ID
+    'พิกัดตอนกดบันทึกงาน',             // [27] SRC_IDX.GPS_ON_SUBMIT
+    'เวลาเริ่มกรอกงาน',                // [28] SRC_IDX.TIME_START
+    'เวลาบันทึกงานสำเร็จ',             // [29] SRC_IDX.TIME_DONE
+    'ระยะขยับจากจุดเริ่มต้น_เมตร',      // [30] SRC_IDX.MOVE_DIST_M
+    'ระยะเวลาใช้งาน_นาที',             // [31] SRC_IDX.WORK_MIN
+    'ความเร็วการเคลื่อนที่_เมตร_นาที',  // [32] SRC_IDX.SPEED_MPM
+    'ผลการตรวจสอบงานส่ง',             // [33] SRC_IDX.QC_RESULT
+    'เหตุผิดปกติที่ตรวจพบ',            // [34] SRC_IDX.QC_ISSUE
+    'เวลาถ่ายรูปหน้าร้าน_หน้าบ้าน',    // [35] SRC_IDX.PHOTO_TIME
+    'SYNC_STATUS',                     // [36] SRC_IDX.SYNC_STATUS     ← เช็คก่อน process
+  ],
+
 });
 
 // ============================================================
@@ -512,6 +567,11 @@ function validateSchemaConsistency() {
     { sheetName: SHEET.FACT_DELIVERY,  idx: FACT_IDX,         label: 'FACT_DELIVERY'  },
     { sheetName: SHEET.Q_REVIEW,       idx: REVIEW_IDX,       label: 'Q_REVIEW'       },
     { sheetName: SHEET.M_ALIAS,        idx: ALIAS_IDX,        label: 'M_ALIAS'        },
+    // [ADD v5.5.011] เพิ่มการตรวจ SCHEMA vs SRC_IDX สำหรับ SHEET.SOURCE
+    //   ก่อนหน้านี้ SHEET.SOURCE ไม่มีใน SCHEMA → ไม่ถูกตรวจ → ไม่พบจุดผิดจนกว่าจะ runtime error
+    { sheetName: SHEET.SOURCE,         idx: SRC_IDX,          label: 'SCGนครหลวงJWDภูมิภาค (SOURCE)' },
+    // [ADD v5.5.011] เพิ่มการตรวจ SCHEMA vs DATA_IDX สำหรับ SHEET.DAILY_JOB
+    { sheetName: SHEET.DAILY_JOB,      idx: DATA_IDX,         label: 'ตารางงานประจำวัน (DAILY_JOB)' },
   ];
 
   const errors = [];
