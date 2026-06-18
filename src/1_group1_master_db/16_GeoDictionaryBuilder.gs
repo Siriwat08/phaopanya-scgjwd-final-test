@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.007
+ * VERSION: 5.5.008
  * FILE: 16_GeoDictionaryBuilder.gs
  * LMDS V5.5 — Geo Dictionary Builder (SYS_TH_GEO)
  * ===================================================
@@ -7,7 +7,15 @@
  *   สร้างและดูแลฐานข้อมูลภูมิศาสตร์ไทย (SYS_TH_GEO) 16 คอลัมน์
  *   สำหรับการแกะที่อยู่อัตโนมัติ
  * ===================================================
- *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
+ *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
+ *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
+ *     - [FIX P2 #12] ลบ redundant manual cache nulling ใน populateGeoMetadata ใช้ invalidate*Cache_* แทน
+ *     - [FIX P2 #13] saveChunkedCache_ ล้าง orphaned chunks เมื่อขนาดข้อมูลลดลง (large→small)
+ *     - [FIX P2 #14] getCachedDistricts_ write-back to cache on miss (consistent with getCachedProvinces_)
+ *     - [CONFIRM P2 #15] TH_GEO_POSTCODE chunk size byte-based ใน primary path (V5.5.007 แก้แล้ว)
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
  *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
  *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
  *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
@@ -245,6 +253,9 @@ function buildGeoDictionary() {
     logError('GeoDictBuilder', 'buildGeoDictionary ล้มเหลว: ' + err.message, err);
     // [FIX B2 v5.5.002] ใช้ safeUiAlert_() แทน raw SpreadsheetApp.getUi().alert() กัน crash ใน non-UI context
     safeUiAlert_('❌ เกิดข้อผิดพลาด: ' + err.message);
+  } finally {
+    // [FIX v5.5.008 P2 #11] flush log buffer ก่อน exit — ป้องกัน log entries <50 หาย
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
   }
 }
 
@@ -527,6 +538,10 @@ function savePostcodeMapToCache_(postcodeMap) {
   }
 
   // Fallback: legacy implementation (backward compatibility)
+  // [FIX v5.5.008 P2 #15] ใช้ chunkSize=350 แค่ใน fallback path เท่านั้น
+  //   primary path ใช้ saveChunkedCache_ ที่แบ่งตามขนาด KB (90KB/chunk) — ปลอดภัยกว่า
+  //   chunkSize=350 เป็นค่าประมาณการที่เดิมใช้เพราะ postcode entry ~250 bytes ต่อตัว
+  //   350 × 250 = ~87.5KB พอดี แต่ถ้า entry ใหญ่ขึ้นจะ fail — primary path แก้ปัญหานี้แล้ว
   const keys = Object.keys(postcodeMap);
   const chunkSize = 350;
   const totalChunks = Math.ceil(keys.length / chunkSize);
@@ -556,7 +571,14 @@ function getCachedDistricts_() {
   const cache  = CacheService.getScriptCache();
   const cached = cache.get('TH_GEO_DISTRICTS');
   if (cached) { try { return JSON.parse(cached); } catch(e) { logDebug('GeoDictBuilder', 'TH_GEO_DISTRICTS Cache parse error: ' + e.message); } }
-  return buildDistrictsMapFromSheet_();
+  const result = buildDistrictsMapFromSheet_();
+  // [FIX v5.5.008 P2 #14] write-back to cache on miss — consistent with getCachedProvinces_ pattern
+  //   เดิม getCachedDistricts_ อ่านจาก sheet แต่ไม่ write-back to cache
+  //   ทำให้ call ถัดไปต้องอ่าน sheet ใหม่ทุกครั้ง ถ้า buildGeoDictionary ยังไม่ได้รัน
+  //   ตอนนี้ write-back to cache เหมือน getCachedProvinces_ ที่ line 554
+  try { cache.put('TH_GEO_DISTRICTS', JSON.stringify(result), AI_CONFIG.CACHE_TTL_SEC); }
+  catch(e) { logDebug('GeoDictBuilder', 'TH_GEO_DISTRICTS Cache write error: ' + e.message); }
+  return result;
 }
 
 function buildPostcodeMapFromSheet_() {

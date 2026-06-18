@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.007
+ * VERSION: 5.5.008
  * FILE: 20_ThGeoService.gs
  * LMDS V5.5 — Thai Geo Service
  * ===================================================
@@ -7,7 +7,15 @@
  *   ให้บริการค้นหาข้อมูลภูมิศาสตร์ไทย — ค้นหาจังหวัด/อำเภอ/ตำบล
  *   จากรหัสไปรษณีย์ หรือชื่อพื้นที่
  * ===================================================
- *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
+ *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
+ *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
+ *     - [FIX P2 #12] ลบ redundant manual cache nulling ใน populateGeoMetadata ใช้ invalidate*Cache_* แทน
+ *     - [FIX P2 #13] saveChunkedCache_ ล้าง orphaned chunks เมื่อขนาดข้อมูลลดลง (large→small)
+ *     - [FIX P2 #14] getCachedDistricts_ write-back to cache on miss (consistent with getCachedProvinces_)
+ *     - [CONFIRM P2 #15] TH_GEO_POSTCODE chunk size byte-based ใน primary path (V5.5.007 แก้แล้ว)
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
  *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
  *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
  *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
@@ -256,17 +264,24 @@ function populateGeoMetadata() {
   // [G-2] Clear checkpoint on completion
   props.deleteProperty('GEO_META_CHECKPOINT');
 
-  // [FIX CRIT-011] ล้าง geo dict cache เพื่อให้ lookup ถัดไปเห็นข้อมูลใหม่
-  _GLOBAL_GEO_DICT_CACHE = null;
-  _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX = null; // [PERF-006]
-  _GLOBAL_GEO_DICT_CACHE_PLACE = null;
+  // [FIX v5.5.008 P2 #12] ลบ redundant manual cache nulling — ใช้ invalidate*Cache_* แทน
+  //   เดิม null 3 ตัว manual แล้วค่อยเรียก invalidateGeoDictCache() ซึ่งก็ null ซ้ำ
+  //   ตอนนี้ใช้ centralized invalidators ที่จะ null RAM + clear CacheService ครบ
+  //
+  //   invalidateGeoDictCache() จะ null _GLOBAL_GEO_DICT_CACHE + _GLOBAL_GEO_DICT_PROVINCE_INDEX
+  //                          + _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX (แก้ใน V5.5.007 P0 #2) + TH_GEO_* CacheService
+  //   invalidatePlaceCache_() จะ null _GLOBAL_GEO_DICT_CACHE_PLACE + M_PLACE_ALL CacheService
   if (typeof invalidateGeoDictCache === 'function') invalidateGeoDictCache();
+  if (typeof invalidatePlaceCache_ === 'function') invalidatePlaceCache_();
   logInfo('GeoMigration', 'เติมข้อมูล Metadata เสร็จสิ้น!');
   safeUiAlert_('✅ เติมข้อมูล Geo Metadata สำเร็จ!\nกรุณากด "สร้าง Geo Dictionary" อีกครั้งเพื่อใช้งาน');
   } catch (err) {
     logError('ThGeoService', 'populateGeoMetadata ล้มเหลว: ' + err.message, err);
     // [FIX B3 v5.5.002] ใช้ safeUiAlert_() แทน raw SpreadsheetApp.getUi().alert() กัน crash ใน non-UI context
     safeUiAlert_('❌ เกิดข้อผิดพลาด: ' + err.message);
+  } finally {
+    // [FIX v5.5.008 P2 #11] flush log buffer ก่อน exit — ป้องกัน log entries <50 หาย
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
   }
 }
 

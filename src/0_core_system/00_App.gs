@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.007
+ * VERSION: 5.5.008
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,15 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
+ *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
+ *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
+ *     - [FIX P2 #12] ลบ redundant manual cache nulling ใน populateGeoMetadata ใช้ invalidate*Cache_* แทน
+ *     - [FIX P2 #13] saveChunkedCache_ ล้าง orphaned chunks เมื่อขนาดข้อมูลลดลง (large→small)
+ *     - [FIX P2 #14] getCachedDistricts_ write-back to cache on miss (consistent with getCachedProvinces_)
+ *     - [CONFIRM P2 #15] TH_GEO_POSTCODE chunk size byte-based ใน primary path (V5.5.007 แก้แล้ว)
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
  *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
  *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
  *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
@@ -701,28 +709,28 @@ function showVersionInfo() {
     `Schema: v${SCHEMA_VERSION}\n` +
     `Audit Cycles: 5 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.007\n` +
-    `  01_Config.gs             v5.5.007\n` +
-    `  02_Schema.gs             v5.5.007\n` +
-    `  03_SetupSheets.gs        v5.5.007\n` +
-    `  04_SourceRepository.gs   v5.5.007\n` +
-    `  05_NormalizeService.gs   v5.5.007\n` +
-    `  06_PersonService.gs      v5.5.007\n` +
-    `  07_PlaceService.gs       v5.5.007\n` +
-    `  08_GeoService.gs         v5.5.007\n` +
-    `  09_DestinationService.gs v5.5.007\n` +
-    `  10_MatchEngine.gs        v5.5.007\n` +
-    `  11_TransactionService.gs v5.5.007\n` +
-    `  12_ReviewService.gs      v5.5.007\n` +
-    `  13_ReportService.gs      v5.5.007\n` +
-    `  14_Utils.gs              v5.5.007\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.007\n` +
-    `  16_GeoDictionaryBuilder.gs     v5.5.007\n` +
-    `  17_SearchService.gs      v5.5.007\n` +
-    `  18_ServiceSCG.gs         v5.5.007\n` +
-    `  19_Hardening.gs          v5.5.007\n` +
-    `  20_ThGeoService.gs       v5.5.007\n` +
-    `  21_AliasService.gs       v5.5.007\n\n` +
+    `  00_App.gs                v5.5.008\n` +
+    `  01_Config.gs             v5.5.008\n` +
+    `  02_Schema.gs             v5.5.008\n` +
+    `  03_SetupSheets.gs        v5.5.008\n` +
+    `  04_SourceRepository.gs   v5.5.008\n` +
+    `  05_NormalizeService.gs   v5.5.008\n` +
+    `  06_PersonService.gs      v5.5.008\n` +
+    `  07_PlaceService.gs       v5.5.008\n` +
+    `  08_GeoService.gs         v5.5.008\n` +
+    `  09_DestinationService.gs v5.5.008\n` +
+    `  10_MatchEngine.gs        v5.5.008\n` +
+    `  11_TransactionService.gs v5.5.008\n` +
+    `  12_ReviewService.gs      v5.5.008\n` +
+    `  13_ReportService.gs      v5.5.008\n` +
+    `  14_Utils.gs              v5.5.008\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.008\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.008\n` +
+    `  17_SearchService.gs      v5.5.008\n` +
+    `  18_ServiceSCG.gs         v5.5.008\n` +
+    `  19_Hardening.gs          v5.5.008\n` +
+    `  20_ThGeoService.gs       v5.5.008\n` +
+    `  21_AliasService.gs       v5.5.008\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

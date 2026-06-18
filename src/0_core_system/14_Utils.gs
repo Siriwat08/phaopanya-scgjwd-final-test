@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.007
+ * VERSION: 5.5.008
  * FILE: 14_Utils.gs
  * LMDS V5.5 — Utility Functions
  * ===================================================
@@ -7,7 +7,15 @@
  *   รวบรวมฟังก์ชันช่วยทั่วไปที่ใช้ร่วมกันทั่วระบบ
  *   เช่น ID Generator, Hash, String similarity, LatLng parser
  * ===================================================
- *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
+ *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
+ *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
+ *     - [FIX P2 #12] ลบ redundant manual cache nulling ใน populateGeoMetadata ใช้ invalidate*Cache_* แทน
+ *     - [FIX P2 #13] saveChunkedCache_ ล้าง orphaned chunks เมื่อขนาดข้อมูลลดลง (large→small)
+ *     - [FIX P2 #14] getCachedDistricts_ write-back to cache on miss (consistent with getCachedProvinces_)
+ *     - [CONFIRM P2 #15] TH_GEO_POSTCODE chunk size byte-based ใน primary path (V5.5.007 แก้แล้ว)
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
  *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
  *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
  *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
@@ -698,8 +706,12 @@ function batchUpdateEntityStats_(sheetName, idxObj, idColIdx, usageCountIdx, las
 /**
  * saveChunkedCache_ — [REF-010] Centralized chunked cache writer
  * [FIX v5.5.007] แบ่ง chunk ตามขนาด KB (90 KB/chunk) แทนจำนวน items
- * [PERF] ใช้ putAll() สำหรับ batch write — เร็วขึ้น 5-10 เท่า
- * 
+ * [FIX v5.5.008 P2 #13] ล้าง orphaned chunk keys เมื่อขนาดข้อมูลลดลง
+ *   เดิมเมื่อข้อมูลเล็กลงจาก large→small, chunk keys เก่า (_0, _1, ...) ตกค้าง
+ *   ทำให้สิ้นเปลือง cache quota และ loader ต้องเช็คหลายรอบ
+ *   ตอนนี้ตรวจและล้าง orphaned chunks จาก previous large-cache write
+ * [PERF] ใช้ putAll()/getAll() สำหรับ batch operations — เร็วขึ้น 5-10 เท่า
+ *
  * @param {CacheService.Cache} cache - CacheService instance
  * @param {string} keyPrefix - Base key prefix for cache entries
  * @param {*} data - Any JSON-serializable data
@@ -708,14 +720,47 @@ function batchUpdateEntityStats_(sheetName, idxObj, idColIdx, usageCountIdx, las
 function saveChunkedCache_(cache, keyPrefix, data, optChunkSizeKB) {
   var CHUNK_SIZE_BYTES = (optChunkSizeKB || 90) * 1000; // 90 KB = 90,000 chars
   var ttl = (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.CACHE_TTL_SEC) ? AI_CONFIG.CACHE_TTL_SEC : 21600;
-  
+
   var json = JSON.stringify(data);
-  
+
+  // [FIX v5.5.008 P2 #13] Helper: ล้าง orphaned chunks จาก previous large-cache write
+  // ใช้ทั้งใน small-data path และ large-data path (กรณี numChunks ลดลง)
+  var cleanupOrphanedChunks_ = function(currentNumChunks) {
+    try {
+      var prevChunksStr = cache.get(keyPrefix + '_CHUNKS');
+      if (!prevChunksStr) return;
+      var prevNumChunks = Number(prevChunksStr);
+      if (isNaN(prevNumChunks)) return;
+
+      // หา chunks ที่เกิน currentNumChunks → orphaned
+      // currentNumChunks=0 สำหรับ small-data path (no chunks needed)
+      // currentNumChunks>0 สำหรับ large-data path
+      var orphanStart = currentNumChunks; // chunks [orphanStart, prevNumChunks) คือ orphaned
+      if (orphanStart >= prevNumChunks) return; // ไม่มี orphan
+
+      var orphanKeys = [];
+      for (var i = orphanStart; i < prevNumChunks; i++) {
+        orphanKeys.push(keyPrefix + '_' + i);
+      }
+      if (orphanKeys.length > 0) {
+        cache.removeAll(orphanKeys);
+        logDebug('Utils', 'saveChunkedCache_: cleaned up ' + orphanKeys.length +
+                  ' orphaned chunks for ' + keyPrefix + ' (prev=' + prevNumChunks +
+                  ', current=' + currentNumChunks + ')');
+      }
+    } catch (e) {
+      // cleanup failure ไม่ควรบล็อกการ write หลัก
+      logWarn('Utils', 'saveChunkedCache_ orphan cleanup error: ' + e.message);
+    }
+  };
+
   // [OPTIMIZATION] ถ้าข้อมูลเล็กกว่า 90 KB → เขียนทีเดียว (fast path)
   if (json.length <= CHUNK_SIZE_BYTES) {
     try {
       cache.put(keyPrefix, json, ttl);
       cache.remove(keyPrefix + '_CHUNKS');
+      // [FIX v5.5.008 P2 #13] ล้าง orphaned chunks จาก previous large-cache write
+      cleanupOrphanedChunks_(0);
       logDebug('Utils', 'saveChunkedCache_: ' + keyPrefix + ' — single put (' + json.length + ' chars)');
       return;
     } catch (e) {
@@ -723,31 +768,33 @@ function saveChunkedCache_(cache, keyPrefix, data, optChunkSizeKB) {
       return;
     }
   }
-  
+
   // [FIX v5.5.007] แบ่งข้อมูลตามขนาด KB แทนจำนวน items
   var numChunks = Math.ceil(json.length / CHUNK_SIZE_BYTES);
-  
+
   // [PERF] สร้าง cache entries ทั้งหมดใน RAM ก่อน
   var cacheEntries = {};
   cacheEntries[keyPrefix + '_CHUNKS'] = String(numChunks);
-  
+
   for (var i = 0; i < numChunks; i++) {
     var start = i * CHUNK_SIZE_BYTES;
     var end = Math.min(start + CHUNK_SIZE_BYTES, json.length);
     var chunk = json.substring(start, end);
-    
+
     // [SAFETY] ตรวจสอบขนาด chunk ก่อนเขียน
     if (chunk.length > 95000) {
       logError('Utils', 'saveChunkedCache_: chunk ' + i + ' ใหญ่เกินไป (' + chunk.length + ' chars) — abort');
       return;
     }
-    
+
     cacheEntries[keyPrefix + '_' + i] = chunk;
   }
-  
+
   // [PERF] เขียนทั้งหมดครั้งเดียวด้วย putAll()
   try {
     cache.putAll(cacheEntries, ttl);
+    // [FIX v5.5.008 P2 #13] ล้าง orphaned chunks ที่อยู่เกิน numChunks ปัจจุบัน
+    cleanupOrphanedChunks_(numChunks);
     logDebug('Utils', 'saveChunkedCache_: ' + keyPrefix + ' — ' + numChunks + ' chunks, ' + json.length + ' chars (batch write สำเร็จ)');
   } catch (e) {
     logError('Utils', 'saveChunkedCache_ putAll ล้มเหลว: ' + e.message + ' — ลองเขียนทีละ chunk', e);

@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.007
+ * VERSION: 5.5.008
  * FILE: 15_GoogleMapsAPI.gs
  * LMDS V5.5 — Google Maps API Service (Hybrid Cache)
  * ===================================================
@@ -8,7 +8,15 @@
  *   พร้อมระบบแคช 3 ชั้น: RAM Cache → Sheet Cache → Google Maps API
  *   รองรับการดึงข้อมูลจังหวัด/อำเภอจากพิกัด เพื่อใช้ในระบบ Enrichment
  * ===================================================
- *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
+ *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
+ *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
+ *     - [FIX P2 #12] ลบ redundant manual cache nulling ใน populateGeoMetadata ใช้ invalidate*Cache_* แทน
+ *     - [FIX P2 #13] saveChunkedCache_ ล้าง orphaned chunks เมื่อขนาดข้อมูลลดลง (large→small)
+ *     - [FIX P2 #14] getCachedDistricts_ write-back to cache on miss (consistent with getCachedProvinces_)
+ *     - [CONFIRM P2 #15] TH_GEO_POSTCODE chunk size byte-based ใน primary path (V5.5.007 แก้แล้ว)
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
  *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
  *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
  *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
@@ -454,10 +462,25 @@ function saveToSheetCache_(cacheKey, inputAddr, result) {
 /**
  * clearMapsCache — ล้าง MAPS_CACHE Sheet และ RAM Cache ทั้งหมด
  * [FIX v5.5.001] invalidate RAM cache เมื่อล้างข้อมูล
+ * [FIX v5.5.008 P2 #10] flush pending hit_count ก่อนล้าง เพื่อรักษา analytics
+ *   เดิม null _MAPS_SHEET_HIT_DIRTY เลย → pending hit_count increments หายเงียบๆ
+ *   ตอนนี้เรียก _flushHitCounts_() ก่อน เพื่อ persist ค่า hit_count ลงชีต
+ *   แม้ว่าจะ clear cache อยู่ ก็ยังเก็บ analytics สะสมไว้ในชีตก่อนลบ
  */
 function clearMapsCache() {
   // [FIX B3 v5.5.002] เพิ่ม try-catch — menu entry point ต้องมี error handling
   try {
+  // [FIX v5.5.008 P2 #10] flush pending hit counts ก่อนล้าง — รักษา analytics
+  //   ถ้าไม่ flush, hit_count ที่สะสมใน _MAPS_SHEET_HIT_DIRTY จะหายไปเงียบๆ
+  //   flush ที่นี่จะ persist ค่า hit_count ลง MAPS_CACHE sheet ก่อนที่จะลบแถวทิ้ง
+  //   (user อาจเลือกล้าง cache เพื่อ rebuild แต่ยังอยากเก็บ analytics สะสม)
+  try {
+    if (typeof _flushHitCounts_ === 'function') _flushHitCounts_();
+  } catch (flushErr) {
+    // ไม่บล็อกการ clear cache ถ้า flush ล้มเหลว
+    logWarn('MapsAPI', '_flushHitCounts_ ล้มเหลวก่อน clearMapsCache: ' + flushErr.message);
+  }
+
   // [FIX v5.5.001] invalidate RAM cache layer
   _MAPS_SHEET_CACHE = null;
   _MAPS_SHEET_HIT_DIRTY = null;
@@ -478,7 +501,7 @@ function clearMapsCache() {
     sheet.deleteRows(2, sheet.getLastRow() - 1);
   }
 
-  logInfo('MapsAPI', 'ล้าง MAPS_CACHE เรียบร้อย');
+  logInfo('MapsAPI', 'ล้าง MAPS_CACHE เรียบร้อย (pending hit_count ถูก persist ก่อนล้าง)');
 
   } catch (e) {
     logError('MapsAPI', 'clearMapsCache ล้มเหลว: ' + e.message, e);
