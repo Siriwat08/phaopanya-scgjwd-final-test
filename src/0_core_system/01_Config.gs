@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,16 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
  *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
@@ -81,8 +91,8 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.006';
-const SCHEMA_VERSION = '5.5.006';
+const APP_VERSION = '5.5.007';
+const SCHEMA_VERSION = '5.5.007';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs
@@ -93,18 +103,37 @@ let _GLOBAL_GEO_POINTS_CACHE = null;
 /**
  * invalidateAllGlobalCaches — [NEW v5.2.003] เคลียร์ค่า Cache ใน RAM ทั้งหมด
  * @summary ใช้สำหรับเคลียร์ความจำของสคริปต์เพื่อให้โหลดข้อมูลใหม่จากชีต 100%
+ *
+ * [FIX v5.5.007] แก้ bug H1: ล้าง RAM cache ครบทั้ง 11 ตัว (เดิมล้างแค่ 6/11)
+ *   รายการที่เพิ่ม: _GLOBAL_GEO_DICT_PROVINCE_INDEX, _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX,
+ *   _SOURCE_ROWS_RAM_CACHE, _FACT_INVOICE_RAM_CACHE, _GEO_LATLNG_RAM_CACHE, _SAME_DAY_DEST_CACHE
+ *   ผ่านการเรียก invalidate*Cache_* ของแต่ละโมดูล ซึ่งจะไปล้างทั้ง RAM และ CacheService
+ *
+ * หมายเหตุ: _MAPS_SHEET_CACHE และ _MAPS_SHEET_HIT_DIRTY ไม่ถูกล้างที่นี่
+ *   เพราะ geocode results เป็น immutable — ใช้เมนู clearMapsCache() แยก
+ *   _ALIAS_ENRICHMENT_CONTEXT เป็น per-MatchEngine-run — ไม่ต้องล้างที่นี่
  */
 function invalidateAllGlobalCaches() {
+  // [FIX v5.5.007] ล้าง RAM caches ที่ประกาศใน 01_Config.gs
   _GLOBAL_GEO_DICT_CACHE = null;
   _GLOBAL_GEO_DICT_CACHE_PLACE = null;  // [FIX-02 v5.4.003]
   _GLOBAL_GEO_POINTS_CACHE = null;
 
-  // เรียกฟังก์ชันล้าง Cache ในโมดูลอื่นๆ (ถ้ามี)
-  if (typeof invalidatePersonCache_ === 'function') invalidatePersonCache_();
-  if (typeof invalidatePlaceCache_  === 'function') invalidatePlaceCache_();
-  if (typeof invalidateGeoCache_    === 'function') invalidateGeoCache_();
+  // [FIX v5.5.007] เรียก invalidate*Cache_* ของทุกโมดูล เพื่อล้างทั้ง RAM และ CacheService
+  // แต่ละฟังก์ชันจะล้าง RAM cache ของตัวเอง + invalidate chunked CacheService entries
+  if (typeof invalidateGeoDictCache        === 'function') invalidateGeoDictCache();         // ล้าง _GLOBAL_GEO_DICT_CACHE, _GLOBAL_GEO_DICT_PROVINCE_INDEX, _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX + TH_GEO_* CacheService
+  if (typeof invalidatePersonCache_        === 'function') invalidatePersonCache_();         // ล้าง _PERSON_NOTE_INVERTED_INDEX + M_PERSON_ALL CacheService
+  if (typeof invalidateAliasCache_         === 'function') invalidateAliasCache_();          // ล้าง M_PERSON_ALIAS_ALL CacheService
+  if (typeof invalidatePlaceCache_         === 'function') invalidatePlaceCache_();          // ล้าง _GLOBAL_GEO_DICT_CACHE_PLACE + M_PLACE_ALL CacheService
+  if (typeof invalidatePlaceAliasCache_    === 'function') invalidatePlaceAliasCache_();     // ล้าง M_PLACE_ALIAS_ALL CacheService
+  if (typeof invalidateGeoCache_           === 'function') invalidateGeoCache_();            // ล้าง _GLOBAL_GEO_POINTS_CACHE + M_GEO_ALL CacheService
+  if (typeof invalidateDestCache_          === 'function') invalidateDestCache_();           // ล้าง M_DEST_ALL CacheService
+  if (typeof invalidateSourceCache         === 'function') invalidateSourceCache();          // ล้าง _SOURCE_ROWS_RAM_CACHE + SOURCE_ROWS_V3, PROCESSED_INVOICES_V3 CacheService
+  if (typeof invalidateFactInvoiceCache_   === 'function') invalidateFactInvoiceCache_();    // ล้าง _FACT_INVOICE_RAM_CACHE
+  if (typeof invalidateGeoLatLngCache_     === 'function') invalidateGeoLatLngCache_();      // [P1 #5] ล้าง _GEO_LATLNG_RAM_CACHE
+  if (typeof invalidateSameDayDestCache_   === 'function') invalidateSameDayDestCache_();    // ล้าง _SAME_DAY_DEST_CACHE
 
-  logInfo('System', 'ล้างข้อมูลในความจำ (Cache) ทั้งหมดเรียบร้อยแล้ว');
+  logInfo('System', 'ล้างข้อมูลในความจำ (Cache) ทั้งหมดเรียบร้อยแล้ว — ครอบคลุม 11 RAM caches + 13 CacheService keys');
 }
 
 // ============================================================
@@ -566,11 +595,28 @@ const AI_CONFIG = Object.freeze({
 // SECTION 9: App Constants
 // ============================================================
 
-// [ADD v5.5.001] CACHE_KEY — Script Cache key constants (used by 19_Hardening, 21_AliasService, 10_MatchEngine)
+// [ADD v5.5.001] CACHE_KEY — Script Cache key constants (Single Source of Truth)
+// [FIX v5.5.007 P1 #8] ขยายจาก 2 keys → 13 keys เพื่อรวม cache key prefixes ทั้งหมด
+//   ป้องกัน typo / key collision และทำให้ refactor ง่ายขึ้น
+//   ใช้โดย: 04_SourceRepository, 06_PersonService, 07_PlaceService, 08_GeoService,
+//   09_DestinationService, 10_MatchEngine, 16_GeoDictionaryBuilder, 21_AliasService
 const CACHE_KEY = Object.freeze({
-  GLOBAL_ALIAS_ALL:     'M_GLOBAL_ALIAS_ALL',
-  GLOBAL_ALIAS_REVERSE: 'M_GLOBAL_ALIAS_REVERSE',
-  // Extend as more cache keys are discovered
+  // Master Data entities
+  PERSON_ALL:           'M_PERSON_ALL',           // ใช้ใน 06_PersonService.gs
+  PERSON_ALIAS_ALL:     'M_PERSON_ALIAS_ALL',     // ใช้ใน 06_PersonService.gs
+  PLACE_ALL:            'M_PLACE_ALL',            // ใช้ใน 07_PlaceService.gs
+  PLACE_ALIAS_ALL:      'M_PLACE_ALIAS_ALL',      // ใช้ใน 07_PlaceService.gs
+  GEO_ALL:              'M_GEO_ALL',              // ใช้ใน 08_GeoService.gs
+  DEST_ALL:             'M_DEST_ALL',             // ใช้ใน 09_DestinationService.gs
+  GLOBAL_ALIAS_ALL:     'M_GLOBAL_ALIAS_ALL',     // ใช้ใน 21_AliasService.gs
+  GLOBAL_ALIAS_REVERSE: 'M_GLOBAL_ALIAS_REVERSE', // ใช้ใน 21_AliasService.gs
+  // Source data
+  SOURCE_ROWS:          'SOURCE_ROWS_V3',         // ใช้ใน 04_SourceRepository.gs
+  PROCESSED_INVOICES:   'PROCESSED_INVOICES_V3',  // ใช้ใน 04_SourceRepository.gs
+  // Thai geo dictionary
+  TH_GEO_POSTCODE:      'TH_GEO_POSTCODE',        // ใช้ใน 16_GeoDictionaryBuilder.gs
+  TH_GEO_PROVINCES:     'TH_GEO_PROVINCES',       // ใช้ใน 16_GeoDictionaryBuilder.gs
+  TH_GEO_DISTRICTS:     'TH_GEO_DISTRICTS',       // ใช้ใน 16_GeoDictionaryBuilder.gs
 });
 
 // [ADD v5.4.003] MAPS_CACHE_IDX — ดัชนีคอลัมน์ MAPS_CACHE

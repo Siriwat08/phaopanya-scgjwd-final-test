@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 21_AliasService.gs
  * LMDS V5.5 — Hybrid Alias Architecture (Global M_ALIAS + Entity-Specific Views)
  * ===================================================
@@ -8,7 +8,17 @@
  *   เป็น Single Source of Truth สำหรับ Alias Resolution ที่ Group 2 ใช้ค้นหา
  *   ⚠️ Auto Pipeline ไม่เขียน M_ALIAS ที่นี่ — เขียนที่ autoEnrichAliasesFromFactBatch_() เท่านั้น
  * ===================================================
- *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
  *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
@@ -101,20 +111,28 @@ const MIGRATION_CHECKPOINT_KEY = 'MIGRATION_ALIAS_STEP';
 
 // ============================================================
 // [FIX CRIT-001] Chunked Cache Helpers สำหรับ M_ALIAS
-// Pattern เดียวกับ 04_SourceRepository.gs:360-403
+// [FIX v5.5.007 P1 #7] Delegate ไปที่ centralized saveChunkedCache_ / loadChunkedCache_
+//   ใน 14_Utils.gs ที่ใช้ putAll() / getAll() แบบ batch (เร็วกว่า 5-10×)
 // ============================================================
 
 /**
- * saveAliasCacheChunked_ — [FIX CRIT-001] บันทึกข้อมูล alias cache แบบ chunked
- * ป้องกัน CacheService 100KB limit
+ * saveAliasCacheChunked_ — [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_
+ *   เดิมใช้ sequential cache.put() ใน loop + แบ่ง chunk ตามจำนวน keys (200/chunk)
+ *   ตอนนี้ delegate ไปที่ saveChunkedCache_ ที่แบ่งตามขนาด KB (90KB/chunk) + putAll()
  * @param {string} cacheKey - Cache key prefix
  * @param {Object} data - Data object to cache
  */
 function saveAliasCacheChunked_(cacheKey, data) {
+  // [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_ (putAll + byte-based chunking)
+  if (typeof saveChunkedCache_ === 'function') {
+    var cache = CacheService.getScriptCache();
+    saveChunkedCache_(cache, cacheKey, data);
+    return;
+  }
+
+  // Fallback: legacy implementation (backward compatibility)
   var cache = CacheService.getScriptCache();
   var json = JSON.stringify(data);
-
-  // ถ้าขนาดเล็กพอ → cache ทีเดียว
   if (json.length < 90000) {
     try {
       cache.put(cacheKey, json, AI_CONFIG.CACHE_TTL_SEC);
@@ -125,17 +143,13 @@ function saveAliasCacheChunked_(cacheKey, data) {
       return;
     }
   }
-
-  // ขนาดใหญ่ → แบ่งเป็น chunks ด้วย key prefix
   var keys = Object.keys(data);
   var CHUNK_SIZE = 200;
   var totalChunks = Math.ceil(keys.length / CHUNK_SIZE);
-
   try { cache.put(cacheKey + '_CHUNKS', String(totalChunks), AI_CONFIG.CACHE_TTL_SEC); } catch(e) {
     logWarn('AliasService', 'saveAliasCacheChunked_: _CHUNKS write ล้มเหลว: ' + e.message);
     return;
   }
-
   for (var i = 0; i < totalChunks; i++) {
     var chunkKeys = keys.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
     var chunkData = {};
@@ -143,8 +157,7 @@ function saveAliasCacheChunked_(cacheKey, data) {
     try {
       cache.put(cacheKey + '_' + i, JSON.stringify(chunkData), AI_CONFIG.CACHE_TTL_SEC);
     } catch (e) {
-      logWarn('AliasService', 'saveAliasCacheChunked_: chunk ' + i + '/' + totalChunks + ' write ล้มเหลว: ' + e.message);
-      // ลบ chunks ที่เขียนไปแล้ว
+      logWarn('AliasService', 'saveAliasCacheChunked_: chunk ' + i + '/' + totalChunks + ' write ล้มเหลว (legacy): ' + e.message);
       try {
         var keysToRemove = [];
         for (var j = 0; j <= i; j++) keysToRemove.push(cacheKey + '_' + j);
@@ -154,30 +167,36 @@ function saveAliasCacheChunked_(cacheKey, data) {
       return;
     }
   }
-  logDebug('AliasService', 'Chunked cache: ' + keys.length + ' keys → ' + totalChunks + ' chunks for ' + cacheKey);
+  logDebug('AliasService', 'Chunked cache (legacy): ' + keys.length + ' keys → ' + totalChunks + ' chunks for ' + cacheKey);
 }
 
 /**
- * loadAliasCacheChunked_ — [FIX CRIT-001] อ่าน alias cache แบบ chunked
+ * loadAliasCacheChunked_ — [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_
+ *   เดิมใช้ sequential cache.get() ใน loop (ช้ากว่า getAll() 5-10×)
  * @param {string} cacheKey - Cache key prefix
  * @return {Object|null} Parsed data or null if not found
  */
 function loadAliasCacheChunked_(cacheKey) {
-  var cache = CacheService.getScriptCache();
+  // [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_ (getAll + batch read)
+  if (typeof loadChunkedCache_ === 'function') {
+    var cache = CacheService.getScriptCache();
+    var cached = loadChunkedCache_(cache, cacheKey);
+    if (cached && typeof cached === 'object') {
+      return cached;
+    }
+    return null;
+  }
 
-  // ลองอ่านแบบเดิมก่อน (กรณีขนาดเล็ก)
+  // Fallback: legacy implementation
+  var cache = CacheService.getScriptCache();
   var singleCached = cache.get(cacheKey);
   if (singleCached) {
     try { return JSON.parse(singleCached); } catch (e) { logDebug('AliasService', cacheKey + ' Cache parse error: ' + e.message); }
   }
-
-  // ลองอ่าน chunked cache
   var totalStr = cache.get(cacheKey + '_CHUNKS');
   if (!totalStr) return null;
-
   var totalChunks = Number(totalStr);
   if (isNaN(totalChunks) || totalChunks <= 0) return null;
-
   var isComplete = true;
   var merged = {};
   for (var i = 0; i < totalChunks; i++) {
@@ -188,12 +207,10 @@ function loadAliasCacheChunked_(cacheKey) {
       Object.keys(chunk).forEach(function(k) { merged[k] = chunk[k]; });
     } catch (e) { isComplete = false; break; }
   }
-
   if (isComplete && Object.keys(merged).length > 0) {
-    logDebug('AliasService', 'Chunked cache hit: ' + Object.keys(merged).length + ' keys from ' + totalChunks + ' chunks for ' + cacheKey);
+    logDebug('AliasService', 'Chunked cache hit (legacy): ' + Object.keys(merged).length + ' keys from ' + totalChunks + ' chunks for ' + cacheKey);
     return merged;
   }
-
   return null;
 }
 
@@ -694,9 +711,24 @@ function migrateStep1_AssignUuid_(ss, state) {
     logInfo('AliasService', 'Step 1: ตรวจสอบ master_uuid...');
     uuidFixed = assignMasterUuidIfMissing();
     logInfo('AliasService', 'เพิ่ม master_uuid ให้ ' + uuidFixed + ' entities');
-    CacheService.getScriptCache().removeAll(
-      ['M_PERSON_ALL', 'M_PLACE_ALL', 'M_GLOBAL_ALIAS_ALL', 'M_GLOBAL_ALIAS_REVERSE']
-    );
+    // [FIX v5.5.007 P0 #4] ใช้ invalidateChunkedCache_ แทน raw removeAll
+    // เดิมใช้ removeAll แค่ base keys ทำให้ chunk keys (_CHUNKS, _0, _1, ...) ตกค้าง
+    // และ loadAliasCacheChunked_ จะอ่านข้อมูลเก่าจาก chunks ที่ตกค้าง → cache เก่าในขั้นตอนถัดไป
+    if (typeof invalidateChunkedCache_ === 'function') {
+      invalidateChunkedCache_(CACHE_KEY.PERSON_ALL, function() {
+        if (typeof _PERSON_NOTE_INVERTED_INDEX !== 'undefined') _PERSON_NOTE_INVERTED_INDEX = null;
+      });
+      invalidateChunkedCache_(CACHE_KEY.PLACE_ALL, function() {
+        if (typeof _GLOBAL_GEO_DICT_CACHE_PLACE !== 'undefined') _GLOBAL_GEO_DICT_CACHE_PLACE = null;
+      });
+      invalidateChunkedCache_(CACHE_KEY.GLOBAL_ALIAS_ALL);
+      invalidateChunkedCache_(CACHE_KEY.GLOBAL_ALIAS_REVERSE);
+    } else {
+      // Fallback: ถ้า invalidateChunkedCache_ ไม่พร้อม (ไม่ควรเกิดใน V5.5.007+)
+      CacheService.getScriptCache().removeAll(
+        ['M_PERSON_ALL', 'M_PLACE_ALL', 'M_GLOBAL_ALIAS_ALL', 'M_GLOBAL_ALIAS_REVERSE']
+      );
+    }
     saveMigrationCheckpoint_(2, 0);
   } else {
     logInfo('AliasService', 'Step 1: ข้าม (เสร็จแล้วจาก Checkpoint)');

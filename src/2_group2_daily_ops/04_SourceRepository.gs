@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 04_SourceRepository.gs
  * LMDS V5.5 — Source Data Repository
  * ===================================================
@@ -7,7 +7,17 @@
  *   จัดการข้อมูลต้นทาง (Source Sheet) สำหรับ Pipeline
  *   เป็น Single Entry Point สำหรับการอ่านและเขียนข้อมูลต้นฉบับ
  * ===================================================
- *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
  *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
@@ -246,43 +256,45 @@ function getProcessedInvoiceSet_() {
 }
 
 /**
- * saveProcessedInvoicesToCache_ — [FIX CRIT-008] Chunked cache for processed invoices
- * Pattern เดียวกับ saveSourceRowsToCache_ ที่มีอยู่แล้วในไฟล์นี้
+ * saveProcessedInvoicesToCache_ — [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_
+ *   เดิมใช้ sequential cache.put() ใน loop (ช้ากว่า putAll() 5-10×)
+ *   ตอนนี้ delegate ไปที่ saveChunkedCache_ ใน 14_Utils.gs ซึ่งใช้ putAll() แบบ batch
+ *   และแบ่ง chunk ตามขนาด KB (90KB/chunk) แทนจำนวน items (200/chunk)
  * @param {GoogleAppsScript.Cache.Cache} cache
  * @param {Set<string>} doneSet
  */
 function saveProcessedInvoicesToCache_(cache, doneSet) {
   const invoiceArr = [...doneSet];
-  const json = JSON.stringify(invoiceArr);
 
-  // ถ้าขนาดเล็กพอ → cache ทีเดียว
+  // [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_ (putAll + byte-based chunking)
+  if (typeof saveChunkedCache_ === 'function') {
+    saveChunkedCache_(cache, CACHE_KEY_INVOICES, invoiceArr);
+    return;
+  }
+
+  // Fallback: legacy implementation (backward compatibility)
+  const json = JSON.stringify(invoiceArr);
   if (json.length < 90000) {
     try {
       cache.put(CACHE_KEY_INVOICES, json, AI_CONFIG.CACHE_TTL_SEC);
       cache.put(CACHE_KEY_INVOICES + '_CHUNKS', '0', AI_CONFIG.CACHE_TTL_SEC);
-      return;
     } catch (e) {
       logWarn('SourceRepo', 'PROCESSED_INVOICES Cache write error (< 90KB): ' + e.message);
-      return;
     }
+    return;
   }
-
-  // ขนาดใหญ่ → แบ่งเป็น chunks
   const CHUNK_SIZE = 200;
   const totalChunks = Math.ceil(invoiceArr.length / CHUNK_SIZE);
-
   try { cache.put(CACHE_KEY_INVOICES + '_CHUNKS', String(totalChunks), AI_CONFIG.CACHE_TTL_SEC); } catch(e) {
     logWarn('SourceRepo', 'PROCESSED_INVOICES _CHUNKS write error: ' + e.message);
     return;
   }
-
   for (let i = 0; i < totalChunks; i++) {
     const chunk = invoiceArr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
     try {
       cache.put(CACHE_KEY_INVOICES + '_' + i, JSON.stringify(chunk), AI_CONFIG.CACHE_TTL_SEC);
     } catch (e) {
       logWarn('SourceRepo', 'PROCESSED_INVOICES chunk ' + i + '/' + totalChunks + ' write error: ' + e.message);
-      // ลบ chunks ที่เขียนไปแล้ว
       try {
         const keysToRemove = [];
         for (let j = 0; j <= i; j++) keysToRemove.push(CACHE_KEY_INVOICES + '_' + j);
@@ -292,28 +304,34 @@ function saveProcessedInvoicesToCache_(cache, doneSet) {
       return;
     }
   }
-  logDebug('SourceRepo', 'Chunked invoice cache: ' + invoiceArr.length + ' items → ' + totalChunks + ' chunks');
+  logDebug('SourceRepo', 'Chunked invoice cache (legacy): ' + invoiceArr.length + ' items → ' + totalChunks + ' chunks');
 }
 
 /**
- * loadProcessedInvoicesFromCache_ — [FIX CRIT-008] อ่าน processed invoices แบบ chunked
+ * loadProcessedInvoicesFromCache_ — [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_
+ *   เดิมใช้ sequential cache.get() ใน loop (ช้ากว่า getAll() 5-10×)
  * @param {GoogleAppsScript.Cache.Cache} cache
  * @return {Set<string>|null}
  */
 function loadProcessedInvoicesFromCache_(cache) {
-  // ลองอ่านแบบเดิมก่อน (กรณีขนาดเล็ก)
+  // [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_ (getAll + batch read)
+  if (typeof loadChunkedCache_ === 'function') {
+    const cached = loadChunkedCache_(cache, CACHE_KEY_INVOICES);
+    if (cached && Array.isArray(cached)) {
+      return new Set(cached);
+    }
+    return null;
+  }
+
+  // Fallback: legacy implementation
   const singleCached = cache.get(CACHE_KEY_INVOICES);
   if (singleCached) {
     try { return new Set(JSON.parse(singleCached)); } catch (e) { logDebug('SourceRepo', 'PROCESSED_INVOICES Cache parse error: ' + e.message); }
   }
-
-  // ลองอ่าน chunked cache
   const totalStr = cache.get(CACHE_KEY_INVOICES + '_CHUNKS');
   if (!totalStr) return null;
-
   const totalChunks = Number(totalStr);
   if (isNaN(totalChunks) || totalChunks <= 0) return null;
-
   let isComplete = true;
   const merged = [];
   for (let i = 0; i < totalChunks; i++) {
@@ -324,12 +342,10 @@ function loadProcessedInvoicesFromCache_(cache) {
       for (let j = 0; j < chunk.length; j++) merged.push(chunk[j]);
     } catch (e) { isComplete = false; break; }
   }
-
   if (isComplete && merged.length > 0) {
-    logDebug('SourceRepo', 'Chunked invoice cache hit: ' + merged.length + ' items from ' + totalChunks + ' chunks');
+    logDebug('SourceRepo', 'Chunked invoice cache hit (legacy): ' + merged.length + ' items from ' + totalChunks + ' chunks');
     return new Set(merged);
   }
-
   return null;
 }
 
@@ -462,44 +478,46 @@ function invalidateSourceCache() {
 }
 
 /**
- * saveSourceRowsToCache_ — [FIX BUG-09 v5.4.003] Chunked cache pattern
- * แบ่งข้อมูล Source เป็นก้อนๆ เพื่อไม่ให้เกิน 100KB limit ของ CacheService
- * Pattern เดียวกับ savePostcodeMapToCache_() ใน 16_GeoDictionaryBuilder.gs
+ * saveSourceRowsToCache_ — [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_
+ *   เดิมใช้ sequential cache.put() ใน loop (ช้ากว่า putAll() 5-10×)
+ *   ตอนนี้ delegate ไปที่ saveChunkedCache_ ใน 14_Utils.gs (putAll + byte-based chunking)
+ *   แบ่ง chunk ตามขนาด KB (90KB/chunk) แทนจำนวน items (200/chunk)
  * @param {Object[]} result - Source objects array
  */
 function saveSourceRowsToCache_(result) {
   if (!result || result.length === 0) return;
   const cache = CacheService.getScriptCache();
-  const json = JSON.stringify(result);
 
-  // ถ้าขนาดเล็กพอ → cache ทีเดียว
+  // [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_ (putAll + byte-based chunking)
+  if (typeof saveChunkedCache_ === 'function') {
+    saveChunkedCache_(cache, CACHE_KEY_SOURCE, result);
+    return;
+  }
+
+  // Fallback: legacy implementation (backward compatibility)
+  const json = JSON.stringify(result);
   if (json.length < 90000) {
     try {
       cache.put(CACHE_KEY_SOURCE, json, AI_CONFIG.CACHE_TTL_SEC);
-      cache.put(CACHE_KEY_SOURCE + '_TOTAL', '0', AI_CONFIG.CACHE_TTL_SEC); // 0 = ไม่มี chunks
+      cache.put(CACHE_KEY_SOURCE + '_TOTAL', '0', AI_CONFIG.CACHE_TTL_SEC);
       return;
     } catch (e) {
       logWarn('SourceRepo', 'Cache put ล้มเหลว (แม้ขนาด < 90KB): ' + e.message);
       return;
     }
   }
-
-  // ขนาดใหญ่ → แบ่งเป็น chunks
-  const CHUNK_SIZE = 200; // items per chunk
+  const CHUNK_SIZE = 200;
   const totalChunks = Math.ceil(result.length / CHUNK_SIZE);
-
   try { cache.put(CACHE_KEY_SOURCE + '_TOTAL', String(totalChunks), AI_CONFIG.CACHE_TTL_SEC); } catch(e) {
     logWarn('SourceRepo', 'Cache _TOTAL write ล้มเหลว: ' + e.message);
     return;
   }
-
   for (let i = 0; i < totalChunks; i++) {
     const chunk = result.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
     try {
       cache.put(CACHE_KEY_SOURCE + '_' + i, JSON.stringify(chunk), AI_CONFIG.CACHE_TTL_SEC);
     } catch (e) {
       logWarn('SourceRepo', `Cache chunk ${i}/${totalChunks} write ล้มเหลว: ${e.message}`);
-      // ลบ chunks ที่เขียนไปแล้ว เพื่อไม่ให้ cache ไม่สมบูรณ์
       try {
         const keysToRemove = [];
         for (let j = 0; j <= i; j++) keysToRemove.push(CACHE_KEY_SOURCE + '_' + j);
@@ -509,28 +527,34 @@ function saveSourceRowsToCache_(result) {
       return;
     }
   }
-  logDebug('SourceRepo', `Chunked cache: ${result.length} items → ${totalChunks} chunks`);
+  logDebug('SourceRepo', `Chunked cache (legacy): ${result.length} items → ${totalChunks} chunks`);
 }
 
 /**
- * loadSourceRowsFromCache_ — [FIX BUG-09 v5.4.003] อ่าน chunked cache
+ * loadSourceRowsFromCache_ — [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_
+ *   เดิมใช้ sequential cache.get() ใน loop (ช้ากว่า getAll() 5-10×)
  * @param {GoogleAppsScript.Cache.Cache} cache
  * @return {Object[]|null}
  */
 function loadSourceRowsFromCache_(cache) {
-  // ลองอ่าแบบเดิมก่อน (กรณีขนาดเล็ก)
+  // [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_ (getAll + batch read)
+  if (typeof loadChunkedCache_ === 'function') {
+    const cached = loadChunkedCache_(cache, CACHE_KEY_SOURCE);
+    if (cached && Array.isArray(cached)) {
+      return cached;
+    }
+    return null;
+  }
+
+  // Fallback: legacy implementation
   const singleCached = cache.get(CACHE_KEY_SOURCE);
   if (singleCached) {
     try { return JSON.parse(singleCached); } catch (e) { logDebug('SourceRepo', 'SOURCE_ROWS_V3 Cache parse error: ' + e.message); }
   }
-
-  // ลองอ่าน chunked cache
   const totalStr = cache.get(CACHE_KEY_SOURCE + '_TOTAL');
   if (!totalStr) return null;
-
   const totalChunks = Number(totalStr);
   if (isNaN(totalChunks) || totalChunks <= 0) return null;
-
   let isComplete = true;
   const merged = [];
   for (let i = 0; i < totalChunks; i++) {
@@ -538,16 +562,13 @@ function loadSourceRowsFromCache_(cache) {
     if (!chunkStr) { isComplete = false; break; }
     try {
       const chunk = JSON.parse(chunkStr);
-      // [FIX B5 v5.5.002] ใช้ for-loop แทน Array.prototype.push.apply — ป้องกัน stack overflow เมื่อ chunk ใหญ่
       for (let j = 0; j < chunk.length; j++) merged.push(chunk[j]);
     } catch (e) { isComplete = false; break; }
   }
-
   if (isComplete && merged.length > 0) {
-    logDebug('SourceRepo', `Chunked cache hit: ${merged.length} items from ${totalChunks} chunks`);
+    logDebug('SourceRepo', `Chunked cache hit (legacy): ${merged.length} items from ${totalChunks} chunks`);
     return merged;
   }
-
   return null;
 }
 

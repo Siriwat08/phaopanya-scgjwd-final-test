@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 14_Utils.gs
  * LMDS V5.5 — Utility Functions
  * ===================================================
@@ -7,7 +7,17 @@
  *   รวบรวมฟังก์ชันช่วยทั่วไปที่ใช้ร่วมกันทั่วระบบ
  *   เช่น ID Generator, Hash, String similarity, LatLng parser
  * ===================================================
- *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
  *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
@@ -889,4 +899,67 @@ function buildGlobalAliasDedupSet_() {
     logWarn('Utils', 'buildGlobalAliasDedupSet_: ' + err.message);
   }
   return dedupSet;
+}
+
+// ============================================================
+// SECTION 12: [ADD v5.5.007 P1 #9] Safe Cache Helpers
+// ป้องกัน cache.get()/put() ล้มเหลวจาก quota exceeded หรือ transient errors
+// ทำให้ calling function crash — ปัจจุบัน fallback ไป sheet read ได้
+// ============================================================
+
+/**
+ * safeCacheGet_ — [ADD v5.5.007 P1 #9] Safe wrapper สำหรับ CacheService.get()
+ *   ถ้า cache.get() throw exception (quota, transient) → คืน null แทน และ log warning
+ *   ทำให้ caller สามารถ fallback ไป sheet read ได้โดยไม่ crash
+ * @param {GoogleAppsScript.Cache.Cache} cache - CacheService instance
+ * @param {string} key - Cache key
+ * @return {string|null} Cached value หรือ null ถ้าไม่พบ/error
+ */
+function safeCacheGet_(cache, key) {
+  if (!cache || !key) return null;
+  try {
+    return cache.get(key);
+  } catch (e) {
+    logWarn('Utils', 'safeCacheGet_ error for key "' + key + '": ' + e.message);
+    return null;
+  }
+}
+
+/**
+ * safeCachePut_ — [ADD v5.5.007 P1 #9] Safe wrapper สำหรับ CacheService.put()
+ *   ถ้า cache.put() throw exception (quota, >100KB, transient) → log warning แล้วไม่ crash
+ * @param {GoogleAppsScript.Cache.Cache} cache - CacheService instance
+ * @param {string} key - Cache key
+ * @param {string} value - Value to cache (string)
+ * @param {number} [ttl] - TTL in seconds (default: 21600 = 6h)
+ * @return {boolean} true ถ้าสำเร็จ, false ถ้าล้มเหลว
+ */
+function safeCachePut_(cache, key, value, ttl) {
+  if (!cache || !key || !value) return false;
+  var effectiveTtl = ttl || (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.CACHE_TTL_SEC) ? (ttl || AI_CONFIG.CACHE_TTL_SEC) : 21600;
+  try {
+    cache.put(key, value, effectiveTtl);
+    return true;
+  } catch (e) {
+    logWarn('Utils', 'safeCachePut_ error for key "' + key + '" (size: ' + value.length + ' chars): ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * safeCacheRemoveAll_ — [ADD v5.5.007 P1 #9] Safe wrapper สำหรับ CacheService.removeAll()
+ *   ถ้า removeAll() throw exception → log warning แล้วไม่ crash
+ * @param {GoogleAppsScript.Cache.Cache} cache - CacheService instance
+ * @param {string[]} keys - Array of keys to remove
+ * @return {boolean} true ถ้าสำเร็จ, false ถ้าล้มเหลว
+ */
+function safeCacheRemoveAll_(cache, keys) {
+  if (!cache || !keys || keys.length === 0) return false;
+  try {
+    cache.removeAll(keys);
+    return true;
+  } catch (e) {
+    logWarn('Utils', 'safeCacheRemoveAll_ error for ' + keys.length + ' keys: ' + e.message);
+    return false;
+  }
 }

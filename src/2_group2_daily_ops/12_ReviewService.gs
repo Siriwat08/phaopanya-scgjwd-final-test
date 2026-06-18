@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 12_ReviewService.gs
  * LMDS V5.5 — Review Queue Service
  * [FIX BUG-B2] v5.4.003: updateReviewRowStatus_() helper — 1 setValues แทน 5× setValue
@@ -12,6 +12,16 @@
  * PURPOSE:
  * จัดการคิวรีวิว Q_REVIEW — พักข้อมูลที่ต้องให้คนตัดสินใจ
  * ===================================================
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
  *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
@@ -243,6 +253,17 @@ function applyAllPendingDecisions() {
         factSheet.getRange(factSheet.getLastRow() + 1, 1, pendingFactRows.length, pendingFactRows[0].length)
           .setValues(pendingFactRows);
         if (typeof invalidateFactInvoiceCache_ === 'function') invalidateFactInvoiceCache_();
+        // [FIX v5.5.007 P0 #3] เพิ่ม invalidations ที่ขาดหายไป ให้ตรงกับ persistResult_ ของ MatchEngine
+        // เดิมลืม invalidate same-day dest cache และ alias enrichment สำหรับ Review-approved FACT rows
+        // ทำให้ cache เก่าและ M_ALIAS ไม่ถูก enrich หลัง Review
+        if (typeof invalidateSameDayDestCache_ === 'function') invalidateSameDayDestCache_();
+        try {
+          if (typeof autoEnrichAliasesFromFactBatch_ === 'function') {
+            autoEnrichAliasesFromFactBatch_(pendingFactRows);
+          }
+        } catch (enrichErr) {
+          logError('ReviewService', 'autoEnrichAliasesFromFactBatch_ ล้มเหลว (ไม่บล็อกการทำงานหลัก): ' + enrichErr.message, enrichErr);
+        }
       }
     }
 

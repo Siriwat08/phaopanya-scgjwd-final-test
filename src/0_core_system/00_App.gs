@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,17 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
  *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
@@ -691,28 +701,28 @@ function showVersionInfo() {
     `Schema: v${SCHEMA_VERSION}\n` +
     `Audit Cycles: 5 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.006\n` +
-    `  01_Config.gs             v5.5.006\n` +
-    `  02_Schema.gs             v5.5.006\n` +
-    `  03_SetupSheets.gs        v5.5.006\n` +
-    `  04_SourceRepository.gs   v5.5.006\n` +
-    `  05_NormalizeService.gs   v5.5.006\n` +
-    `  06_PersonService.gs      v5.5.006\n` +
-    `  07_PlaceService.gs       v5.5.006\n` +
-    `  08_GeoService.gs         v5.5.006\n` +
-    `  09_DestinationService.gs v5.5.006\n` +
-    `  10_MatchEngine.gs        v5.5.006\n` +
-    `  11_TransactionService.gs v5.5.006\n` +
-    `  12_ReviewService.gs      v5.5.006\n` +
-    `  13_ReportService.gs      v5.5.006\n` +
-    `  14_Utils.gs              v5.5.006\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.006\n` +
-    `  16_GeoDictionaryBuilder.gs     v5.5.006\n` +
-    `  17_SearchService.gs      v5.5.006\n` +
-    `  18_ServiceSCG.gs         v5.5.006\n` +
-    `  19_Hardening.gs          v5.5.006\n` +
-    `  20_ThGeoService.gs       v5.5.006\n` +
-    `  21_AliasService.gs       v5.5.006\n\n` +
+    `  00_App.gs                v5.5.007\n` +
+    `  01_Config.gs             v5.5.007\n` +
+    `  02_Schema.gs             v5.5.007\n` +
+    `  03_SetupSheets.gs        v5.5.007\n` +
+    `  04_SourceRepository.gs   v5.5.007\n` +
+    `  05_NormalizeService.gs   v5.5.007\n` +
+    `  06_PersonService.gs      v5.5.007\n` +
+    `  07_PlaceService.gs       v5.5.007\n` +
+    `  08_GeoService.gs         v5.5.007\n` +
+    `  09_DestinationService.gs v5.5.007\n` +
+    `  10_MatchEngine.gs        v5.5.007\n` +
+    `  11_TransactionService.gs v5.5.007\n` +
+    `  12_ReviewService.gs      v5.5.007\n` +
+    `  13_ReportService.gs      v5.5.007\n` +
+    `  14_Utils.gs              v5.5.007\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.007\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.007\n` +
+    `  17_SearchService.gs      v5.5.007\n` +
+    `  18_ServiceSCG.gs         v5.5.007\n` +
+    `  19_Hardening.gs          v5.5.007\n` +
+    `  20_ThGeoService.gs       v5.5.007\n` +
+    `  21_AliasService.gs       v5.5.007\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

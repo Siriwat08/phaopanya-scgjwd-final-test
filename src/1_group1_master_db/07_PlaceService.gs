@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 07_PlaceService.gs
  * LMDS V5.5 — Place Master Service
  * ===================================================
@@ -7,7 +7,17 @@
  *   จัดการ Master Place — ฐานข้อมูลสถานที่จัดส่ง
  *   เป็น Single Source of Truth สำหรับข้อมูลสถานที่
  * ===================================================
- *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
  *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
@@ -728,10 +738,21 @@ function loadCachedGeoRowsForPlace_() {
 }
 
 function loadAllPlaces_() {
-  const cacheKey = 'M_PLACE_ALL';
+  // [FIX v5.5.007 P1 #6] แปลงจาก direct cache.put → saveChunkedCache_ + loadChunkedCache_
+  //   เดิมใช้ cache.put ตรง ทำให้เมื่อ M_PLACE ใหญ่เกิน 100KB จะ fail เงียบๆ
+  //   ตอนนี้ใช้ centralized helpers จาก 14_Utils.gs ที่รองรับ chunking อัตโนมัติ
+  const cacheKey = (typeof CACHE_KEY !== 'undefined' && CACHE_KEY.PLACE_ALL) ? CACHE_KEY.PLACE_ALL : 'M_PLACE_ALL';
   const cache    = CacheService.getScriptCache();
-  const cached   = cache.get(cacheKey);
-  if (cached) { try { return JSON.parse(cached); } catch(e) { logDebug('PlaceService', 'M_PLACE_ALL Cache parse error: ' + e.message); } }
+
+  // [FIX v5.5.007] ใช้ loadChunkedCache_ แทน cache.get ตรง — รองรับ chunked data
+  if (typeof loadChunkedCache_ === 'function') {
+    const cached = loadChunkedCache_(cache, cacheKey);
+    if (cached) return cached;
+  } else {
+    // Fallback: ใช้ cache.get ตรง (backward compatibility)
+    const cached = cache.get(cacheKey);
+    if (cached) { try { return JSON.parse(cached); } catch(e) { logDebug('PlaceService', 'M_PLACE_ALL Cache parse error: ' + e.message); } }
+  }
 
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET.M_PLACE);
@@ -760,18 +781,32 @@ function loadAllPlaces_() {
       masterUuid: String(r[PLACE_IDX.MASTER_UUID] || ''),
     }));
 
-  // [FIX CRIT-002] เพิ่ม data size ใน log message เพื่อ debugging
-  var resultJson = JSON.stringify(result);
-  try { cache.put(cacheKey, resultJson, AI_CONFIG.CACHE_TTL_SEC); }
-  catch(e) { logWarn('PlaceService', 'M_PLACE Cache เต็ม — data size: ' + resultJson.length + ' chars'); }
+  // [FIX v5.5.007 P1 #6] ใช้ saveChunkedCache_ แทน cache.put ตรง
+  //   จะ auto-chunk ถ้าข้อมูลใหญ่เกิน 90KB และใช้ putAll() สำหรับ batch write
+  if (typeof saveChunkedCache_ === 'function') {
+    saveChunkedCache_(cache, cacheKey, result);
+  } else {
+    // Fallback: backward compatibility
+    var resultJson = JSON.stringify(result);
+    try { cache.put(cacheKey, resultJson, AI_CONFIG.CACHE_TTL_SEC); }
+    catch(e) { logWarn('PlaceService', 'M_PLACE Cache เต็ม — data size: ' + resultJson.length + ' chars'); }
+  }
   return result;
 }
 
 function loadAllPlaceAliases_() {
-  const cacheKey = 'M_PLACE_ALIAS_ALL';
+  // [FIX v5.5.007 P1 #6] แปลงจาก direct cache.put → saveChunkedCache_ + loadChunkedCache_
+  const cacheKey = (typeof CACHE_KEY !== 'undefined' && CACHE_KEY.PLACE_ALIAS_ALL) ? CACHE_KEY.PLACE_ALIAS_ALL : 'M_PLACE_ALIAS_ALL';
   const cache    = CacheService.getScriptCache();
-  const cached   = cache.get(cacheKey);
-  if (cached) { try { return JSON.parse(cached); } catch(e) { logDebug('PlaceService', 'M_PLACE_ALIAS_ALL Cache parse error: ' + e.message); } }
+
+  // [FIX v5.5.007] ใช้ loadChunkedCache_ แทน cache.get ตรง — รองรับ chunked data
+  if (typeof loadChunkedCache_ === 'function') {
+    const cached = loadChunkedCache_(cache, cacheKey);
+    if (cached) return cached;
+  } else {
+    const cached = cache.get(cacheKey);
+    if (cached) { try { return JSON.parse(cached); } catch(e) { logDebug('PlaceService', 'M_PLACE_ALIAS_ALL Cache parse error: ' + e.message); } }
+  }
 
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET.M_PLACE_ALIAS);
@@ -780,10 +815,15 @@ function loadAllPlaceAliases_() {
   // [FIX v5.4.001] ใช้ Math.min เพื่อป้องกัน Range error
   const colsToRead = Math.min(SCHEMA[SHEET.M_PLACE_ALIAS].length, sheet.getLastColumn());
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, colsToRead).getValues();
-  // [FIX CRIT-002] เพิ่ม data size ใน log message เพื่อ debugging
-  var rowsJson = JSON.stringify(rows);
-  try { cache.put(cacheKey, rowsJson, AI_CONFIG.CACHE_TTL_SEC); }
-  catch(e) { logDebug('PlaceService', 'M_PLACE_ALIAS Cache write error: ' + e.message + ' — data size: ' + rowsJson.length + ' chars'); }
+
+  // [FIX v5.5.007 P1 #6] ใช้ saveChunkedCache_ แทน cache.put ตรง
+  if (typeof saveChunkedCache_ === 'function') {
+    saveChunkedCache_(cache, cacheKey, rows);
+  } else {
+    var rowsJson = JSON.stringify(rows);
+    try { cache.put(cacheKey, rowsJson, AI_CONFIG.CACHE_TTL_SEC); }
+    catch(e) { logDebug('PlaceService', 'M_PLACE_ALIAS Cache write error: ' + e.message + ' — data size: ' + rowsJson.length + ' chars'); }
+  }
   return rows;
 }
 

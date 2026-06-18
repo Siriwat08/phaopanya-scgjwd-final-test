@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.006
+ * VERSION: 5.5.007
  * FILE: 16_GeoDictionaryBuilder.gs
  * LMDS V5.5 — Geo Dictionary Builder (SYS_TH_GEO)
  * ===================================================
@@ -7,7 +7,17 @@
  *   สร้างและดูแลฐานข้อมูลภูมิศาสตร์ไทย (SYS_TH_GEO) 16 คอลัมน์
  *   สำหรับการแกะที่อยู่อัตโนมัติ
  * ===================================================
- *   v5.5.006 (2026-06-18) — Consistency Sync:
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
+ *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
+ *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
+ *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
+ *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
+ *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
+ *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
+ *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
+ *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
+ *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
+ *   v5.5.006 (2026-06-18) — Consistency Sync:
  *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
  *     - [SYNC] Documentation consistency: line count 13,831, function count 310
  *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
@@ -461,18 +471,28 @@ function loadCachedGeoRows_() {
 
 function getCachedPostcodeMap_() {
   const cache  = CacheService.getScriptCache();
-  const totalStr = cache.get('TH_GEO_POSTCODE_TOTAL');
-  if (totalStr) {
-    const totalChunks = Number(totalStr);
-    if (!isNaN(totalChunks) && totalChunks > 0) {
-      let isComplete = true;
-      const merged = {};
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkStr = cache.get('TH_GEO_POSTCODE_' + i);
-        if (!chunkStr) { isComplete = false; break; }
-        try { Object.assign(merged, JSON.parse(chunkStr)); } catch(e) { isComplete = false; break; }
+
+  // [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_ (getAll + batch read)
+  if (typeof loadChunkedCache_ === 'function') {
+    const cached = loadChunkedCache_(cache, 'TH_GEO_POSTCODE');
+    if (cached && typeof cached === 'object') {
+      return cached;
+    }
+  } else {
+    // Fallback: legacy chunked read pattern
+    const totalStr = cache.get('TH_GEO_POSTCODE_TOTAL');
+    if (totalStr) {
+      const totalChunks = Number(totalStr);
+      if (!isNaN(totalChunks) && totalChunks > 0) {
+        let isComplete = true;
+        const merged = {};
+        for (let i = 0; i < totalChunks; i++) {
+          const chunkStr = cache.get('TH_GEO_POSTCODE_' + i);
+          if (!chunkStr) { isComplete = false; break; }
+          try { Object.assign(merged, JSON.parse(chunkStr)); } catch(e) { isComplete = false; break; }
+        }
+        if (isComplete) return merged;
       }
-      if (isComplete) return merged;
     }
   }
 
@@ -481,14 +501,36 @@ function getCachedPostcodeMap_() {
   return result;
 }
 
+/**
+ * savePostcodeMapToCache_ — [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_
+ *   เดิมแบ่ง chunk ตามจำนวน keys (350/chunk) + sequential cache.put()
+ *   ตอนนี้ใช้ saveChunkedCache_ ที่แบ่งตามขนาด KB (90KB/chunk) + putAll() แบบ batch
+ *   ปลอดภัยกว่าเพราะ chunk size ปรับตามขนาดข้อมูลจริง ไม่ใช่จำนวน items
+ */
 function savePostcodeMapToCache_(postcodeMap) {
   const cache = CacheService.getScriptCache();
+
+  // [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_ (putAll + byte-based chunking)
+  if (typeof saveChunkedCache_ === 'function') {
+    saveChunkedCache_(cache, 'TH_GEO_POSTCODE', postcodeMap);
+    // [FIX] ล้าง legacy keys ที่อาจตกค้างจาก version เก่า
+    try {
+      const legacyTotal = cache.get('TH_GEO_POSTCODE_TOTAL');
+      if (legacyTotal) {
+        const legacyChunks = Number(legacyTotal);
+        const keysToRemove = ['TH_GEO_POSTCODE_TOTAL'];
+        for (let i = 0; i < legacyChunks; i++) keysToRemove.push('TH_GEO_POSTCODE_' + i);
+        cache.removeAll(keysToRemove);
+      }
+    } catch (e) { /* ignore cleanup errors */ }
+    return;
+  }
+
+  // Fallback: legacy implementation (backward compatibility)
   const keys = Object.keys(postcodeMap);
-  const chunkSize = 350; // แบ่ง 350 keys ต่อก้อน เพื่อไม่ให้เกิน 100KB limit ของ CacheService
+  const chunkSize = 350;
   const totalChunks = Math.ceil(keys.length / chunkSize);
-
   try { cache.put('TH_GEO_POSTCODE_TOTAL', String(totalChunks), AI_CONFIG.CACHE_TTL_SEC); } catch(e){}
-
   for (let i = 0; i < totalChunks; i++) {
     const chunkKeys = keys.slice(i * chunkSize, (i + 1) * chunkSize);
     const chunkObj = {};
@@ -496,7 +538,7 @@ function savePostcodeMapToCache_(postcodeMap) {
     try {
       cache.put('TH_GEO_POSTCODE_' + i, JSON.stringify(chunkObj), AI_CONFIG.CACHE_TTL_SEC);
     } catch(e) {
-      logWarn('GeoDictBuilder', `Cache POSTCODE_${i} ล้มเหลว: ${e.message}`);
+      logWarn('GeoDictBuilder', `Cache POSTCODE_${i} ล้มเหลว (legacy): ${e.message}`);
     }
   }
 }
@@ -573,6 +615,11 @@ function buildDistrictsMapFromSheet_() {
 function invalidateGeoDictCache() {
   _GLOBAL_GEO_DICT_CACHE = null;
   _GLOBAL_GEO_DICT_PROVINCE_INDEX = null; // [PERF-005]
+  // [FIX v5.5.007 P0 #2] ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX ที่ประกาศใน 20_ThGeoService.gs
+  // เดิมลืมล้าง index นี้ ทำให้หลัง rebuild dictionary การค้นหาด้วย searchKey ยังใช้ข้อมูลเก่า
+  if (typeof _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX !== 'undefined') {
+    _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX = null;
+  }
   const cache = CacheService.getScriptCache();
   const keysToRemove = ['TH_GEO_PROVINCES', 'TH_GEO_DISTRICTS', 'TH_GEO_POSTCODE_TOTAL', 'TH_GEO_POSTCODE'];
   // [FIX v5.5.001] ดึงจำนวน chunks จาก cache แทน hardcoded 10
@@ -583,7 +630,7 @@ function invalidateGeoDictCache() {
   const chunkLimit = Math.max(totalChunks, 50);
   for (let i = 0; i < chunkLimit; i++) keysToRemove.push('TH_GEO_POSTCODE_' + i);
   cache.removeAll(keysToRemove);
-  logInfo('GeoDictBuilder', 'ล้าง Geo Dictionary Cache เรียบร้อย');
+  logInfo('GeoDictBuilder', 'ล้าง Geo Dictionary Cache เรียบร้อย — รวม _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX');
 }
 
 // [REMOVED v5.4.003] safeAlert_ — ย้ายไป 14_Utils.gs (ชื่อ safeUiAlert_) แล้ว
