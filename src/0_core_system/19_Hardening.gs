@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 19_Hardening.gs
  * LMDS V5.5 — System Hardening & Preflight Audit
  * [FIX BUG-A2] v5.4.003: runPreflightAudit() เพิ่ม try-catch
@@ -9,7 +9,14 @@
  *   ตรวจสอบความสมบูรณ์ของข้อมูลก่อนประมวลผล (Preflight Audit)
  *   และตรวจจับปัญหาซ้ำซ้อน
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -73,6 +80,7 @@
  *     - normalizeInvoiceNo() → 14_Utils
  *     - invalidateAliasCache_() → 06_PersonService
  *     - logInfo() → 03_SetupSheets
+ *     - flushLogBuffer_() → 03_SetupSheets (called in finally of runPreflightAudit) [V5.5.008 P2 #11]
  *   EXPORTS TO:
  *     - 00_App (runPreflightAudit, detectDoubleProcessing, generatePersonAliasesFromHistory — menu trigger)
  *   SHEETS ACCESSED:
@@ -89,7 +97,9 @@
  *   │                                                     │
  *   │  runPreflightAudit ─── Schema integrity check       │
  *   │       │                  + API key validation       │
- *   │       │                                             │
+ *   │       │                  + flushLogBuffer_() in     │
+ *   │       │                    finally [V5.5.008 #11]   │
+ *   │                                                     │
  *   │  fixMissingSyncStatus ── Batch sync status repair   │
  *   │                                                     │
  *   │  detectDoubleProcessing ─ Duplicate detection       │

@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,13 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
  *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
@@ -65,6 +72,11 @@
  *     - *_IDX{} (Person, PersonAlias, Place, PlaceAlias, Alias, Geo, Dest, Fact, Review, ThGeo, Employee, Src, Data, SysLog, MapsCache, OwnerSum, ShipmentSum = 17)
  *     - AI_CONFIG, SCG_CONFIG, APP_CONST (System configs)
  *     - _GLOBAL_* CACHE variables (RAM cache layer)
+ *     - CACHE_KEY{} (13 entries: GLOBAL_ALIAS_ALL, GLOBAL_ALIAS_REVERSE, PERSON_ALL,
+ *         PERSON_ALIAS_ALL, PLACE_ALL, PLACE_ALIAS_ALL, GEO_ALL, DEST_ALL, SOURCE_ROWS,
+ *         PROCESSED_INVOICES, TH_GEO_POSTCODE, TH_GEO_PROVINCES, TH_GEO_DISTRICTS) [V5.5.007 P1 #8]
+ *     - invalidateAllGlobalCaches() — orchestrates 11 invalidate*Cache_* calls across
+ *         modules 04/06/07/08/09/10/11/16 (was 6 calls pre-V5.5.007) [V5.5.007 P0 #1]
  *   CALLED BY (All Modules):
  *     - 00_App.gs          (Menu, triggers)
  *     - 05_NormalizeService.gs  (Normalization)
@@ -93,14 +105,17 @@
  *   │  ├── AI_CONFIG (Match Engine settings)                       │
  *   │  ├── SCG_CONFIG (SCG API settings)                          │
  *   │  ├── APP_CONST (Status, Colors, Lock)                        │
+ *   │  ├── CACHE_KEY{} (13 entries) [V5.5.007 P1 #8]              │
  *   │  ├── validateConfig() (Schema validation)                    │
+ *   │  ├── invalidateAllGlobalCaches() — 11 invalidate*Cache_*    │
+ *   │  │   calls (was 6 pre-V5.5.007) [V5.5.007 P0 #1]            │
  *   │  └── _GLOBAL_* CACHE (RAM Cache Layer)                       │
  *   └─────────────────────────────────────────────────────────────┘
  * ===================================================
  */
 
-const APP_VERSION = '5.5.008';
-const SCHEMA_VERSION = '5.5.008';
+const APP_VERSION = '5.5.009';
+const SCHEMA_VERSION = '5.5.009';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs

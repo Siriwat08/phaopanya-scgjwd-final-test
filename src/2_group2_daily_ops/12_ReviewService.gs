@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 12_ReviewService.gs
  * LMDS V5.5 — Review Queue Service
  * [FIX BUG-B2] v5.4.003: updateReviewRowStatus_() helper — 1 setValues แทน 5× setValue
@@ -12,6 +12,13 @@
  * PURPOSE:
  * จัดการคิวรีวิว Q_REVIEW — พักข้อมูลที่ต้องให้คนตัดสินใจ
  * ===================================================
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
  *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
@@ -70,9 +77,15 @@
  * - 11_TransactionService (upsertFactDelivery)
  * - 14_Utils (generateShortId, normalizeInvoiceNo)
  * - 03_SetupSheets (logError, logInfo, logWarn, logDebug, safeUiAlert_)
+ * - 10_MatchEngine (invalidateSameDayDestCache_, autoEnrichAliasesFromFactBatch_)
+ *   [V5.5.007 P0 #3]
  * CALLS (Invokes):
  * - resolveAndPersist_() → 10_MatchEngine (Gateway for Group 1 CRUD)
  * - getEnrichedGeoData() → 07_PlaceService (Optional enrichment)
+ * - invalidateSameDayDestCache_() → 10_MatchEngine (called from
+ *   applyAllPendingDecisions to mirror persistResult_ cache invalidation) [V5.5.007 P0 #3]
+ * - autoEnrichAliasesFromFactBatch_() → 10_MatchEngine (called from
+ *   applyAllPendingDecisions to enrich M_ALIAS from newly-approved FACTs) [V5.5.007 P0 #3]
  * - maskReviewerEmail_() → Local security helper
  * - logError/logInfo/logWarn/logDebug() → 03_SetupSheets
  * 
@@ -92,6 +105,11 @@
  * │ └─ add pending review to Q_REVIEW            │
  * │ applyAllPendingDecisions                     │
  * │ └─ batch process all pending decisions       │
+ * │    [V5.5.007 P0 #3] now mirrors persistResult_│
+ * │    cache invalidation: calls invalidateSameDay│
+ * │    DestCache_ + autoEnrichAliasesFromFactBatch│
+ * │    _() (was missing → stale same-day dest +  │
+ * │    M_ALIAS never enriched from review path)  │
  * │ applyReviewDecision                          │
  * │ ├─ CREATE_NEW → resolve + create masters     │
  * │ ├─ MERGE_TO_CANDIDATE → merge person recs    │

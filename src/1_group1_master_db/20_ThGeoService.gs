@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 20_ThGeoService.gs
  * LMDS V5.5 — Thai Geo Service
  * ===================================================
@@ -7,7 +7,14 @@
  *   ให้บริการค้นหาข้อมูลภูมิศาสตร์ไทย — ค้นหาจังหวัด/อำเภอ/ตำบล
  *   จากรหัสไปรษณีย์ หรือชื่อพื้นที่
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -59,9 +66,17 @@
  *     - 05_NormalizeService (normalizeForCompare)
  *     - 16_GeoDictionaryBuilder (loadCachedGeoRows_)
  *     - 14_Utils (diceCoefficient)
+ *     - 07_PlaceService (invalidatePlaceCache_) [V5.5.008 P2 #12]
+ *     - 16_GeoDictionaryBuilder (invalidateGeoDictCache_) [V5.5.008 P2 #12]
+ *     - 03_SetupSheets (flushLogBuffer_) [V5.5.008 P2 #11]
  *   CALLS (Invokes):
  *     - normalizeForCompare() → 05_NormalizeService
  *     - loadCachedGeoRows_() → 16_GeoDictionaryBuilder
+ *     - invalidateGeoDictCache_() → 16_GeoDictionaryBuilder (replaces manual
+ *       nulling of _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX in populateGeoMetadata) [V5.5.008 P2 #12]
+ *     - invalidatePlaceCache_() → 07_PlaceService (replaces 3 redundant manual
+ *       cache nullings in populateGeoMetadata) [V5.5.008 P2 #12]
+ *     - flushLogBuffer_() → 03_SetupSheets (populateGeoMetadata finally) [V5.5.008 P2 #11]
  *     - safeUiAlert_() → 14_Utils
  *     - logInfo() → 03_SetupSheets
  *   EXPORTS TO:
@@ -85,6 +100,13 @@
  *   │  populateGeoMetadata ── Batch fill 16 metadata      │
  *   │       │                  columns for all            │
  *   │       │                  SYS_TH_GEO rows            │
+ *   │       │                                             │
+ *   │       │   [V5.5.008 P2 #12] uses invalidate*Cache_*│
+ *   │       │     instead of 3 manual cache nullings     │
+ *   │       │     (invalidateGeoDictCache_ +             │
+ *   │       │      invalidatePlaceCache_)                │
+ *   │       │   [V5.5.008 P2 #11] flushLogBuffer_() in   │
+ *   │       │     finally block                          │
  *   │       │                                             │
  *   │       └── Columns: sub_district_clean,              │
  *   │           district_clean, labels, norms,            │

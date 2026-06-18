@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 21_AliasService.gs
  * LMDS V5.5 — Hybrid Alias Architecture (Global M_ALIAS + Entity-Specific Views)
  * ===================================================
@@ -8,7 +8,14 @@
  *   เป็น Single Source of Truth สำหรับ Alias Resolution ที่ Group 2 ใช้ค้นหา
  *   ⚠️ Auto Pipeline ไม่เขียน M_ALIAS ที่นี่ — เขียนที่ autoEnrichAliasesFromFactBatch_() เท่านั้น
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -59,16 +66,23 @@
  * ===================================================
  * DEPENDENCIES:
  *   REQUIRES (Load Order):
- *     - 01_Config.gs          (SHEET.M_ALIAS, ALIAS_IDX.*, AI_CONFIG)
+ *     - 01_Config.gs          (SHEET.M_ALIAS, ALIAS_IDX.*, AI_CONFIG, CACHE_KEY.GLOBAL_ALIAS_ALL,
+ *                              CACHE_KEY.GLOBAL_ALIAS_REVERSE [V5.5.007 P1 #8])
  *     - 02_Schema.gs          (SCHEMA[SHEET.M_ALIAS], SCHEMA[SHEET.M_PERSON], SCHEMA[SHEET.M_PLACE])
- *     - 03_SetupSheets.gs     (logInfo, logWarn, logError, logDebug)
+ *     - 03_SetupSheets.gs     (logInfo, logWarn, logError, logDebug, flushLogBuffer_ [V5.5.008 P2 #11])
  *     - 05_NormalizeService.gs (normalizeForCompare)
- *     - 14_Utils.gs           (generateShortId)
+ *     - 14_Utils.gs           (generateShortId,
+ *                              saveChunkedCache_, loadChunkedCache_, invalidateChunkedCache_ [V5.5.007 P1 #7])
  *   CALLS (Invokes):
  *     - loadAllPersons_()                 → 06_PersonService.gs (UUID converters)
  *     - loadAllPlaces_()                  → 07_PlaceService.gs (UUID converters)
  *     - getDestsByPersonId()              → 09_DestinationService.gs (fastLookupByShipToName)
  *     - getDestsByPlaceId()               → 09_DestinationService.gs (fastLookupByShipToName)
+ *     - saveChunkedCache_/loadChunkedCache_ → 14_Utils.gs (saveAliasCacheChunked_/
+ *       loadAliasCacheChunked_ now delegate here) [V5.5.007 P1 #7]
+ *     - invalidateChunkedCache_ → 14_Utils.gs (migrateStep1_AssignUuid_ uses this
+ *       instead of raw removeAll to avoid orphaned chunk keys) [V5.5.007 P0 #4]
+ *     - flushLogBuffer_() → 03_SetupSheets (MIGRATION_HybridAliasSystem finally) [V5.5.008 P2 #11]
  *   EXPORTS TO:
  *     - 06_PersonService.gs   (resolveMasterUuidViaGlobalAlias, convertUuidToPersonId)
  *     - 07_PlaceService.gs    (resolveMasterUuidViaGlobalAlias, convertUuidToPlaceId)
@@ -102,8 +116,16 @@
  *   │  ├── [Write Path — Migration/Admin ONLY]                   │
  *   │  │   ├── createGlobalAlias() — Append to M_ALIAS (no sync) │
  *   │  │   ├── MIGRATION_HybridAliasSystem() — 5-step migration  │
+ *   │  │   │   └── [V5.5.007 P0 #4] migrateStep1_AssignUuid_     │
+ *   │  │   │       uses invalidateChunkedCache_ (was             │
+ *   │  │   │       raw removeAll — avoids orphaned chunk keys)  │
+ *   │  │   │   └── [V5.5.008 P2 #11] flushLogBuffer_() in finally│
  *   │  │   ├── populateAliasFromSCGRawData_()                    │
  *   │  │   └── populateAliasFromFactDelivery_()                  │
+ *   │  │                                                          │
+ *   │  ├── [Cache — V5.5.007 P1 #7] saveAliasCacheChunked_/      │
+ *   │  │   loadAliasCacheChunked_ now delegate to centralized    │
+ *   │  │   saveChunkedCache_/loadChunkedCache_ (14_Utils, putAll)│
  *   │  │                                                          │
  *   │  └── [Utilities]                                           │
  *   │      ├── UUID ↔ Entity ID converters (4 functions)         │

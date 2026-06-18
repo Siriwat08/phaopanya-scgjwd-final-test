@@ -1,12 +1,19 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 08_GeoService.gs
  * LMDS V5.5 — Geo Point Master Service
  * ===================================================
  * PURPOSE:
  *   จัดการ Master Geo Point — ฐานข้อมูลพิกัด GPS ที่ตรวจสอบแล้ว
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -57,10 +64,13 @@
  *     - 02_Schema (SCHEMA)
  *     - 15_GoogleMapsAPI (geocode / reverse geocode)
  *     - 14_Utils (haversineDistanceM, generateShortId)
+ *     - 11_TransactionService (invalidateGeoLatLngCache_) [V5.5.007 P1 #5]
  *   CALLS (Invokes):
  *     - haversineDistanceM() → 14_Utils
  *     - generateShortId() → 14_Utils
  *     - lookupPlaceAdminById_() → 07_PlaceService
+ *     - invalidateGeoLatLngCache_() → 11_TransactionService (called from
+ *       invalidateGeoCache_ to clear _GEO_LATLNG_RAM_CACHE) [V5.5.007 P1 #5]
  *     - logError/logDebug/logWarn() → 03_SetupSheets
  *   EXPORTS TO:
  *     - 10_MatchEngine (resolveGeo, createGeoPoint, updateGeoStats, loadAllGeos_, findNearbyGeos)
@@ -82,6 +92,10 @@
  *   │  updateGeoStats                                 │
  *   │  loadAllGeos_ (RAM+CacheService memoization)    │
  *   │  findNearbyGeos (haversine radius search)       │
+ *   │  invalidateGeoCache_                            │
+ *   │    └─► also calls invalidateGeoLatLngCache_()   │
+ *   │        on 11_TransactionService to clear        │
+ *   │        _GEO_LATLNG_RAM_CACHE [V5.5.007 P1 #5]   │
  *   │  haversineDistance (public alias)                │
  *   └─────────────────────────────────────────────────┘
  * ===================================================

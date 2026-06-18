@@ -466,3 +466,16 @@ function _emptyGeoResult() {
    - `stripThaiProvincePrefix_(text)` — ตัดคำ "จังหวัด" ออกจากชื่อจังหวัด
    - ใช้ใน `transformGeoMetadataRow_()` สำหรับสร้างคอลัมน์ `_clean` (ตำบล_clean, อำเภอ_clean) และ `province_norm`
    - ก่อน REFACTOR: ตรรกะตัดคำฝังอยู่ใน body ของ `populateGeoMetadata()` ทำให้ยากต่อการทดสอบและนำกลับมาใช้ซ้ำ
+
+### 📌 อัปเดต V5.5.007 + V5.5.008 (post-CACHE-CLEANUP, 2026-06-18)
+
+หลังการตรวจสอบ CACHE AUDIT (V5.5.007 + V5.5.008) ได้แก้ไขปัญหา cache ที่เกี่ยวข้องกับ SYS_TH_GEO ใน `20_ThGeoService.gs` และ `16_GeoDictionaryBuilder.gs` รวม 6 รายการ:
+
+5. **`populateGeoMetadata()` ใช้ invalidate*Cache_* แทน null manual (P2 #12):** ก่อนหน้านี้ null `_GLOBAL_GEO_DICT_*` cache ด้วยมือโดยตรง ซึ่งซ้ำซ้อนกับ invalidator functions ตอนนี้เรียกใช้ `invalidateGeoDictCache_()` และ `invalidatePlaceCache_()` ที่ centralized แล้ว
+6. **`flushLogBuffer_()` ใน finally block (P2 #11):** เพิ่มการ flush log ใน finally block ของ `populateGeoMetadata()` เพื่อป้องกัน loss ของ log entries เมื่อเกิด error กลางทาง
+7. **`getCachedDistricts_()` write-back to cache (P2 #14):** แก้ไขให้ write-back ผลลัพธ์กลับไปยัง cache หลังจากอ่านจาก Sheet (mirror pattern ของ `getCachedProvinces_`)
+8. **`TH_GEO_POSTCODE` chunk size (P2 #15):** ยืนยันการใช้ byte-based chunk size (~90KB/chunk) ใน primary path เพื่อหลีกเลี่ยง CacheService 100KB limit
+9. **`_GLOBAL_GEO_DICT_SEARCH_KEY_INDEX` invalidation (P0 #2):** `invalidateGeoDictCache()` ตอนนี้ null `_GLOBAL_GEO_DICT_SEARCH_KEY_INDEX` ด้วย (ก่อนหน้านี้ลืม)
+10. **chunked cache migration (P1 #7):** `savePostcodeMapToCache_` และ chunked writers อื่นๆ delegate ไปยัง `saveChunkedCache_` ที่ใช้ `putAll` (5-10× เร็วขึ้น)
+
+การเปลี่ยนแปลงเหล่านี้ทำให้ cache invalidation สม่ำเสมอและลดโอกาส stale cache สำหรับข้อมูล TH_GEO

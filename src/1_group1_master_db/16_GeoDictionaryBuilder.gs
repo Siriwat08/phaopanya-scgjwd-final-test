@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 16_GeoDictionaryBuilder.gs
  * LMDS V5.5 — Geo Dictionary Builder (SYS_TH_GEO)
  * ===================================================
@@ -7,7 +7,14 @@
  *   สร้างและดูแลฐานข้อมูลภูมิศาสตร์ไทย (SYS_TH_GEO) 16 คอลัมน์
  *   สำหรับการแกะที่อยู่อัตโนมัติ
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -58,10 +65,15 @@
  *     - 02_Schema (SCHEMA)
  *     - 05_NormalizeService (normalizeForCompare)
  *     - 20_ThGeoService (populateGeoMetadata)
- *     - 14_Utils (diceCoefficient)
+ *     - 14_Utils (diceCoefficient,
+ *                saveChunkedCache_, loadChunkedCache_ [V5.5.007 P1 #7],
+ *                flushLogBuffer_ (in finally of buildGeoDictionary) [V5.5.008 P2 #11])
  *   CALLS (Invokes):
  *     - normalizeForCompare() → 05_NormalizeService
  *     - diceCoefficient() → 14_Utils
+ *     - saveChunkedCache_/loadChunkedCache_ → 14_Utils (postcode/province/district
+ *       maps migrated from raw cache.put/get to chunked putAll/getAll) [V5.5.007 P1 #7]
+ *     - flushLogBuffer_() → 03_SetupSheets (buildGeoDictionary finally) [V5.5.008 P2 #11]
  *     - logWarn/logInfo() → 03_SetupSheets
  *   EXPORTS TO:
  *     - 00_App (buildGeoDictionary, populateGeoMetadata — menu trigger)
@@ -93,7 +105,14 @@
  *   │    CacheService: chunked postcode/prov/district │
  *   │    loadCachedGeoRows_ / getCachedPostcodeMap_   │
  *   │    savePostcodeMapToCache_ / getCachedProvinces_│
- *   │    getCachedDistricts_ / invalidateGeoDictCache │
+ *   │    getCachedDistricts_ (write-back on miss      │
+ *   │      — V5.5.008 P2 #14) / invalidateGeoDictCache│
+ *   │    + nulls _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX    │
+ *   │      (V5.5.007 P0 #2)                           │
+ *   │    [V5.5.007 P1 #7] chunked cache migration     │
+ *   │      (saveChunkedCache_/loadChunkedCache_)      │
+ *   │    [V5.5.008 P2 #11] flushLogBuffer_() in finally│
+ *   │      of buildGeoDictionary                      │
  *   ├─────────────────────────────────────────────────┤
  *   │  Helpers: safeUiAlert_ (→ 14_Utils)              │
  *   └─────────────────────────────────────────────────┘

@@ -29,7 +29,7 @@
 | รายการ | รายละเอียด |
 |:---|:---|
 | **ชื่อระบบ** | LMDS (Logistics Master Data System) |
-| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.006, System Guide = V5.5.006) |
+| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.008, System Guide = V5.5.008) |
 | **แพลตฟอร์ม** | Google Workspace (Google Sheets + Google Apps Script) |
 | **ลูกค้า** | SCG JWD Logistics |
 | **ขอบเขตการใช้งาน** | การขนส่งสินค้าในประเทศไทย |
@@ -323,7 +323,7 @@
 | รอบที่ 4 | PREDEPLOY | 0 Blocking | 95% พร้อม | ผ่าน |
 | รอบที่ 5 | SECURITY | 7 ช่องโหว่ | 7/7 | แก้ไขแล้ว |
 
-**รวม:** 53 ปัญหา แก้ไขแล้วทั้งหมด ไม่มีปัญหาค้าง
+**รวม:** 68 ปัญหา แก้ไขแล้วทั้งหมด (53 audit + 9 cache fix + 6 cache cleanup) ไม่มีปัญหาค้าง
 
 ---
 
@@ -366,15 +366,18 @@
 | **การบำรุงรักษา** | Structured File Naming, Logging, Error Handling |
 | **ความปลอดภัย** | Security-First Design |
 
-### 8.2 กระบวนการ Audit 5 รอบ
+### 8.2 กระบวนการ Audit 8 รอบ
 
-ระบบผ่านการตรวจสอบคุณภาพ 5 รอบ:
+ระบบผ่านการตรวจสอบคุณภาพ 8 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP):
 
-1. **BUGHUNT** — ค้นหา Bug วิกฤตและปัญหาประสิทธิภาพ → พบ 8 Critical + 12 Performance → แก้ไขทั้งหมด
-2. **REVIEW15** — ประเมินตามกฎ 15 ข้อ (ก่อน Rule 16) → จาก 8/15 เป็น 13/15 → หลัง REFACTOR + Rule 16: 16/16
-3. **REFACTOR** — ปรับโครงสร้างใหม่ 21 จุด → ลด coupling, เพิ่ม SRP
-4. **PREDEPLOY** — ตรวจสอบก่อน Deploy → 95% พร้อม, ไม่มี Blocking Issue
-5. **SECURITY** — ตรวจสอบความปลอดภัย → พบ 7 ช่องโหว่ → แก้ไขทั้งหมด
+1. **CRITICAL** — ค้นหา Bug วิกฤตและปัญหาประสิทธิภาพ → พบ 8 Critical → แก้ไขทั้งหมด
+2. **PERFORMANCE** — แก้ไขปัญหา Performance 12 รายการ → batch ops, chunked cache
+3. **SECURITY** — ตรวจสอบความปลอดภัย → พบ 7 ช่องโหว่ → แก้ไขทั้งหมด
+4. **REVIEW15** — ประเมินตามกฎ 16 ข้อ → จาก 8/16 เป็น 13/16
+5. **REFACTOR** — ปรับโครงสร้างใหม่ 21 จุด → ลด coupling, เพิ่ม SRP → 16/16 COMPLIANT
+6. **Consistency Sync** — แก้ไข 28 doc inconsistencies (doc-only, no code change)
+7. **CACHE FIX (P0+P1)** — แก้ไข 9 cache issues (4 P0 data integrity + 5 P1 performance/correctness)
+8. **CACHE CLEANUP (P2)** — แก้ไข 6 cache cleanup issues (flush hit_count, flushLogBuffer_ in finally, write-back, orphan cleanup)
 
 ---
 
@@ -440,7 +443,7 @@
 
 ## สรุป
 
-ระบบ LMDS V5.5 เป็นโซลูชันที่ตอบโจทย์ปัญหาการจัดการข้อมูลโลจิสติกส์อย่างครบวงจร ตั้งแต่การทำความสะอาดข้อมูล การจับคู่อัตโนมัติ ไปจนถึงการค้นหาพิกัด GPS ด้วยคะแนนความพร้อม 95% และผ่านการ Audit 5 รอบ 53 ปัญหาแก้ไขหมดสิ้น ระบบพร้อมสำหรับการ Deploy ใช้งานจริง และมีศักยภาพในการขยายการใช้งานต่อไปในอนาคต
+ระบบ LMDS V5.5 เป็นโซลูชันที่ตอบโจทย์ปัญหาการจัดการข้อมูลโลจิสติกส์อย่างครบวงจร ตั้งแต่การทำความสะอาดข้อมูล การจับคู่อัตโนมัติ ไปจนถึงการค้นหาพิกัด GPS ด้วยคะแนนความพร้อม 95% และผ่านการ Audit 8 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP) 68 ปัญหาแก้ไขหมดสิ้น (53 audit + 9 cache fix + 6 cache cleanup) ระบบพร้อมสำหรับการ Deploy ใช้งานจริง และมีศักยภาพในการขยายการใช้งานต่อไปในอนาคต
 
 ---
 

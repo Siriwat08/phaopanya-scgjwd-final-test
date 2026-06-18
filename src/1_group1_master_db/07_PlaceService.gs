@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 07_PlaceService.gs
  * LMDS V5.5 — Place Master Service
  * ===================================================
@@ -7,7 +7,14 @@
  *   จัดการ Master Place — ฐานข้อมูลสถานที่จัดส่ง
  *   เป็น Single Source of Truth สำหรับข้อมูลสถานที่
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -65,7 +72,8 @@
  *     - 02_Schema.gs          (SCHEMA[SHEET.M_PLACE], SCHEMA[SHEET.M_PLACE_ALIAS])
  *     - 03_SetupSheets.gs     (logDebug, logWarn, logError)
  *     - 05_NormalizeService.gs (normalizePlaceName, normalizeForCompare)
- *     - 14_Utils.gs           (generateShortId, generateUUID, diceCoefficient, levenshteinDistance)
+ *     - 14_Utils.gs           (generateShortId, generateUUID, diceCoefficient, levenshteinDistance,
+ *                              saveChunkedCache_, loadChunkedCache_ [V5.5.007 P1 #6])
  *   CALLS (Invokes):
  *     - resolveMasterUuidViaGlobalAlias() → 21_AliasService.gs (findPlaceCandidates)
  *     - convertUuidToPlaceId()            → 21_AliasService.gs (findPlaceCandidates)
@@ -102,7 +110,11 @@
  *   │  │   ├── enrichByRegexFuzzy_()  — Tier 2 (Regex → Fuzzy)    │
  *   │  │   ├── enrichByPostcode_()    — Tier 3 (Postcode fallback)│
  *   │  │   └── buildEnrichedResult_() — Result builder + source   │
- *   │  └── loadAllPlaces_()       — Load all places (cached)      │
+ *   │  ├── loadAllPlaces_()       — Load all places (cached)      │
+ *   │  │   └── saveChunkedCache_/loadChunkedCache_ for            │
+ *   │  │       CACHE_KEY.PLACE_ALL / PLACE_ALIAS_ALL [V5.5.007 #6]│
+ *   │  ├── loadAllPlaceAliases_() — Load all place aliases (cached)│
+ *   │  │   └── chunked cache migration [V5.5.007 P1 #6]           │
  *   └─────────────────────────────────────────────────────────────┘
  * ===================================================
  */

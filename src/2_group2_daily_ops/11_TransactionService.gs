@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 11_TransactionService.gs
  * LMDS V5.5 — FACT_DELIVERY Transaction Service
  * ===================================================
@@ -7,7 +7,14 @@
  *   จัดการตาราง FACT_DELIVERY — บันทึกประวัติการจัดส่งทั้งหมด
  *   เป็น Single Source of Truth สำหรับประวัติขนส่ง
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -71,6 +78,9 @@
  *   EXPORTS TO:
  *     - 10_MatchEngine (upsertFactDelivery)
  *     - 12_ReviewService (upsertFactDelivery)
+ *     - 08_GeoService (invalidateGeoLatLngCache_ — NEW V5.5.007 P1 #5; called
+ *       from invalidateGeoCache_ to clear _GEO_LATLNG_RAM_CACHE so new
+ *       createGeoPoint results are visible to getGeoLatLng_ on next lookup)
  *   SHEETS ACCESSED:
  *     - SHEET.FACT_DELIVERY (Read+Write: delivery transaction records)
  *     - SHEET.SOURCE (Read: source data reference)
@@ -87,6 +97,13 @@
  *   │  └─ fetch lat/lng from Geo cache │
  *   │  formatTimeValue_                │
  *   │  └─ time formatting helper       │
+ *   │  invalidateFactInvoiceCache_()   │
+ *   │  └─ clears _FACT_INVOICE_RAM_CACHE│
+ *   │  invalidateGeoLatLngCache_()     │
+ *   │  └─ NEW V5.5.007 P1 #5: clears   │
+ *   │     _GEO_LATLNG_RAM_CACHE; called│
+ *   │     by 08_GeoService.invalidateGeo│
+ *   │     Cache_ on geo point creation │
  *   └──────────────────────────────────┘
  * ===================================================
  */

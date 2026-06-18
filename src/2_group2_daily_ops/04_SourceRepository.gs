@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.008
+ * VERSION: 5.5.009
  * FILE: 04_SourceRepository.gs
  * LMDS V5.5 — Source Data Repository
  * ===================================================
@@ -7,7 +7,14 @@
  *   จัดการข้อมูลต้นทาง (Source Sheet) สำหรับ Pipeline
  *   เป็น Single Entry Point สำหรับการอ่านและเขียนข้อมูลต้นฉบับ
  * ===================================================
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
+ *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
+ *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
+ *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
+ *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
+ *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
  *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
  *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
  *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
@@ -60,16 +67,22 @@
  * ===================================================
  * DEPENDENCIES:
  *   REQUIRES (Load Order):
- *     - 01_Config (SHEET.*, SRC_IDX.*, SCG_CONFIG.*, AI_CONFIG.*)
+ *     - 01_Config (SHEET.*, SRC_IDX.*, SCG_CONFIG.*, AI_CONFIG.*,
+ *                  CACHE_KEY.SOURCE_ROWS, CACHE_KEY.PROCESSED_INVOICES [V5.5.007 P1 #8])
  *     - 02_Schema (SCHEMA[SHEET.SOURCE])
- *     - 14_Utils (normalizeInvoiceNo, parseLatLng, isValidLatLng, callSpreadsheetWithRetry)
+ *     - 14_Utils (normalizeInvoiceNo, parseLatLng, isValidLatLng, callSpreadsheetWithRetry,
+ *                 saveChunkedCache_, loadChunkedCache_ [V5.5.007 P1 #7])
+ *     - 03_SetupSheets (logInfo/logError/logWarn/logDebug, flushLogBuffer_ [V5.5.008 P2 #11])
  *   CALLS (Invokes):
  *     - normalizeInvoiceNo() → 14_Utils
  *     - parseLatLng() → 14_Utils
  *     - isValidLatLng() → 14_Utils
  *     - callSpreadsheetWithRetry() → 14_Utils
+ *     - saveChunkedCache_/loadChunkedCache_ → 14_Utils (saveSourceRowsToCache_/
+ *       saveProcessedInvoicesToCache_ now delegate here; was raw cache.put/get) [V5.5.007 P1 #7]
  *     - columnToLetterHelper_() → (self)
  *     - logInfo/logError/logWarn/logDebug() → 03_SetupSheets
+ *     - flushLogBuffer_() → 03_SetupSheets (runLoadSource finally) [V5.5.008 P2 #11]
  *     - updateSyncStatus_() → (self)
  *     - processOneRow() → 10_MatchEngine
  *   EXPORTS TO:
@@ -88,6 +101,15 @@
  *   │        └→ getAllSourceRows → buildSourceObj_ │
  *   │        └→ getProcessedInvoiceSet_            │
  *   │             └→ FACT_DELIVERY lookup          │
+ *   │   [V5.5.008 P2 #11] flushLogBuffer_() in    │
+ *   │     finally block                           │
+ *   │                                             │
+ *   │ [V5.5.007 P1 #7] saveSourceRowsToCache_ +   │
+ *   │   loadSourceRowsFromCache_ / saveProcessedIn-│
+ *   │   voicesToCache_ + loadProcessedInvoicesFrom│
+ *   │   Cache_ — now delegate to centralized      │
+ *   │   saveChunkedCache_/loadChunkedCache_       │
+ *   │   (putAll/getAll; was raw cache.put/get)    │
  *   │                                             │
  *   │ processSrcBatch_ → processOneRow             │
  *   │ updateSyncStatus_ (batch status update)      │
