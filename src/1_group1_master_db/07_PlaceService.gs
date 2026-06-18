@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.009
+ * VERSION: 5.5.010
  * FILE: 07_PlaceService.gs
  * LMDS V5.5 — Place Master Service
  * ===================================================
@@ -7,7 +7,16 @@
  *   จัดการ Master Place — ฐานข้อมูลสถานที่จัดส่ง
  *   เป็น Single Source of Truth สำหรับข้อมูลสถานที่
  * ===================================================
- *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
+ *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
+ *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
+ *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
+ *       Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม → fallback → 825KB > 100KB → "M_PLACE Cache เต็ม"
+ *     - [FIX HOTFIX #3] loadAllPlaceAliases_ ลบ fallback path เดียวกัน — บังคับใช้ saveChunkedCache_
+ *       Root cause: 312KB > 100KB → "M_PLACE_ALIAS Cache write error: อาร์กิวเมนต์มากเกินไป"
+ *     - [ADD] รวม reprocessReviewQueue + analyzeReviewPatterns จาก 22_AccuracyPatch.gs เข้า 12_ReviewService.gs
+ *       Auto-resolve Q_REVIEW 3 กลุ่ม: GEO_NEARBY_YELLOW+name, NEW_RECORD+Geo, FUZZY_MATCH 85+
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
  *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
  *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
  *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
@@ -759,19 +768,20 @@ function loadCachedGeoRowsForPlace_() {
 
 function loadAllPlaces_() {
   // [FIX v5.5.007 P1 #6] แปลงจาก direct cache.put → saveChunkedCache_ + loadChunkedCache_
-  //   เดิมใช้ cache.put ตรง ทำให้เมื่อ M_PLACE ใหญ่เกิน 100KB จะ fail เงียบๆ
-  //   ตอนนี้ใช้ centralized helpers จาก 14_Utils.gs ที่รองรับ chunking อัตโนมัติ
+  // [FIX v5.5.010 HOTFIX #2] ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
+  //   Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม (typeof !== 'function'), code ตกไป fallback
+  //   ที่ใช้ cache.put(cacheKey, resultJson) ตรง ทำให้ 825KB > 100KB limit → "M_PLACE Cache เต็ม"
+  //   ตอนนี้ถ้า saveChunkedCache_ ไม่พร้อม → throw error แทน เพื่อบังคับใช้ chunked path
   const cacheKey = (typeof CACHE_KEY !== 'undefined' && CACHE_KEY.PLACE_ALL) ? CACHE_KEY.PLACE_ALL : 'M_PLACE_ALL';
   const cache    = CacheService.getScriptCache();
 
-  // [FIX v5.5.007] ใช้ loadChunkedCache_ แทน cache.get ตรง — รองรับ chunked data
-  if (typeof loadChunkedCache_ === 'function') {
+  // [FIX v5.5.010] บังคับใช้ loadChunkedCache_ — ไม่มี fallback แล้ว
+  if (typeof loadChunkedCache_ !== 'function') {
+    logError('PlaceService', 'loadChunkedCache_ ไม่พร้อม — กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
+    // Fallback: อ่านจาก sheet ตรง (ไม่ผ่าน cache) เพื่อให้ function ยังทำงานได้
+  } else {
     const cached = loadChunkedCache_(cache, cacheKey);
     if (cached) return cached;
-  } else {
-    // Fallback: ใช้ cache.get ตรง (backward compatibility)
-    const cached = cache.get(cacheKey);
-    if (cached) { try { return JSON.parse(cached); } catch(e) { logDebug('PlaceService', 'M_PLACE_ALL Cache parse error: ' + e.message); } }
   }
 
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
@@ -801,31 +811,33 @@ function loadAllPlaces_() {
       masterUuid: String(r[PLACE_IDX.MASTER_UUID] || ''),
     }));
 
-  // [FIX v5.5.007 P1 #6] ใช้ saveChunkedCache_ แทน cache.put ตรง
-  //   จะ auto-chunk ถ้าข้อมูลใหญ่เกิน 90KB และใช้ putAll() สำหรับ batch write
+  // [FIX v5.5.010 HOTFIX #2] บังคับใช้ saveChunkedCache_ — ลบ fallback ที่ใช้ cache.put ตรง
+  //   เดิมถ้า saveChunkedCache_ ไม่พร้อม จะตกไป cache.put() ตรง → 825KB > 100KB → fail เงียบ
+  //   ตอนนี้ถ้า saveChunkedCache_ ไม่พร้อม → log error แล้ว skip cache write (ยัง return result ได้)
   if (typeof saveChunkedCache_ === 'function') {
     saveChunkedCache_(cache, cacheKey, result);
+    logDebug('PlaceService', 'loadAllPlaces_: cached via saveChunkedCache_ (' + result.length + ' places)');
   } else {
-    // Fallback: backward compatibility
-    var resultJson = JSON.stringify(result);
-    try { cache.put(cacheKey, resultJson, AI_CONFIG.CACHE_TTL_SEC); }
-    catch(e) { logWarn('PlaceService', 'M_PLACE Cache เต็ม — data size: ' + resultJson.length + ' chars'); }
+    logError('PlaceService', 'saveChunkedCache_ ไม่พร้อม — skip cache write for M_PLACE_ALL (' +
+             result.length + ' places). กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
   }
   return result;
 }
 
 function loadAllPlaceAliases_() {
   // [FIX v5.5.007 P1 #6] แปลงจาก direct cache.put → saveChunkedCache_ + loadChunkedCache_
+  // [FIX v5.5.010 HOTFIX #3] ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
+  //   Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม, code ตกไป fallback ที่ใช้ cache.put ตรง
+  //   ทำให้ 312KB > 100KB limit → "M_PLACE_ALIAS Cache write error: อาร์กิวเมนต์มากเกินไป"
   const cacheKey = (typeof CACHE_KEY !== 'undefined' && CACHE_KEY.PLACE_ALIAS_ALL) ? CACHE_KEY.PLACE_ALIAS_ALL : 'M_PLACE_ALIAS_ALL';
   const cache    = CacheService.getScriptCache();
 
-  // [FIX v5.5.007] ใช้ loadChunkedCache_ แทน cache.get ตรง — รองรับ chunked data
-  if (typeof loadChunkedCache_ === 'function') {
+  // [FIX v5.5.010] บังคับใช้ loadChunkedCache_ — ไม่มี fallback แล้ว
+  if (typeof loadChunkedCache_ !== 'function') {
+    logError('PlaceService', 'loadChunkedCache_ ไม่พร้อม — กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
+  } else {
     const cached = loadChunkedCache_(cache, cacheKey);
     if (cached) return cached;
-  } else {
-    const cached = cache.get(cacheKey);
-    if (cached) { try { return JSON.parse(cached); } catch(e) { logDebug('PlaceService', 'M_PLACE_ALIAS_ALL Cache parse error: ' + e.message); } }
   }
 
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
@@ -836,13 +848,13 @@ function loadAllPlaceAliases_() {
   const colsToRead = Math.min(SCHEMA[SHEET.M_PLACE_ALIAS].length, sheet.getLastColumn());
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, colsToRead).getValues();
 
-  // [FIX v5.5.007 P1 #6] ใช้ saveChunkedCache_ แทน cache.put ตรง
+  // [FIX v5.5.010 HOTFIX #3] บังคับใช้ saveChunkedCache_ — ลบ fallback ที่ใช้ cache.put ตรง
   if (typeof saveChunkedCache_ === 'function') {
     saveChunkedCache_(cache, cacheKey, rows);
+    logDebug('PlaceService', 'loadAllPlaceAliases_: cached via saveChunkedCache_ (' + rows.length + ' aliases)');
   } else {
-    var rowsJson = JSON.stringify(rows);
-    try { cache.put(cacheKey, rowsJson, AI_CONFIG.CACHE_TTL_SEC); }
-    catch(e) { logDebug('PlaceService', 'M_PLACE_ALIAS Cache write error: ' + e.message + ' — data size: ' + rowsJson.length + ' chars'); }
+    logError('PlaceService', 'saveChunkedCache_ ไม่พร้อม — skip cache write for M_PLACE_ALIAS_ALL (' +
+             rows.length + ' aliases). กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
   }
   return rows;
 }

@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.009
+ * VERSION: 5.5.010
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,16 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
+ *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
+ *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
+ *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
+ *       Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม → fallback → 825KB > 100KB → "M_PLACE Cache เต็ม"
+ *     - [FIX HOTFIX #3] loadAllPlaceAliases_ ลบ fallback path เดียวกัน — บังคับใช้ saveChunkedCache_
+ *       Root cause: 312KB > 100KB → "M_PLACE_ALIAS Cache write error: อาร์กิวเมนต์มากเกินไป"
+ *     - [ADD] รวม reprocessReviewQueue + analyzeReviewPatterns จาก 22_AccuracyPatch.gs เข้า 12_ReviewService.gs
+ *       Auto-resolve Q_REVIEW 3 กลุ่ม: GEO_NEARBY_YELLOW+name, NEW_RECORD+Geo, FUZZY_MATCH 85+
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
  *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
  *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
  *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
@@ -716,28 +725,28 @@ function showVersionInfo() {
     `Schema: v${SCHEMA_VERSION}\n` +
     `Audit Cycles: 5 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.009\n` +
-    `  01_Config.gs             v5.5.009\n` +
-    `  02_Schema.gs             v5.5.009\n` +
-    `  03_SetupSheets.gs        v5.5.009\n` +
-    `  04_SourceRepository.gs   v5.5.009\n` +
-    `  05_NormalizeService.gs   v5.5.009\n` +
-    `  06_PersonService.gs      v5.5.009\n` +
-    `  07_PlaceService.gs       v5.5.009\n` +
-    `  08_GeoService.gs         v5.5.009\n` +
-    `  09_DestinationService.gs v5.5.009\n` +
-    `  10_MatchEngine.gs        v5.5.009\n` +
-    `  11_TransactionService.gs v5.5.009\n` +
-    `  12_ReviewService.gs      v5.5.009\n` +
-    `  13_ReportService.gs      v5.5.009\n` +
-    `  14_Utils.gs              v5.5.009\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.009\n` +
-    `  16_GeoDictionaryBuilder.gs     v5.5.009\n` +
-    `  17_SearchService.gs      v5.5.009\n` +
-    `  18_ServiceSCG.gs         v5.5.009\n` +
-    `  19_Hardening.gs          v5.5.009\n` +
-    `  20_ThGeoService.gs       v5.5.009\n` +
-    `  21_AliasService.gs       v5.5.009\n\n` +
+    `  00_App.gs                v5.5.010\n` +
+    `  01_Config.gs             v5.5.010\n` +
+    `  02_Schema.gs             v5.5.010\n` +
+    `  03_SetupSheets.gs        v5.5.010\n` +
+    `  04_SourceRepository.gs   v5.5.010\n` +
+    `  05_NormalizeService.gs   v5.5.010\n` +
+    `  06_PersonService.gs      v5.5.010\n` +
+    `  07_PlaceService.gs       v5.5.010\n` +
+    `  08_GeoService.gs         v5.5.010\n` +
+    `  09_DestinationService.gs v5.5.010\n` +
+    `  10_MatchEngine.gs        v5.5.010\n` +
+    `  11_TransactionService.gs v5.5.010\n` +
+    `  12_ReviewService.gs      v5.5.010\n` +
+    `  13_ReportService.gs      v5.5.010\n` +
+    `  14_Utils.gs              v5.5.010\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.010\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.010\n` +
+    `  17_SearchService.gs      v5.5.010\n` +
+    `  18_ServiceSCG.gs         v5.5.010\n` +
+    `  19_Hardening.gs          v5.5.010\n` +
+    `  20_ThGeoService.gs       v5.5.010\n` +
+    `  21_AliasService.gs       v5.5.010\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

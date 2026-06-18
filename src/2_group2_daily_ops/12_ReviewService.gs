@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.009
+ * VERSION: 5.5.010
  * FILE: 12_ReviewService.gs
  * LMDS V5.5 — Review Queue Service
  * [FIX BUG-B2] v5.4.003: updateReviewRowStatus_() helper — 1 setValues แทน 5× setValue
@@ -12,6 +12,15 @@
  * PURPOSE:
  * จัดการคิวรีวิว Q_REVIEW — พักข้อมูลที่ต้องให้คนตัดสินใจ
  * ===================================================
+ *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
+ *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
+ *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
+ *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
+ *       Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม → fallback → 825KB > 100KB → "M_PLACE Cache เต็ม"
+ *     - [FIX HOTFIX #3] loadAllPlaceAliases_ ลบ fallback path เดียวกัน — บังคับใช้ saveChunkedCache_
+ *       Root cause: 312KB > 100KB → "M_PLACE_ALIAS Cache write error: อาร์กิวเมนต์มากเกินไป"
+ *     - [ADD] รวม reprocessReviewQueue + analyzeReviewPatterns จาก 22_AccuracyPatch.gs เข้า 12_ReviewService.gs
+ *       Auto-resolve Q_REVIEW 3 กลุ่ม: GEO_NEARBY_YELLOW+name, NEW_RECORD+Geo, FUZZY_MATCH 85+
  *   v5.5.009 (2026-06-18) — DOC SYNC:
  *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
  *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
@@ -751,4 +760,510 @@ function maskReviewerEmail_(email) {
 
   if (local.length <= 2) return local[0] + '***@' + domain;
   return local[0] + '***' + local[local.length - 1] + '@' + domain;
+}
+
+// ============================================================
+// SECTION 6: [ADD v5.5.010] Q_REVIEW Post-Processor
+// ย้ายมาจากไฟล์ 22_AccuracyPatch.gs (V5.5.005b) — รวมเข้า codebase หลัก
+// Auto-resolve รายการ Q_REVIEW ที่ปลอดภัย 3 กลุ่ม เพื่อลดงาน manual review
+// ============================================================
+
+/**
+ * extractFirstId_ — [V5.5.010] ดึง ID แรกจาก JSON array string
+ * ตัวอย่าง: '["P8EB059B4B35E","P1234567890AB"]' → 'P8EB059B4B35E'
+ * @param {string} jsonStr
+ * @return {string|null}
+ */
+function extractFirstId_(jsonStr) {
+  if (!jsonStr) return null;
+  jsonStr = String(jsonStr).trim();
+  if (jsonStr === '[]' || jsonStr === '') return null;
+  try {
+    var arr = JSON.parse(jsonStr);
+    if (arr && arr.length > 0) return String(arr[0]).replace(/"/g, '');
+  } catch (e) {
+    var m = jsonStr.match(/["']([A-Za-z0-9]+)["']/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/**
+ * safeExtractArr_ — [V5.5.010] ดึงค่าจาก array อย่างปลอดภัย
+ * @param {Array} arr
+ * @param {number} idx
+ * @return {*}
+ */
+function safeExtractArr_(arr, idx) {
+  if (!arr || idx < 0 || idx >= arr.length) return '';
+  return arr[idx];
+}
+
+/**
+ * reprocessReviewQueue — [V5.5.010] ลด Q_REVIEW โดย auto-resolve รายการที่ปลอดภัย
+ *
+ * รันหลัง runMatchEngine() เสร็จ จะอ่าน Q_REVIEW ที่ Pending
+ * แล้วจัดการ 3 กลุ่ม:
+ *   A. GEO_NEARBY_YELLOW + มีชื่อตรง → AUTO_MATCH (GPS ใกล้เคียง 50-200m + Person/Place ตรง)
+ *   B. NEW_RECORD_PENDING + มี Geo candidate → CREATE_NEW (GPS ตรงจุดเดิม แต่ชื่อใหม่)
+ *   C. FUZZY_MATCH score >= 85 → AUTO_MATCH (ชื่อคล้ายกันมาก 85%+)
+ *
+ * วิธีรัน: เลือกฟังก์ชันนี้ใน dropdown → กด ▶ Run
+ */
+function reprocessReviewQueue() {
+  var startTime = Date.now();
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
+  var factSheet = ss.getSheetByName(SHEET.FACT_DELIVERY);
+
+  if (!reviewSheet || reviewSheet.getLastRow() < 2) {
+    safeUiAlert_('Q_REVIEW ว่าง — ไม่มีข้อมูลจัดการ');
+    return;
+  }
+  if (!factSheet) {
+    safeUiAlert_('ไม่พบชีต FACT_DELIVERY');
+    return;
+  }
+
+  // ═══════════════════════════════════════
+  // PHASE 1: อ่านข้อมูลทั้งหมดเข้า Memory
+  // ═══════════════════════════════════════
+
+  var reviewLastRow = reviewSheet.getLastRow();
+  var reviewCols = reviewSheet.getLastColumn();
+  var reviewHeaders = reviewSheet.getRange(1, 1, 1, reviewCols).getValues()[0];
+  var reviewData = reviewSheet.getRange(2, 1, reviewLastRow - 1, reviewCols).getValues();
+
+  var factLastRow = factSheet.getLastRow();
+  var factCols = factSheet.getLastColumn();
+  var factHeaders = factSheet.getRange(1, 1, 1, factCols).getValues()[0];
+  var factData = factLastRow > 1
+    ? factSheet.getRange(2, 1, factLastRow - 1, factCols).getValues()
+    : [];
+
+  // ═══════════════════════════════════════
+  // PHASE 2: สร้าง Column Index Map (dynamic)
+  // ═══════════════════════════════════════
+
+  var RI = {
+    issueType:  reviewHeaders.indexOf('issue_type'),
+    srcRecId:   reviewHeaders.indexOf('source_record_id'),
+    invoiceNo:  reviewHeaders.indexOf('invoice_no'),
+    rawPerson:  reviewHeaders.indexOf('raw_person_name'),
+    rawPlace:   reviewHeaders.indexOf('raw_place_name'),
+    rawAddr:    reviewHeaders.indexOf('raw_system_address'),
+    rawLat:     reviewHeaders.indexOf('raw_lat'),
+    rawLng:     reviewHeaders.indexOf('raw_lng'),
+    candPerson: reviewHeaders.indexOf('candidate_person_ids'),
+    candPlace:  reviewHeaders.indexOf('candidate_place_ids'),
+    candGeo:    reviewHeaders.indexOf('candidate_geo_ids'),
+    candDest:   reviewHeaders.indexOf('candidate_destination_ids'),
+    score:      reviewHeaders.indexOf('match_score'),
+    status:     reviewHeaders.indexOf('status'),
+    reviewer:   reviewHeaders.indexOf('reviewer'),
+    reviewedAt: reviewHeaders.indexOf('reviewed_at'),
+    decision:   reviewHeaders.indexOf('decision'),
+    note:       reviewHeaders.indexOf('note')
+  };
+
+  var FI = {
+    srcRecId:       factHeaders.indexOf('source_record_id'),
+    deliveryDate:   factHeaders.indexOf('delivery_date'),
+    personId:       factHeaders.indexOf('person_id'),
+    placeId:        factHeaders.indexOf('place_id'),
+    geoId:          factHeaders.indexOf('geo_id'),
+    destId:         factHeaders.indexOf('dest_id'),
+    matchStatus:    factHeaders.indexOf('match_status'),
+    matchConfidence:factHeaders.indexOf('match_confidence'),
+    matchReason:    factHeaders.indexOf('match_reason'),
+    matchAction:    factHeaders.indexOf('match_action'),
+    matchEvidence:  factHeaders.indexOf('match_evidence'),
+    updatedAt:      factHeaders.indexOf('updated_at'),
+    rawLat:         factHeaders.indexOf('raw_lat'),
+    rawLng:         factHeaders.indexOf('raw_lng')
+  };
+
+  // Build FACT_DELIVERY lookup: source_record_id → ดัชนี array
+  var factLookup = {};
+  for (var fi = 0; fi < factData.length; fi++) {
+    var sid = String(safeExtractArr_(factData[fi], FI.srcRecId)).trim();
+    if (sid) factLookup[sid] = fi;
+  }
+
+  // ═══════════════════════════════════════
+  // PHASE 3: ประมวลผลทีละรายการ
+  // ═══════════════════════════════════════
+
+  var stats = {
+    groupA: 0,       // GEO_NEARBY_YELLOW + name → AUTO_MATCH
+    groupB: 0,       // NEW_RECORD_PENDING + geo → CREATE_NEW
+    groupC: 0,       // FUZZY_MATCH 85+ → AUTO_MATCH
+    destCreated: 0,  // จำนวน Destination ที่สร้าง
+    skipped: 0,
+    notFound: 0,
+    errors: 0,
+    errorList: []
+  };
+
+  var now = new Date();
+
+  for (var i = 0; i < reviewData.length; i++) {
+    var r = reviewData[i];
+
+    // Skip non-pending
+    if (String(safeExtractArr_(r, RI.status)).trim() !== 'Pending') continue;
+
+    var issueType = String(safeExtractArr_(r, RI.issueType)).trim();
+    var score = parseInt(safeExtractArr_(r, RI.score)) || 0;
+    var srcRecId = String(safeExtractArr_(r, RI.srcRecId)).trim();
+    var rawPerson = String(safeExtractArr_(r, RI.rawPerson)).trim();
+    var rawPlace  = String(safeExtractArr_(r, RI.rawPlace)).trim();
+    var rawAddr   = String(safeExtractArr_(r, RI.rawAddr)).trim();
+    var rawLat    = parseFloat(safeExtractArr_(r, RI.rawLat)) || 0;
+    var rawLng    = parseFloat(safeExtractArr_(r, RI.rawLng)) || 0;
+    var candPerson = String(safeExtractArr_(r, RI.candPerson) || '[]').trim();
+    var candPlace  = String(safeExtractArr_(r, RI.candPlace) || '[]').trim();
+    var candGeo    = String(safeExtractArr_(r, RI.candGeo) || '[]').trim();
+
+    // หา FACT_DELIVERY row
+    var factIdx = factLookup[srcRecId];
+    if (factIdx === undefined) {
+      stats.notFound++;
+      continue;
+    }
+
+    // ─────────────────────────────────────────
+    // GROUP A: GEO_NEARBY_YELLOW + ชื่อตรง → AUTO_MATCH
+    // ─────────────────────────────────────────
+    if (issueType === 'GEO_NEARBY_YELLOW' && (candPerson !== '[]' || candPlace !== '[]')) {
+      try {
+        var personId = extractFirstId_(candPerson);
+        var placeId  = extractFirstId_(candPlace);
+        var geoId    = extractFirstId_(candGeo);
+
+        if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
+        if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
+        if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
+        if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
+        if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 82;
+        if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_AUTO';
+        if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
+        if (FI.matchEvidence >= 0) {
+          var ev = 'geo_nearby_50_200m';
+          if (personId) ev += '|person_match';
+          if (placeId) ev += '|place_match';
+          ev += '|post_process_v55';
+          factData[factIdx][FI.matchEvidence] = ev;
+        }
+        if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+
+        if ((personId || placeId) && geoId) {
+          try {
+            var newDestId = createDestination(personId, placeId, geoId, rawLat, rawLng, '');
+            if (newDestId) {
+              if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
+              stats.destCreated++;
+            }
+          } catch (e) {
+            stats.errorList.push('Dest-A: ' + srcRecId + ' - ' + e.message);
+          }
+        }
+
+        if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
+        if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
+        if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
+        if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
+        if (RI.note >= 0)       r[RI.note] = 'GEO_NEARBY_YELLOW + name match → auto-resolved by v5.5.010';
+
+        stats.groupA++;
+      } catch (e) {
+        stats.errors++;
+        stats.errorList.push('GroupA: ' + srcRecId + ' - ' + e.message);
+      }
+      continue;
+    }
+
+    // ─────────────────────────────────────────
+    // GROUP B: NEW_RECORD_PENDING + มี Geo → CREATE_NEW
+    // ─────────────────────────────────────────
+    if (issueType === 'NEW_RECORD_PENDING' && candGeo !== '[]') {
+      try {
+        var geoId = extractFirstId_(candGeo);
+        var personId = null;
+        var placeId = null;
+        var destId = null;
+
+        if (rawPerson) {
+          try {
+            var pRes = resolvePerson(rawPerson);
+            if (pRes && pRes.status === 'FOUND' && pRes.personId) {
+              personId = pRes.personId;
+            } else if (pRes && pRes.normResult) {
+              personId = createPerson(pRes.normResult);
+            }
+          } catch (e2) {
+            stats.errorList.push('Person-B: ' + srcRecId + ' - ' + e2.message);
+          }
+        }
+
+        var placeInput = rawPlace || rawAddr || '';
+        if (placeInput) {
+          try {
+            var plRes = resolvePlace(placeInput, '');
+            if (plRes && plRes.status === 'FOUND' && plRes.placeId) {
+              placeId = plRes.placeId;
+            } else if (plRes && plRes.normResult) {
+              placeId = createPlace(plRes.normResult, '', '', '', '');
+            }
+          } catch (e2) {
+            stats.errorList.push('Place-B: ' + srcRecId + ' - ' + e2.message);
+          }
+        }
+
+        if ((personId || placeId) && geoId) {
+          try {
+            destId = createDestination(personId, placeId, geoId, rawLat, rawLng, '');
+            stats.destCreated++;
+          } catch (e2) {
+            stats.errorList.push('Dest-B: ' + srcRecId + ' - ' + e2.message);
+          }
+        }
+
+        if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
+        if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
+        if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
+        if (destId && FI.destId >= 0)    factData[factIdx][FI.destId] = destId;
+        if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'CREATED';
+        if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 75;
+        if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_NEW';
+        if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'CREATE_NEW';
+        if (FI.matchEvidence >= 0) {
+          factData[factIdx][FI.matchEvidence] = 'geo_existing' +
+            (personId ? '|person_new' : '|person_na') +
+            (placeId ? '|place_new' : '|place_na') +
+            '|post_process_v55';
+        }
+        if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+
+        if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
+        if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
+        if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
+        if (RI.decision >= 0)   r[RI.decision] = 'CREATE_NEW';
+        if (RI.note >= 0)       r[RI.note] = 'NEW_RECORD_PENDING + Geo match → auto-create by v5.5.010';
+
+        stats.groupB++;
+      } catch (e) {
+        stats.errors++;
+        stats.errorList.push('GroupB: ' + srcRecId + ' - ' + e.message);
+      }
+      continue;
+    }
+
+    // ─────────────────────────────────────────
+    // GROUP C: FUZZY_MATCH score >= 85 → AUTO_MATCH
+    // ─────────────────────────────────────────
+    if (issueType === 'FUZZY_MATCH' && score >= 85) {
+      try {
+        var personId = extractFirstId_(candPerson);
+        var placeId  = extractFirstId_(candPlace);
+        var geoId    = extractFirstId_(candGeo);
+
+        if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
+        if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
+        if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
+        if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
+        if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = score;
+        if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'FUZZY_HIGH_SCORE_AUTO';
+        if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
+        if (FI.matchEvidence >= 0) {
+          var ev = 'fuzzy_score_' + score;
+          if (geoId) ev += '|geo_confirm';
+          ev += '|post_process_v55';
+          factData[factIdx][FI.matchEvidence] = ev;
+        }
+        if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+
+        if ((personId || placeId) && geoId) {
+          try {
+            var newDestId = createDestination(personId, placeId, geoId, rawLat, rawLng, '');
+            if (newDestId) {
+              if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
+              stats.destCreated++;
+            }
+          } catch (e2) {
+            stats.errorList.push('Dest-C: ' + srcRecId + ' - ' + e2.message);
+          }
+        }
+
+        if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
+        if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
+        if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
+        if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
+        if (RI.note >= 0)       r[RI.note] = 'FUZZY_MATCH score ' + score + ' → auto-resolved by v5.5.010';
+
+        stats.groupC++;
+      } catch (e) {
+        stats.errors++;
+        stats.errorList.push('GroupC: ' + srcRecId + ' - ' + e.message);
+      }
+      continue;
+    }
+
+    stats.skipped++;
+  }
+
+  // ═══════════════════════════════════════
+  // PHASE 4: เขียนข้อมูลกลับ (Batch Write)
+  // ═══════════════════════════════════════
+
+  try {
+    if (factData.length > 0) {
+      factSheet.getRange(2, 1, factData.length, factCols).setValues(factData);
+    }
+    reviewSheet.getRange(2, 1, reviewData.length, reviewCols).setValues(reviewData);
+  } catch (e) {
+    logError('ReviewService', 'reprocessReviewQueue batch write ล้มเหลว: ' + e.message, e);
+    safeUiAlert_('บันทึกข้อมูลล้มเหลว: ' + e.message + '\nดู log ใน SYS_LOG');
+    return;
+  }
+
+  // ═══════════════════════════════════════
+  // PHASE 5: รายงานผล
+  // ═══════════════════════════════════════
+
+  var totalResolved = stats.groupA + stats.groupB + stats.groupC;
+  var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  var remaining = (reviewLastRow - 1) - totalResolved;
+
+  var msg =
+    '✅ Post-Processor เสร็จสมบูรณ์ (' + elapsed + ' วินาที)\n\n' +
+    '━━━ ผลลัพธ์ ━━━\n' +
+    '🟢 GEO_NEARBY_YELLOW + name → AUTO_MATCH: ' + stats.groupA + ' รายการ\n' +
+    '🔵 NEW_RECORD_PENDING + Geo → CREATE_NEW: ' + stats.groupB + ' รายการ\n' +
+    '🟡 FUZZY_MATCH 85+ → AUTO_MATCH: ' + stats.groupC + ' รายการ\n' +
+    '🔗 Destination สร้างใหม่: ' + stats.destCreated + ' รายการ\n\n' +
+    '⏭️ ข้าม (ต้อง Review ต่อ): ' + stats.skipped + ' รายการ\n' +
+    '❌ ไม่พบใน FACT: ' + stats.notFound + ' รายการ\n' +
+    '⚠️ Errors: ' + stats.errors + ' รายการ\n\n' +
+    '━━━ สรุป ━━━\n' +
+    'ลด Q_REVIEW: ' + totalResolved + ' → คงเหลือ: ~' + remaining + ' รายการ\n' +
+    'ลดลง: ' + Math.round(totalResolved / (reviewLastRow - 1) * 100) + '%';
+
+  if (stats.errorList.length > 0) {
+    var showErrors = stats.errorList.slice(0, 5);
+    msg += '\n\n⚠️ Error ตัวอย่าง:\n' + showErrors.join('\n');
+    if (stats.errorList.length > 5) {
+      msg += '\n... และอีก ' + (stats.errorList.length - 5) + ' errors (ดูใน SYS_LOG)';
+    }
+  }
+
+  safeUiAlert_(msg);
+  logInfo('ReviewService',
+    'reprocessReviewQueue เสร็จ ' + elapsed + 's | A=' + stats.groupA + ' B=' + stats.groupB +
+    ' C=' + stats.groupC + ' Skip=' + stats.skipped +
+    ' Err=' + stats.errors + ' Dest=' + stats.destCreated
+  );
+}
+
+/**
+ * analyzeReviewPatterns — [V5.5.010] วิเคราะห์ Q_REVIEW ปัจจุบัน
+ * แสดงสถิติแบบแบ่งตาม issue type และคาดการณ์จำนวนที่ auto-resolve ได้
+ */
+function analyzeReviewPatterns() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
+
+    if (!reviewSheet || reviewSheet.getLastRow() < 2) {
+      safeUiAlert_('Q_REVIEW ว่าง — ไม่มีข้อมูลวิเคราะห์');
+      return;
+    }
+
+    var totalRows = reviewSheet.getLastRow() - 1;
+    var totalCols = reviewSheet.getLastColumn();
+
+    var headers = reviewSheet.getRange(1, 1, 1, totalCols).getValues()[0];
+    var data = reviewSheet.getRange(2, 1, totalRows, totalCols).getValues();
+
+    var col = {
+      issueType:  headers.indexOf('issue_type'),
+      score:      headers.indexOf('match_score'),
+      status:     headers.indexOf('status'),
+      rawLat:     headers.indexOf('raw_lat'),
+      candPerson: headers.indexOf('candidate_person_ids'),
+      candPlace:  headers.indexOf('candidate_place_ids'),
+      candGeo:    headers.indexOf('candidate_geo_ids')
+    };
+
+    var patterns = {
+      NEW_GPS: 0, NEW_NO_GPS: 0,
+      FUZZY_85: 0, FUZZY_80: 0, FUZZY_70: 0,
+      GEO_Y_MATCH: 0, GEO_Y_NO: 0, GEO_O: 0,
+      total: 0
+    };
+
+    for (var i = 0; i < totalRows; i++) {
+      var st = String(safeExtractArr_(data[i], col.status)).trim();
+      if (st !== 'Pending') continue;
+      patterns.total++;
+
+      var it = String(safeExtractArr_(data[i], col.issueType)).trim();
+      var sc = parseInt(safeExtractArr_(data[i], col.score)) || 0;
+
+      if (it === 'NEW_RECORD_PENDING') {
+        var lat = safeExtractArr_(data[i], col.rawLat);
+        if (lat && parseFloat(lat) !== 0) {
+          patterns.NEW_GPS++;
+        } else {
+          patterns.NEW_NO_GPS++;
+        }
+      } else if (it === 'FUZZY_MATCH') {
+        if (sc >= 85) patterns.FUZZY_85++;
+        else if (sc >= 80) patterns.FUZZY_80++;
+        else patterns.FUZZY_70++;
+      } else if (it === 'GEO_NEARBY_YELLOW') {
+        var cp = String(safeExtractArr_(data[i], col.candPerson) || '[]').trim();
+        var cpl = String(safeExtractArr_(data[i], col.candPlace) || '[]').trim();
+        if (cp !== '[]' || cpl !== '[]') {
+          patterns.GEO_Y_MATCH++;
+        } else {
+          patterns.GEO_Y_NO++;
+        }
+      } else if (it === 'GEO_NEARBY_ORANGE') {
+        patterns.GEO_O++;
+      }
+    }
+
+    var expectedA = Math.round(patterns.GEO_Y_MATCH * 0.95);
+    var expectedB = Math.round(patterns.NEW_GPS * 0.14);
+    var expectedC = Math.round(patterns.FUZZY_85 * 1.0);
+    var totalExpected = expectedA + expectedB + expectedC;
+
+    var message =
+      '📊 วิเคราะห์ Q_REVIEW Pattern\n\n' +
+      'Q_Pending ทั้งหมด: ' + patterns.total + ' รายการ\n\n' +
+      '🟢 [Group A] GEO_NEARBY_YELLOW + ชื่อตรง: ' + patterns.GEO_Y_MATCH +
+      '\n   → Auto-resolve ได้ ~' + expectedA + ' รายการ\n\n' +
+      '🔵 [Group B] NEW_RECORD_PENDING (มี GPS): ' + patterns.NEW_GPS +
+      '\n   → ในจำนวนนี้ มี Geo candidate ~' + Math.round(patterns.NEW_GPS * 0.14) +
+      ' → Auto-create ได้ ~' + expectedB + ' รายการ\n\n' +
+      '🟡 [Group C] FUZZY_MATCH (score 85-89): ' + patterns.FUZZY_85 +
+      '\n   → Auto-resolve ได้ ~' + expectedC + ' รายการ\n\n' +
+      '📊 คาดการณ์ลด Q_REVIEW: ~' + totalExpected + ' รายการ (' +
+      Math.round(totalExpected / patterns.total * 100) + '%)\n' +
+      '   คงเหลือรอ Review: ~' + (patterns.total - totalExpected) + ' รายการ\n\n' +
+      '━━━ รายละเอียดเพิ่มเติม ━━━\n' +
+      'FUZZY_MATCH 80-84: ' + patterns.FUZZY_80 + '\n' +
+      'FUZZY_MATCH 70-79: ' + patterns.FUZZY_70 + '\n' +
+      'GEO_NEARBY_YELLOW (ไม่มีชื่อ): ' + patterns.GEO_Y_NO + '\n' +
+      'GEO_NEARBY_ORANGE: ' + patterns.GEO_O;
+
+    safeUiAlert_(message);
+    logInfo('ReviewService', 'analyzeReviewPatterns: ' + message.replace(/\n/g, ' | '));
+
+  } catch (err) {
+    logError('ReviewService', 'analyzeReviewPatterns ล้มเหลว: ' + err.message, err);
+    safeUiAlert_('วิเคราะห์ล้มเหลว: ' + err.message);
+  }
 }

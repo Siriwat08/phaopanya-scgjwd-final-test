@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.009
+ * VERSION: 5.5.010
  * FILE: 14_Utils.gs
  * LMDS V5.5 — Utility Functions
  * ===================================================
@@ -7,7 +7,16 @@
  *   รวบรวมฟังก์ชันช่วยทั่วไปที่ใช้ร่วมกันทั่วระบบ
  *   เช่น ID Generator, Hash, String similarity, LatLng parser
  * ===================================================
- *   v5.5.009 (2026-06-18) — DOC SYNC:
+ *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
+ *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
+ *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
+ *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
+ *       Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม → fallback → 825KB > 100KB → "M_PLACE Cache เต็ม"
+ *     - [FIX HOTFIX #3] loadAllPlaceAliases_ ลบ fallback path เดียวกัน — บังคับใช้ saveChunkedCache_
+ *       Root cause: 312KB > 100KB → "M_PLACE_ALIAS Cache write error: อาร์กิวเมนต์มากเกินไป"
+ *     - [ADD] รวม reprocessReviewQueue + analyzeReviewPatterns จาก 22_AccuracyPatch.gs เข้า 12_ReviewService.gs
+ *       Auto-resolve Q_REVIEW 3 กลุ่ม: GEO_NEARBY_YELLOW+name, NEW_RECORD+Geo, FUZZY_MATCH 85+
+ *   v5.5.009 (2026-06-18) — DOC SYNC:
  *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
  *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
  *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
@@ -724,24 +733,30 @@ function batchUpdateEntityStats_(sheetName, idxObj, idColIdx, usageCountIdx, las
  * saveChunkedCache_ — [REF-010] Centralized chunked cache writer
  * [FIX v5.5.007] แบ่ง chunk ตามขนาด KB (90 KB/chunk) แทนจำนวน items
  * [FIX v5.5.008 P2 #13] ล้าง orphaned chunk keys เมื่อขนาดข้อมูลลดลง
- *   เดิมเมื่อข้อมูลเล็กลงจาก large→small, chunk keys เก่า (_0, _1, ...) ตกค้าง
- *   ทำให้สิ้นเปลือง cache quota และ loader ต้องเช็คหลายรอบ
- *   ตอนนี้ตรวจและล้าง orphaned chunks จาก previous large-cache write
+ * [FIX v5.5.010 HOTFIX #1] แบ่ง putAll เป็น batch ย่อย 5 chunks ต่อครั้ง
+ *   + ลด chunk size จาก 90KB → 80KB (safety margin)
+ *   Root cause: GAS putAll มี limit total payload size (~1MB ต่อ call)
+ *   เมื่อมี 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป: value" error
+ *   ตอนนี้แบ่งเป็น batch 5 chunks ต่อ putAll (5 × 80KB = 400KB ต่อ call)
  * [PERF] ใช้ putAll()/getAll() สำหรับ batch operations — เร็วขึ้น 5-10 เท่า
  *
  * @param {CacheService.Cache} cache - CacheService instance
  * @param {string} keyPrefix - Base key prefix for cache entries
  * @param {*} data - Any JSON-serializable data
- * @param {number} [optChunkSizeKB=90] - ขนาดแต่ละ chunk ในหน่วย KB (default: 90 KB)
+ * @param {number} [optChunkSizeKB=80] - ขนาดแต่ละ chunk ในหน่วย KB (default: 80 KB)
  */
 function saveChunkedCache_(cache, keyPrefix, data, optChunkSizeKB) {
-  var CHUNK_SIZE_BYTES = (optChunkSizeKB || 90) * 1000; // 90 KB = 90,000 chars
+  // [FIX v5.5.010] ลด chunk size จาก 90KB → 80KB (safety margin สำหรับ JSON overhead)
+  var CHUNK_SIZE_BYTES = (optChunkSizeKB || 80) * 1000; // 80 KB = 80,000 chars
   var ttl = (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.CACHE_TTL_SEC) ? AI_CONFIG.CACHE_TTL_SEC : 21600;
+
+  // [FIX v5.5.010] จำนวน chunks ต่อ putAll batch — 5 chunks × 80KB = 400KB ต่อ call
+  // GAS putAll limit ~1MB total payload, ใช้ 400KB เผื่อ safety margin
+  var BATCH_SIZE = 5;
 
   var json = JSON.stringify(data);
 
   // [FIX v5.5.008 P2 #13] Helper: ล้าง orphaned chunks จาก previous large-cache write
-  // ใช้ทั้งใน small-data path และ large-data path (กรณี numChunks ลดลง)
   var cleanupOrphanedChunks_ = function(currentNumChunks) {
     try {
       var prevChunksStr = cache.get(keyPrefix + '_CHUNKS');
@@ -749,11 +764,8 @@ function saveChunkedCache_(cache, keyPrefix, data, optChunkSizeKB) {
       var prevNumChunks = Number(prevChunksStr);
       if (isNaN(prevNumChunks)) return;
 
-      // หา chunks ที่เกิน currentNumChunks → orphaned
-      // currentNumChunks=0 สำหรับ small-data path (no chunks needed)
-      // currentNumChunks>0 สำหรับ large-data path
-      var orphanStart = currentNumChunks; // chunks [orphanStart, prevNumChunks) คือ orphaned
-      if (orphanStart >= prevNumChunks) return; // ไม่มี orphan
+      var orphanStart = currentNumChunks;
+      if (orphanStart >= prevNumChunks) return;
 
       var orphanKeys = [];
       for (var i = orphanStart; i < prevNumChunks; i++) {
@@ -766,17 +778,15 @@ function saveChunkedCache_(cache, keyPrefix, data, optChunkSizeKB) {
                   ', current=' + currentNumChunks + ')');
       }
     } catch (e) {
-      // cleanup failure ไม่ควรบล็อกการ write หลัก
       logWarn('Utils', 'saveChunkedCache_ orphan cleanup error: ' + e.message);
     }
   };
 
-  // [OPTIMIZATION] ถ้าข้อมูลเล็กกว่า 90 KB → เขียนทีเดียว (fast path)
+  // [OPTIMIZATION] ถ้าข้อมูลเล็กกว่า chunk size → เขียนทีเดียว (fast path)
   if (json.length <= CHUNK_SIZE_BYTES) {
     try {
       cache.put(keyPrefix, json, ttl);
       cache.remove(keyPrefix + '_CHUNKS');
-      // [FIX v5.5.008 P2 #13] ล้าง orphaned chunks จาก previous large-cache write
       cleanupOrphanedChunks_(0);
       logDebug('Utils', 'saveChunkedCache_: ' + keyPrefix + ' — single put (' + json.length + ' chars)');
       return;
@@ -807,25 +817,53 @@ function saveChunkedCache_(cache, keyPrefix, data, optChunkSizeKB) {
     cacheEntries[keyPrefix + '_' + i] = chunk;
   }
 
-  // [PERF] เขียนทั้งหมดครั้งเดียวด้วย putAll()
-  try {
-    cache.putAll(cacheEntries, ttl);
-    // [FIX v5.5.008 P2 #13] ล้าง orphaned chunks ที่อยู่เกิน numChunks ปัจจุบัน
-    cleanupOrphanedChunks_(numChunks);
-    logDebug('Utils', 'saveChunkedCache_: ' + keyPrefix + ' — ' + numChunks + ' chunks, ' + json.length + ' chars (batch write สำเร็จ)');
-  } catch (e) {
-    logError('Utils', 'saveChunkedCache_ putAll ล้มเหลว: ' + e.message + ' — ลองเขียนทีละ chunk', e);
-    // Fallback: เขียนทีละ chunk ถ้า putAll() ล้มเหลว
-    var successCount = 0;
-    for (var key in cacheEntries) {
-      try {
-        cache.put(key, cacheEntries[key], ttl);
-        successCount++;
-      } catch (err) {
-        logError('Utils', 'saveChunkedCache_ chunk ' + key + ' ล้มเหลว: ' + err.message, err);
+  // [FIX v5.5.010 HOTFIX #1] แบ่ง putAll เป็น batch ย่อย แทนที่จะทั้งหมดทีเดียว
+  // Root cause: GAS putAll มี limit total payload size (~1MB ต่อ call)
+  // เมื่อมี 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป: value" error
+  // ตอนนี้แบ่งเป็น batch 5 chunks ต่อ putAll (5 × 80KB = 400KB ต่อ call)
+  var allKeys = Object.keys(cacheEntries);
+  var totalBatches = Math.ceil(allKeys.length / BATCH_SIZE);
+  var successBatches = 0;
+  var failedChunks = [];
+
+  for (var batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+    var batchStart = batchIdx * BATCH_SIZE;
+    var batchEnd = Math.min(batchStart + BATCH_SIZE, allKeys.length);
+    var batchEntries = {};
+
+    for (var j = batchStart; j < batchEnd; j++) {
+      var key = allKeys[j];
+      batchEntries[key] = cacheEntries[key];
+    }
+
+    try {
+      cache.putAll(batchEntries, ttl);
+      successBatches++;
+    } catch (batchErr) {
+      // putAll batch ล้มเหลว → ลองเขียนทีละ chunk ใน batch นี้
+      logWarn('Utils', 'saveChunkedCache_ putAll batch ' + (batchIdx + 1) + '/' + totalBatches +
+              ' ล้มเหลว: ' + batchErr.message + ' — ลองเขียนทีละ chunk');
+
+      for (var k in batchEntries) {
+        try {
+          cache.put(k, batchEntries[k], ttl);
+        } catch (chunkErr) {
+          failedChunks.push(k);
+          logError('Utils', 'saveChunkedCache_ chunk ' + k + ' ล้มเหลว: ' + chunkErr.message, chunkErr);
+        }
       }
     }
-    logWarn('Utils', 'saveChunkedCache_ fallback: เขียนสำเร็จ ' + successCount + '/' + numChunks + ' chunks');
+  }
+
+  // [FIX v5.5.008 P2 #13] ล้าง orphaned chunks ที่อยู่เกิน numChunks ปัจจุบัน
+  cleanupOrphanedChunks_(numChunks);
+
+  if (failedChunks.length === 0) {
+    logDebug('Utils', 'saveChunkedCache_: ' + keyPrefix + ' — ' + numChunks + ' chunks, ' +
+             json.length + ' chars (' + totalBatches + ' batches, all succeeded)');
+  } else {
+    logWarn('Utils', 'saveChunkedCache_: ' + keyPrefix + ' — ' + numChunks + ' chunks, ' +
+            failedChunks.length + ' failed (batches: ' + successBatches + '/' + totalBatches + ' succeeded)');
   }
 }
 
