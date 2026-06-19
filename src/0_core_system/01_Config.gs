@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.013
+ * VERSION: 5.5.014
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,15 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
+ *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
+ *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
+ *     - [ADD] 04_SourceRepository buildSourceObj_ อ่าน col 38-39 → srcObj.driverVerifiedName/Addr
+ *     - [ADD] 11_TransactionService upsertFactDelivery เก็บ col 32-33 ใน FACT_DELIVERY
+ *     - [ADD] 10_MatchEngine autoEnrichAliases สร้าง alias จาก "ชื่อจริง" → master_uuid (confidence=100, source=DRIVER_VERIFIED)
+ *     - [ADD] 18_ServiceSCG copyDriverVerifiedToDailyJob_ คัดลอกจาก Source → DAILY_JOB
+ *     - กฎ: ชื่อดิบ match ตามปกติ 100% + ถ้าชื่อจริงมี → สร้าง alias เพิ่ม
  *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
  *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
  *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
@@ -158,8 +167,8 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.013';
-const SCHEMA_VERSION = '5.5.013';
+const APP_VERSION = '5.5.014';
+const SCHEMA_VERSION = '5.5.014';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs
@@ -359,6 +368,9 @@ const FACT_IDX = Object.freeze({
   UPDATED_AT:    29,
   RECORD_STATUS: 30,
   EVIDENCE:      31, // [NEW v5.2.008] (name|phone|geo)
+  // [ADD v5.5.014] ชื่อจริงที่คนขับ/ผู้ดูแลยืนยัน — เก็บจาก Source sheet
+  DRIVER_VERIFIED_NAME: 32,  // ชื่อลูกค้าปลายทางจริง
+  DRIVER_VERIFIED_ADDR: 33,  // ชื่อสถานที่อยู่ลูกค้าปลายทางจริง
 });
 
 const REVIEW_IDX = Object.freeze({
@@ -480,6 +492,9 @@ const SRC_IDX = Object.freeze({
   QC_ISSUE:        34,  // เหตุผิดปกติที่ตรวจพบ
   PHOTO_TIME:      35,  // เวลาถ่ายรูปหน้าร้าน_หน้าบ้าน
   SYNC_STATUS:     36,  // SYNC_STATUS ← เช็คก่อน process
+  // [ADD v5.5.014] ชื่อจริงที่คนขับ/ผู้ดูแลยืนยัน — กรอกใน AppSheet หรือ Google Sheet
+  DRIVER_VERIFIED_NAME: 37,  // ชื่อลูกค้าปลายทางจริง
+  DRIVER_VERIFIED_ADDR: 38,  // ชื่อสถานที่อยู่ลูกค้าปลายทางจริง
 });
 
 // ============================================================
@@ -517,6 +532,9 @@ const DATA_IDX = Object.freeze({
   LATLNG_ACTUAL:   26,
   OWNER_LABEL:     27,
   SHOP_KEY:        28,
+  // [ADD v5.5.014] ชื่อจริง — ระบบคัดลอกจาก Source sheet ตอน applyMasterCoordinatesToDailyJob
+  DRIVER_VERIFIED_NAME: 29,  // ชื่อลูกค้าปลายทางจริง (จาก Source col 38)
+  DRIVER_VERIFIED_ADDR: 30,  // ชื่อสถานที่อยู่ลูกค้าปลายทางจริง (จาก Source col 39)
 });
 
 // [FIX S7 v5.5.002] SRC_READ_COLS — จำนวนคอลัมน์ที่ต้องอ่านจาก Source sheet

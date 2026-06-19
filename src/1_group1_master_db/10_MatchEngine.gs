@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.013
+ * VERSION: 5.5.014
  * FILE: 10_MatchEngine.gs
  * LMDS V5.5 — Core Match & Resolution Engine
  * ===================================================
@@ -7,7 +7,16 @@
  *   ประมวลผลข้อมูลต้นทาง → จับคู่ Person/Place/Geo → ตัดสินใจ → บันทึกผล
  *   เป็นหัวใจหลักของ Pipeline และเป็น Single Writer สำหรับ M_ALIAS
  * ===================================================
- *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
+ *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
+ *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
+ *     - [ADD] 04_SourceRepository buildSourceObj_ อ่าน col 38-39 → srcObj.driverVerifiedName/Addr
+ *     - [ADD] 11_TransactionService upsertFactDelivery เก็บ col 32-33 ใน FACT_DELIVERY
+ *     - [ADD] 10_MatchEngine autoEnrichAliases สร้าง alias จาก "ชื่อจริง" → master_uuid (confidence=100, source=DRIVER_VERIFIED)
+ *     - [ADD] 18_ServiceSCG copyDriverVerifiedToDailyJob_ คัดลอกจาก Source → DAILY_JOB
+ *     - กฎ: ชื่อดิบ match ตามปกติ 100% + ถ้าชื่อจริงมี → สร้าง alias เพิ่ม
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
  *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
  *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
  *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
@@ -530,6 +539,32 @@ function processFactRowsForAliases_(factBatch, context) {
     // ─── PLACE: Canonical + Variant ───
     if (plInfo) {
       matchEnrichPlaceAliases_(r, plInfo, context, newGlobalAliasRows, newPlaceAliasRows, now);
+    }
+
+    // [ADD v5.5.014] ─── DRIVER VERIFIED: ชื่อจริง/ที่อยู่จริง → M_ALIAS ───
+    // ถ้ามี "ชื่อจริง" (col 32) และ Person match ได้ → สร้าง alias "ชื่อจริง" → master_uuid
+    // ถ้ามี "ที่อยู่จริง" (col 33) และ Place match ได้ → สร้าง alias "ที่อยู่จริง" → master_uuid
+    var driverVerifiedName = String(r[FACT_IDX.DRIVER_VERIFIED_NAME] || '').trim();
+    var driverVerifiedAddr = String(r[FACT_IDX.DRIVER_VERIFIED_ADDR] || '').trim();
+
+    if (driverVerifiedName && pInfo) {
+      // สร้าง alias สำหรับ "ชื่อจริง" → Person master_uuid
+      matchEnrichEntityAliases_(
+        'PERSON', pId, pInfo.masterUuid, pInfo.canonical, pInfo.normalized,
+        driverVerifiedName, 100,  // confidence=100 เพราะคนขับยืนยันเอง
+        { existingGlobalAliasSet: context.existingGlobalAliasSet, entityAliasSet: context.existingPersonAliasSet, source: 'DRIVER_VERIFIED' },
+        newGlobalAliasRows, newPersonAliasRows, now
+      );
+    }
+
+    if (driverVerifiedAddr && plInfo) {
+      // สร้าง alias สำหรับ "ที่อยู่จริง" → Place master_uuid
+      matchEnrichEntityAliases_(
+        'PLACE', plId, plInfo.masterUuid, plInfo.canonical, plInfo.normalized,
+        driverVerifiedAddr, 100,  // confidence=100 เพราะคนขับยืนยันเอง
+        { existingGlobalAliasSet: context.existingGlobalAliasSet, entityAliasSet: context.existingPlaceAliasSet, source: 'DRIVER_VERIFIED' },
+        newGlobalAliasRows, newPlaceAliasRows, now
+      );
     }
   });
 

@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.013
+ * VERSION: 5.5.014
  * FILE: 11_TransactionService.gs
  * LMDS V5.5 — FACT_DELIVERY Transaction Service
  * ===================================================
@@ -7,7 +7,16 @@
  *   จัดการตาราง FACT_DELIVERY — บันทึกประวัติการจัดส่งทั้งหมด
  *   เป็น Single Source of Truth สำหรับประวัติขนส่ง
  * ===================================================
- *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
+ *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
+ *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
+ *     - [ADD] 04_SourceRepository buildSourceObj_ อ่าน col 38-39 → srcObj.driverVerifiedName/Addr
+ *     - [ADD] 11_TransactionService upsertFactDelivery เก็บ col 32-33 ใน FACT_DELIVERY
+ *     - [ADD] 10_MatchEngine autoEnrichAliases สร้าง alias จาก "ชื่อจริง" → master_uuid (confidence=100, source=DRIVER_VERIFIED)
+ *     - [ADD] 18_ServiceSCG copyDriverVerifiedToDailyJob_ คัดลอกจาก Source → DAILY_JOB
+ *     - กฎ: ชื่อดิบ match ตามปกติ 100% + ถ้าชื่อจริงมี → สร้าง alias เพิ่ม
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
  *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
  *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
  *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
@@ -315,6 +324,9 @@ function factCreateRow_(srcObj, personId, placeId, geoId, destId, decision, reso
   newRow[FACT_IDX.UPDATED_AT]     = now;
   newRow[FACT_IDX.RECORD_STATUS]  = APP_CONST.STATUS_ACTIVE;
   newRow[FACT_IDX.EVIDENCE]       = decision.evidence || '';
+  // [ADD v5.5.014] เก็บชื่อจริงที่คนขับ/ผู้ดูแลยืนยัน — จาก Source sheet col 38-39
+  newRow[FACT_IDX.DRIVER_VERIFIED_NAME] = srcObj.driverVerifiedName || '';
+  newRow[FACT_IDX.DRIVER_VERIFIED_ADDR] = srcObj.driverVerifiedAddr || '';
 
   // [RULE 4] คืนค่าแถวเพื่อให้ caller ทำ batch write แทน appendRow ในลูป
   return { txId: txId, isNew: true, rowData: newRow };

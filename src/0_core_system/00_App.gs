@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.013
+ * VERSION: 5.5.014
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,16 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
+ *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
+ *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
+ *     - [ADD] 04_SourceRepository buildSourceObj_ อ่าน col 38-39 → srcObj.driverVerifiedName/Addr
+ *     - [ADD] 11_TransactionService upsertFactDelivery เก็บ col 32-33 ใน FACT_DELIVERY
+ *     - [ADD] 10_MatchEngine autoEnrichAliases สร้าง alias จาก "ชื่อจริง" → master_uuid (confidence=100, source=DRIVER_VERIFIED)
+ *     - [ADD] 18_ServiceSCG copyDriverVerifiedToDailyJob_ คัดลอกจาก Source → DAILY_JOB
+ *     - กฎ: ชื่อดิบ match ตามปกติ 100% + ถ้าชื่อจริงมี → สร้าง alias เพิ่ม
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
  *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
  *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
  *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
@@ -893,28 +902,28 @@ function showVersionInfo() {
     `Schema: v${SCHEMA_VERSION}\n` +
     `Audit Cycles: 9 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.013\n` +
-    `  01_Config.gs             v5.5.013\n` +
-    `  02_Schema.gs             v5.5.013\n` +
-    `  03_SetupSheets.gs        v5.5.013\n` +
-    `  04_SourceRepository.gs   v5.5.013\n` +
-    `  05_NormalizeService.gs   v5.5.013\n` +
-    `  06_PersonService.gs      v5.5.013\n` +
-    `  07_PlaceService.gs       v5.5.013\n` +
-    `  08_GeoService.gs         v5.5.013\n` +
-    `  09_DestinationService.gs v5.5.013\n` +
-    `  10_MatchEngine.gs        v5.5.013\n` +
-    `  11_TransactionService.gs v5.5.013\n` +
-    `  12_ReviewService.gs      v5.5.013\n` +
-    `  13_ReportService.gs      v5.5.013\n` +
-    `  14_Utils.gs              v5.5.013\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.013\n` +
-    `  16_GeoDictionaryBuilder.gs     v5.5.013\n` +
-    `  17_SearchService.gs      v5.5.013\n` +
-    `  18_ServiceSCG.gs         v5.5.013\n` +
-    `  19_Hardening.gs          v5.5.013\n` +
-    `  20_ThGeoService.gs       v5.5.013\n` +
-    `  21_AliasService.gs       v5.5.013\n\n` +
+    `  00_App.gs                v5.5.014\n` +
+    `  01_Config.gs             v5.5.014\n` +
+    `  02_Schema.gs             v5.5.014\n` +
+    `  03_SetupSheets.gs        v5.5.014\n` +
+    `  04_SourceRepository.gs   v5.5.014\n` +
+    `  05_NormalizeService.gs   v5.5.014\n` +
+    `  06_PersonService.gs      v5.5.014\n` +
+    `  07_PlaceService.gs       v5.5.014\n` +
+    `  08_GeoService.gs         v5.5.014\n` +
+    `  09_DestinationService.gs v5.5.014\n` +
+    `  10_MatchEngine.gs        v5.5.014\n` +
+    `  11_TransactionService.gs v5.5.014\n` +
+    `  12_ReviewService.gs      v5.5.014\n` +
+    `  13_ReportService.gs      v5.5.014\n` +
+    `  14_Utils.gs              v5.5.014\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.014\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.014\n` +
+    `  17_SearchService.gs      v5.5.014\n` +
+    `  18_ServiceSCG.gs         v5.5.014\n` +
+    `  19_Hardening.gs          v5.5.014\n` +
+    `  20_ThGeoService.gs       v5.5.014\n` +
+    `  21_AliasService.gs       v5.5.014\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

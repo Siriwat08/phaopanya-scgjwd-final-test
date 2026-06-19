@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.013
+ * VERSION: 5.5.014
  * FILE: 02_Schema.gs
  * LMDS V5.5 — Sheet Schema Definitions
  * ===================================================
@@ -7,7 +7,16 @@
  *   กำหนด Schema ของทุก Sheet ในระบบ รวมถึง Column Headers และ Validation Rules
  *   เป็น Single Source of Truth สำหรับโครงสร้างข้อมูล
  * ===================================================
- *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
+ *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
+ *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
+ *     - [ADD] 04_SourceRepository buildSourceObj_ อ่าน col 38-39 → srcObj.driverVerifiedName/Addr
+ *     - [ADD] 11_TransactionService upsertFactDelivery เก็บ col 32-33 ใน FACT_DELIVERY
+ *     - [ADD] 10_MatchEngine autoEnrichAliases สร้าง alias จาก "ชื่อจริง" → master_uuid (confidence=100, source=DRIVER_VERIFIED)
+ *     - [ADD] 18_ServiceSCG copyDriverVerifiedToDailyJob_ คัดลอกจาก Source → DAILY_JOB
+ *     - กฎ: ชื่อดิบ match ตามปกติ 100% + ถ้าชื่อจริงมี → สร้าง alias เพิ่ม
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
  *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
  *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
  *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
@@ -266,6 +275,9 @@ const SCHEMA = Object.freeze({
     'updated_at',        // [29]
     'record_status',     // [30]
     'match_evidence',    // [31] [NEW v5.2.008] สัญญาณที่ใช้แมตช์ (name|phone|geo)
+    // [ADD v5.5.014] ชื่อจริงที่คนขับ/ผู้ดูแลยืนยัน — เก็บจาก Source sheet
+    'driver_verified_name', // [32] FACT_IDX.DRIVER_VERIFIED_NAME
+    'driver_verified_addr', // [33] FACT_IDX.DRIVER_VERIFIED_ADDR
   ],
 
   // ============================================================
@@ -390,6 +402,9 @@ const SCHEMA = Object.freeze({
     'LatLong_Actual',                          // [26]
     'ชื่อเจ้าของสินค้า_Invoice_ที่ต้องสแกน', // [27]
     'ShopKey',                                 // [28]
+    // [ADD v5.5.014] ชื่อจริง — ระบบคัดลอกจาก Source sheet ตอน applyMasterCoordinatesToDailyJob
+    'ชื่อลูกค้าปลายทางจริง',            // [29] DATA_IDX.DRIVER_VERIFIED_NAME
+    'ชื่อสถานที่อยู่ลูกค้าปลายทางจริง', // [30] DATA_IDX.DRIVER_VERIFIED_ADDR
   ],
 
   'Input': [
@@ -485,6 +500,9 @@ const SCHEMA = Object.freeze({
     'เหตุผิดปกติที่ตรวจพบ',            // [34] SRC_IDX.QC_ISSUE
     'เวลาถ่ายรูปหน้าร้าน_หน้าบ้าน',    // [35] SRC_IDX.PHOTO_TIME
     'SYNC_STATUS',                     // [36] SRC_IDX.SYNC_STATUS     ← เช็คก่อน process
+    // [ADD v5.5.014] ชื่อจริงที่คนขับ/ผู้ดูแลยืนยัน — กรอกใน AppSheet หรือ Google Sheet
+    'ชื่อลูกค้าปลายทางจริง',            // [37] SRC_IDX.DRIVER_VERIFIED_NAME
+    'ชื่อสถานที่อยู่ลูกค้าปลายทางจริง', // [38] SRC_IDX.DRIVER_VERIFIED_ADDR
   ],
 
 });

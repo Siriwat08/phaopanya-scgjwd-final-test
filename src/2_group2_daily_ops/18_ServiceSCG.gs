@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.013
+ * VERSION: 5.5.014
  * FILE: 18_ServiceSCG.gs
  * LMDS V5.5 — SCG API Service (Group 2 Commander)
  * ===================================================
@@ -8,7 +8,16 @@
  *   แล้วเรียก Module 17 จับคู่พิกัด พร้อมสร้างสรุปเจ้าของสินค้า/Shipment
  *   เป็น Commander ของ Group 2 (Daily Ops)
  * ===================================================
- *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
+ *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
+ *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
+ *     - [ADD] 04_SourceRepository buildSourceObj_ อ่าน col 38-39 → srcObj.driverVerifiedName/Addr
+ *     - [ADD] 11_TransactionService upsertFactDelivery เก็บ col 32-33 ใน FACT_DELIVERY
+ *     - [ADD] 10_MatchEngine autoEnrichAliases สร้าง alias จาก "ชื่อจริง" → master_uuid (confidence=100, source=DRIVER_VERIFIED)
+ *     - [ADD] 18_ServiceSCG copyDriverVerifiedToDailyJob_ คัดลอกจาก Source → DAILY_JOB
+ *     - กฎ: ชื่อดิบ match ตามปกติ 100% + ถ้าชื่อจริงมี → สร้าง alias เพิ่ม
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
  *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
  *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
  *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
@@ -595,11 +604,90 @@ function applyMasterCoordinatesToDailyJob() {
   try {
   logInfo('ServiceSCG', 'applyMasterCoordinates → เรียก Module 17');
   runLookupEnrichment();
+  // [ADD v5.5.014] คัดลอก "ชื่อจริง" + "ที่อยู่จริง" จาก Source sheet → DAILY_JOB
+  copyDriverVerifiedToDailyJob_();
   logInfo('ServiceSCG', 'applyMasterCoordinates เสร็จสิ้น');
   } catch (err) {
     logError('ServiceSCG', 'applyMasterCoordinates ล้มเหลว: ' + err.message, err);
     // [FIX B4 v5.5.002] เปลี่ยน getUi().alert() → safeUiAlert_() — trigger-safe
     safeUiAlert_('เกิดข้อผิดพลาด: ' + err.message);
+  }
+}
+
+/**
+ * copyDriverVerifiedToDailyJob_ — [ADD v5.5.014]
+ * คัดลอก "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง" จาก Source sheet → DAILY_JOB
+ * ใช้ ShopKey (ShipmentNo|ShipToName) เป็น lookup key ระหว่าง 2 ชีต
+ * ถ้า Source sheet ไม่มีข้อมูลจริง → DAILY_JOB col 29-30 จะว่าง (ไม่ error)
+ */
+function copyDriverVerifiedToDailyJob_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sourceSheet = ss.getSheetByName(SHEET.SOURCE);
+    const dailyJobSheet = ss.getSheetByName(SHEET.DAILY_JOB);
+    if (!sourceSheet || !dailyJobSheet) return;
+
+    // อ่าน Source sheet: ShipmentNo(7), ShipToName(12), DriverVerifiedName(37), DriverVerifiedAddr(38)
+    const srcLastRow = sourceSheet.getLastRow();
+    if (srcLastRow < 2) return;
+    const srcCols = Math.max(SRC_IDX.DRIVER_VERIFIED_ADDR + 1, sourceSheet.getLastColumn());
+    const srcData = sourceSheet.getRange(2, 1, srcLastRow - 1, srcCols).getValues();
+
+    // สร้าง lookup: "ShipmentNo|ShipToName" → { driverVerifiedName, driverVerifiedAddr }
+    const lookup = {};
+    srcData.forEach(function(r) {
+      var shipmentNo = String(r[SRC_IDX.SHIPMENT_NO] || '').trim();
+      var shipToName = String(r[SRC_IDX.RAW_PERSON_NAME] || '').trim();
+      var dvName = String(r[SRC_IDX.DRIVER_VERIFIED_NAME] || '').trim();
+      var dvAddr = String(r[SRC_IDX.DRIVER_VERIFIED_ADDR] || '').trim();
+      if (shipmentNo && shipToName) {
+        var key = shipmentNo + '|' + shipToName;
+        // เก็บข้อมูลแรกที่เจอ (ถ้าซ้ำ key จะใช้ของแรก)
+        if (!lookup[key] && (dvName || dvAddr)) {
+          lookup[key] = { name: dvName, addr: dvAddr };
+        }
+      }
+    });
+
+    // อ่าน DAILY_JOB และเติม col 29-30
+    const djLastRow = dailyJobSheet.getLastRow();
+    if (djLastRow < 2) return;
+    const djCols = SCHEMA[SHEET.DAILY_JOB].length;
+    const djData = dailyJobSheet.getRange(2, 1, djLastRow - 1, djCols).getValues();
+
+    var updated = 0;
+    var nameCol = DATA_IDX.DRIVER_VERIFIED_NAME + 1; // 1-based for setValues
+    var addrCol = DATA_IDX.DRIVER_VERIFIED_ADDR + 1;
+
+    djData.forEach(function(r, i) {
+      var shopKey = String(r[DATA_IDX.SHOP_KEY] || '').trim();
+      var dv = lookup[shopKey];
+      if (dv) {
+        var changed = false;
+        if (dv.name && !r[DATA_IDX.DRIVER_VERIFIED_NAME]) {
+          r[DATA_IDX.DRIVER_VERIFIED_NAME] = dv.name;
+          changed = true;
+        }
+        if (dv.addr && !r[DATA_IDX.DRIVER_VERIFIED_ADDR]) {
+          r[DATA_IDX.DRIVER_VERIFIED_ADDR] = dv.addr;
+          changed = true;
+        }
+        if (changed) updated++;
+      }
+    });
+
+    if (updated > 0) {
+      // เขียนเฉพาะ col 29-30 (ไม่เขียนทั้งแถว เพื่อลด API calls)
+      var nameRange = dailyJobSheet.getRange(2, nameCol, djLastRow - 1, 1);
+      var addrRange = dailyJobSheet.getRange(2, addrCol, djLastRow - 1, 1);
+      var nameValues = djData.map(function(r) { return [r[DATA_IDX.DRIVER_VERIFIED_NAME] || '']; });
+      var addrValues = djData.map(function(r) { return [r[DATA_IDX.DRIVER_VERIFIED_ADDR] || '']; });
+      nameRange.setValues(nameValues);
+      addrRange.setValues(addrValues);
+      logInfo('ServiceSCG', 'copyDriverVerifiedToDailyJob_: คัดลอกข้อมูลจริง ' + updated + ' แถว');
+    }
+  } catch (e) {
+    logError('ServiceSCG', 'copyDriverVerifiedToDailyJob_ ล้มเหลว: ' + e.message, e);
   }
 }
 
