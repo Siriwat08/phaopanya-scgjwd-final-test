@@ -1,7 +1,7 @@
 # LMDS V5.5 — CRITICAL Fix Cycle Report
 
 > เอกสารสรุปการตรวจสอบ วางแผน ดำเนินการ และยืนยันการแก้ไข Issue สำคัญ 8 รายการ
-> Version: V5.5.011 (DATA-CONSISTENCY) | Date: 2026-06-18 | Original audit: V5.5.003 (2026-06-11)
+> Version: V5.5.012 (ANTIPATTERN-FIX) | Date: 2026-06-19 | Original audit: V5.5.003 (2026-06-11)
 > Commands: FIRST_AUDIT_CRITICAL → FIX_CRITICAL_PLAN → APPLY_CRITICAL_FIX → VERIFY_CRITICAL_FIX
 
 ---
@@ -369,9 +369,9 @@
 
 ---
 
-## Security Fix Cycle (V5.5.004 — historical; current release V5.5.011 — 2026-06-18)
+## Security Fix Cycle (V5.5.004 — historical; current release V5.5.012 — 2026-06-19)
 
-หลังจากแก้ไข Critical Issues ทั้ง 8 รายการแล้ว ได้ดำเนินการตรวจสอบช่องโหว่ด้านความปลอดภัยและแก้ไขเพิ่มเติมอีก 7 รายการ (ปัจจุบัน V5.5.011 เป็นเวอร์ชันที่ปล่อยแล้ว — APP_VERSION = '5.5.011'):
+หลังจากแก้ไข Critical Issues ทั้ง 8 รายการแล้ว ได้ดำเนินการตรวจสอบช่องโหว่ด้านความปลอดภัยและแก้ไขเพิ่มเติมอีก 7 รายการ (ปัจจุบัน V5.5.012 เป็นเวอร์ชันที่ปล่อยแล้ว — APP_VERSION = '5.5.012'):
 
 | SEC ID | ช่องโหว่ | Severity | Verdict |
 |--------|----------|----------|---------|

@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.011
+ * VERSION: 5.5.012
  * FILE: 02_Schema.gs
  * LMDS V5.5 — Sheet Schema Definitions
  * ===================================================
@@ -7,7 +7,18 @@
  *   กำหนด Schema ของทุก Sheet ในระบบ รวมถึง Column Headers และ Validation Rules
  *   เป็น Single Source of Truth สำหรับโครงสร้างข้อมูล
  * ===================================================
- *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SCHEMA SOURCE:
+ *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
+ *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
+ *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
+ *       17_SearchService ส่ง normResult เข้า resolvePerson แทน cleanName (ลด normalize ซ้อน)
+ *     - [FIX #4] reprocessReviewQueue ใช้ REVIEW_IDX/FACT_IDX constants แทน headers.indexOf()
+ *       ปฏิบัติตาม Single Source of Truth rule
+ *     - [FIX #5] validateConfig เรียก validateSchemaConsistency เพิ่ม — onOpen จับ SCHEMA drift ได้
+ *     - [FIX #2] CHANGELOG sync — เพิ่ม v5.5.011 entry ในไฟล์ที่ยังไม่มี (20 ไฟล์)
+ *     - [DOC] แก้ broken cross-references ใน README (ลบ reports/* และ LMDS_V5.5_COMPLETE_Audit_Report.md)
+ *     - [DOC] Standardize function count = 313 ในเอกสาร .md
+ *     - [DOC] อัปเดต DEPENDENCIES/ARCHITECTURE section ในไฟล์ที่แก้ (00, 01, 06, 12, 17)
+ *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SCHEMA SOURCE:
  *     - [ADD SCHEMA] เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] (37 คอลัมน์) ที่ขาดหายไป
  *       ก่อนหน้านี้ SHEET.SOURCE มีเพียง SRC_IDX ใน 01_Config.gs แต่ไม่มีใน SCHEMA
  *       ทำให้ getSheetHeaders(SHEET.SOURCE) จะ throw และ validateSchemaConsistency ไม่ตรวจชีตนี้

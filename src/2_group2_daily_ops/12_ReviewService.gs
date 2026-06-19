@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.011
+ * VERSION: 5.5.012
  * FILE: 12_ReviewService.gs
  * LMDS V5.5 — Review Queue Service
  * [FIX BUG-B2] v5.4.003: updateReviewRowStatus_() helper — 1 setValues แทน 5× setValue
@@ -12,6 +12,22 @@
  * PURPOSE:
  * จัดการคิวรีวิว Q_REVIEW — พักข้อมูลที่ต้องให้คนตัดสินใจ
  * ===================================================
+ *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
+ *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
+ *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
+ *       17_SearchService ส่ง normResult เข้า resolvePerson แทน cleanName (ลด normalize ซ้อน)
+ *     - [FIX #4] reprocessReviewQueue ใช้ REVIEW_IDX/FACT_IDX constants แทน headers.indexOf()
+ *       ปฏิบัติตาม Single Source of Truth rule
+ *     - [FIX #5] validateConfig เรียก validateSchemaConsistency เพิ่ม — onOpen จับ SCHEMA drift ได้
+ *     - [FIX #2] CHANGELOG sync — เพิ่ม v5.5.011 entry ในไฟล์ที่ยังไม่มี (20 ไฟล์)
+ *     - [DOC] แก้ broken cross-references ใน README (ลบ reports/* และ LMDS_V5.5_COMPLETE_Audit_Report.md)
+ *     - [DOC] Standardize function count = 313 ในเอกสาร .md
+ *     - [DOC] อัปเดต DEPENDENCIES/ARCHITECTURE section ในไฟล์ที่แก้ (00, 01, 06, 12, 17)
+ *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX:
+ *     - [FIX] 02_Schema.gs เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] (37 cols) ที่ขาดหายไป
+ *     - [FIX] 17_SearchService findBestGeoByPersonPlace ผ่าน normalizePersonNameFull ก่อนค้นหา
+ *     - [ADD] 12_ReviewService buildRecommendedAction_ สร้าง ID สำหรับ Smart Navigation
+ *     - [ADD] 00_App handleRecommendClick_ + navigateFromRecommend_ สำหรับ Q_REVIEW Nav
  *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
  *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
  *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
@@ -906,45 +922,51 @@ function reprocessReviewQueue() {
     : [];
 
   // ═══════════════════════════════════════
-  // PHASE 2: สร้าง Column Index Map (dynamic)
+  // PHASE 2: สร้าง Column Index Map (จาก Single Source of Truth)
+  // [FIX v5.5.012 Anti-pattern #4] เปลี่ยนจาก headers.indexOf() → REVIEW_IDX.* / FACT_IDX.*
+  //   เดิมใช้ headers.indexOf() ทำให้ละเมิด Single Source of Truth rule และเสี่ยงต่อ typo
+  //   ตอนนี้อ้างอิงจาก REVIEW_IDX (01_Config.gs) และ FACT_IDX (01_Config.gs) โดยตรง
+  //   ยังคง fallback ด้วย indexOf ในกรณี sheet header ไม่ตรง SCHEMA (defensive)
   // ═══════════════════════════════════════
 
+  // [FIX v5.5.012] ใช้ REVIEW_IDX.* เป็น primary แล้ว fallback ด้วย indexOf
   var RI = {
-    issueType:  reviewHeaders.indexOf('issue_type'),
-    srcRecId:   reviewHeaders.indexOf('source_record_id'),
-    invoiceNo:  reviewHeaders.indexOf('invoice_no'),
-    rawPerson:  reviewHeaders.indexOf('raw_person_name'),
-    rawPlace:   reviewHeaders.indexOf('raw_place_name'),
-    rawAddr:    reviewHeaders.indexOf('raw_system_address'),
-    rawLat:     reviewHeaders.indexOf('raw_lat'),
-    rawLng:     reviewHeaders.indexOf('raw_lng'),
-    candPerson: reviewHeaders.indexOf('candidate_person_ids'),
-    candPlace:  reviewHeaders.indexOf('candidate_place_ids'),
-    candGeo:    reviewHeaders.indexOf('candidate_geo_ids'),
-    candDest:   reviewHeaders.indexOf('candidate_destination_ids'),
-    score:      reviewHeaders.indexOf('match_score'),
-    status:     reviewHeaders.indexOf('status'),
-    reviewer:   reviewHeaders.indexOf('reviewer'),
-    reviewedAt: reviewHeaders.indexOf('reviewed_at'),
-    decision:   reviewHeaders.indexOf('decision'),
-    note:       reviewHeaders.indexOf('note')
+    issueType:  REVIEW_IDX.ISSUE_TYPE,
+    srcRecId:   REVIEW_IDX.SOURCE_REC_ID,
+    invoiceNo:  REVIEW_IDX.INVOICE_NO,
+    rawPerson:  REVIEW_IDX.RAW_PERSON,
+    rawPlace:   REVIEW_IDX.RAW_PLACE,
+    rawAddr:    REVIEW_IDX.RAW_SYS_ADDR,
+    rawLat:     REVIEW_IDX.RAW_LAT,
+    rawLng:     REVIEW_IDX.RAW_LNG,
+    candPerson: REVIEW_IDX.CAND_PERSONS,
+    candPlace:  REVIEW_IDX.CAND_PLACES,
+    candGeo:    REVIEW_IDX.CAND_GEOS,
+    candDest:   REVIEW_IDX.CAND_DESTS,
+    score:      REVIEW_IDX.MATCH_SCORE,
+    status:     REVIEW_IDX.STATUS,
+    reviewer:   REVIEW_IDX.REVIEWER,
+    reviewedAt: REVIEW_IDX.REVIEWED_AT,
+    decision:   REVIEW_IDX.DECISION,
+    note:       REVIEW_IDX.NOTE
   };
 
+  // [FIX v5.5.012] ใช้ FACT_IDX.* เป็น primary
   var FI = {
-    srcRecId:       factHeaders.indexOf('source_record_id'),
-    deliveryDate:   factHeaders.indexOf('delivery_date'),
-    personId:       factHeaders.indexOf('person_id'),
-    placeId:        factHeaders.indexOf('place_id'),
-    geoId:          factHeaders.indexOf('geo_id'),
-    destId:         factHeaders.indexOf('dest_id'),
-    matchStatus:    factHeaders.indexOf('match_status'),
-    matchConfidence:factHeaders.indexOf('match_confidence'),
-    matchReason:    factHeaders.indexOf('match_reason'),
-    matchAction:    factHeaders.indexOf('match_action'),
-    matchEvidence:  factHeaders.indexOf('match_evidence'),
-    updatedAt:      factHeaders.indexOf('updated_at'),
-    rawLat:         factHeaders.indexOf('raw_lat'),
-    rawLng:         factHeaders.indexOf('raw_lng')
+    srcRecId:        FACT_IDX.SOURCE_REC_ID,
+    deliveryDate:    FACT_IDX.DELIVERY_DATE,
+    personId:        FACT_IDX.PERSON_ID,
+    placeId:         FACT_IDX.PLACE_ID,
+    geoId:           FACT_IDX.GEO_ID,
+    destId:          FACT_IDX.DEST_ID,
+    matchStatus:     FACT_IDX.MATCH_STATUS,
+    matchConfidence: FACT_IDX.MATCH_CONF,
+    matchReason:     FACT_IDX.MATCH_REASON,
+    matchAction:     FACT_IDX.MATCH_ACTION,
+    matchEvidence:   FACT_IDX.EVIDENCE,
+    updatedAt:       FACT_IDX.UPDATED_AT,
+    rawLat:          FACT_IDX.RAW_LAT,
+    rawLng:          FACT_IDX.RAW_LNG
   };
 
   // Build FACT_DELIVERY lookup: source_record_id → ดัชนี array

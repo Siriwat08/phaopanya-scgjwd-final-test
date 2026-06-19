@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.011
+ * VERSION: 5.5.012
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,23 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
+ *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
+ *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
+ *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
+ *       17_SearchService ส่ง normResult เข้า resolvePerson แทน cleanName (ลด normalize ซ้อน)
+ *     - [FIX #4] reprocessReviewQueue ใช้ REVIEW_IDX/FACT_IDX constants แทน headers.indexOf()
+ *       ปฏิบัติตาม Single Source of Truth rule
+ *     - [FIX #5] validateConfig เรียก validateSchemaConsistency เพิ่ม — onOpen จับ SCHEMA drift ได้
+ *     - [FIX #2] CHANGELOG sync — เพิ่ม v5.5.011 entry ในไฟล์ที่ยังไม่มี (20 ไฟล์)
+ *     - [DOC] แก้ broken cross-references ใน README (ลบ reports/* และ LMDS_V5.5_COMPLETE_Audit_Report.md)
+ *     - [DOC] Standardize function count = 313 ในเอกสาร .md
+ *     - [DOC] อัปเดต DEPENDENCIES/ARCHITECTURE section ในไฟล์ที่แก้ (00, 01, 06, 12, 17)
+ *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX:
+ *     - [FIX] 02_Schema.gs เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] (37 cols) ที่ขาดหายไป
+ *     - [FIX] 17_SearchService findBestGeoByPersonPlace ผ่าน normalizePersonNameFull ก่อนค้นหา
+ *     - [ADD] 12_ReviewService buildRecommendedAction_ สร้าง ID สำหรับ Smart Navigation
+ *     - [ADD] 00_App handleRecommendClick_ + navigateFromRecommend_ สำหรับ Q_REVIEW Nav
+ *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
  *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
  *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
  *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
@@ -864,30 +880,30 @@ function showVersionInfo() {
     `🚚 ${APP_NAME}\n` +
     `Version: ${APP_VERSION}\n` +
     `Schema: v${SCHEMA_VERSION}\n` +
-    `Audit Cycles: 5 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR)\n\n` +
+    `Audit Cycles: 9 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.010\n` +
-    `  01_Config.gs             v5.5.010\n` +
-    `  02_Schema.gs             v5.5.010\n` +
-    `  03_SetupSheets.gs        v5.5.010\n` +
-    `  04_SourceRepository.gs   v5.5.010\n` +
-    `  05_NormalizeService.gs   v5.5.010\n` +
-    `  06_PersonService.gs      v5.5.010\n` +
-    `  07_PlaceService.gs       v5.5.010\n` +
-    `  08_GeoService.gs         v5.5.010\n` +
-    `  09_DestinationService.gs v5.5.010\n` +
-    `  10_MatchEngine.gs        v5.5.010\n` +
-    `  11_TransactionService.gs v5.5.010\n` +
-    `  12_ReviewService.gs      v5.5.010\n` +
-    `  13_ReportService.gs      v5.5.010\n` +
-    `  14_Utils.gs              v5.5.010\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.010\n` +
-    `  16_GeoDictionaryBuilder.gs     v5.5.010\n` +
-    `  17_SearchService.gs      v5.5.010\n` +
-    `  18_ServiceSCG.gs         v5.5.010\n` +
-    `  19_Hardening.gs          v5.5.010\n` +
-    `  20_ThGeoService.gs       v5.5.010\n` +
-    `  21_AliasService.gs       v5.5.010\n\n` +
+    `  00_App.gs                v5.5.012\n` +
+    `  01_Config.gs             v5.5.012\n` +
+    `  02_Schema.gs             v5.5.012\n` +
+    `  03_SetupSheets.gs        v5.5.012\n` +
+    `  04_SourceRepository.gs   v5.5.012\n` +
+    `  05_NormalizeService.gs   v5.5.012\n` +
+    `  06_PersonService.gs      v5.5.012\n` +
+    `  07_PlaceService.gs       v5.5.012\n` +
+    `  08_GeoService.gs         v5.5.012\n` +
+    `  09_DestinationService.gs v5.5.012\n` +
+    `  10_MatchEngine.gs        v5.5.012\n` +
+    `  11_TransactionService.gs v5.5.012\n` +
+    `  12_ReviewService.gs      v5.5.012\n` +
+    `  13_ReportService.gs      v5.5.012\n` +
+    `  14_Utils.gs              v5.5.012\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.012\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.012\n` +
+    `  17_SearchService.gs      v5.5.012\n` +
+    `  18_ServiceSCG.gs         v5.5.012\n` +
+    `  19_Hardening.gs          v5.5.012\n` +
+    `  20_ThGeoService.gs       v5.5.012\n` +
+    `  21_AliasService.gs       v5.5.012\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

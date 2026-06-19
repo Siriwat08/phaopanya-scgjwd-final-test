@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.011
+ * VERSION: 5.5.012
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,17 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
+ *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
+ *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
+ *       17_SearchService ส่ง normResult เข้า resolvePerson แทน cleanName (ลด normalize ซ้อน)
+ *     - [FIX #4] reprocessReviewQueue ใช้ REVIEW_IDX/FACT_IDX constants แทน headers.indexOf()
+ *       ปฏิบัติตาม Single Source of Truth rule
+ *     - [FIX #5] validateConfig เรียก validateSchemaConsistency เพิ่ม — onOpen จับ SCHEMA drift ได้
+ *     - [FIX #2] CHANGELOG sync — เพิ่ม v5.5.011 entry ในไฟล์ที่ยังไม่มี (20 ไฟล์)
+ *     - [DOC] แก้ broken cross-references ใน README (ลบ reports/* และ LMDS_V5.5_COMPLETE_Audit_Report.md)
+ *     - [DOC] Standardize function count = 313 ในเอกสาร .md
+ *     - [DOC] อัปเดต DEPENDENCIES/ARCHITECTURE section ในไฟล์ที่แก้ (00, 01, 06, 12, 17)
  *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX:
  *     - [ADD SCHEMA] เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] ใน 02_Schema.gs (37 คอลัมน์ตรงกับ SRC_IDX)
  *       ก่อนหน้านี้ SHEET.SOURCE มีเฉพาะ SRC_IDX ใน Config แต่ไม่มีใน SCHEMA → Single Source of Truth ไม่ครบ
@@ -136,8 +147,8 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.011';
-const SCHEMA_VERSION = '5.5.011';
+const APP_VERSION = '5.5.012';
+const SCHEMA_VERSION = '5.5.012';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs
@@ -772,6 +783,15 @@ function validateConfig() {
         );
       }
     });
+
+    // [FIX v5.5.012 Anti-pattern #5] เรียก validateSchemaConsistency() เพื่อตรวจ SCHEMA ที่ละเอียดกว่า
+    //   เดิม validateConfig ตรวจแค่ SCHEMA.length vs IDX.keys แต่ไม่ได้เรียก validateSchemaConsistency
+    //   ทำให้ onOpen จับ SCHEMA drift ไม่ได้ (catch ได้แค่ตอน setupAllSheets รัน)
+    //   ตอนนี้เรียก validateSchemaConsistency เพื่อตรวจทุกคู่ SCHEMA↔IDX แบบเดียวกับ setupAllSheets
+    //   ถ้า SCHEMA หรือ IDX ไม่ตรงกัน → throw error ทันทีตอนเปิด sheet
+    if (typeof validateSchemaConsistency === 'function') {
+      validateSchemaConsistency();
+    }
   }
   logInfo('Config', `validateConfig ผ่าน — Schema v${SCHEMA_VERSION}`);
 }
