@@ -1,5 +1,5 @@
 # 🚀 LMDS V5.5 — การประเมินความพร้อม Production [CMD: PREDEPLOY]
-## วันที่: 2026-06-19 | เวอร์ชัน: V5.5.012 (post-ANTIPATTERN-FIX; original audit 2026-06-12)
+## วันที่: 2026-06-19 | เวอร์ชัน: V5.5.013 (post-GOOGLE-MAPS-REFACTOR; original audit 2026-06-12)
 
 ---
 
@@ -7,14 +7,14 @@
 
 > ✅ **GO** — พร้อมใช้งาน Production
 
-ระบบ LMDS V5.5 ผ่านการ Audit ครบ 9 เฟส (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC) แก้ไขปัญหาทั้งหมด 71 issues (8 CRITICAL + 12 PERFORMANCE + 7 SECURITY + 5 REVIEW15 + 21 REFACTOR + 9 CACHE-FIX + 6 CACHE-CLEANUP + 3 ANTIPATTERN; 28 doc inconsistencies from SYNC cycle ไม่นับเป็น code issue) ไม่มี Blocking Issues ใดๆ ที่จะขัดขวางการ Deploy อย่างไรก็ตาม มี Residual Risks บางรายการที่ควรติดตามหลัง Deploy
+ระบบ LMDS V5.5 ผ่านการ Audit ครบ 10 เฟส (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR) แก้ไขปัญหาทั้งหมด 73 issues (8 CRITICAL + 12 PERFORMANCE + 7 SECURITY + 5 REVIEW15 + 21 REFACTOR + 9 CACHE-FIX + 6 CACHE-CLEANUP + 3 ANTIPATTERN + 2 GOOGLE-MAPS-REFACTOR; 28 doc inconsistencies from SYNC cycle ไม่นับเป็น code issue) ไม่มี Blocking Issues ใดๆ ที่จะขัดขวางการ Deploy อย่างไรก็ตาม มี Residual Risks บางรายการที่ควรติดตามหลัง Deploy
 
 **เงื่อนไขการ Deploy:**
 1. ต้องรัน `assignMasterUuidIfMissing()` ก่อน Migration ทุกครั้ง
 2. ต้องตั้งค่า `LMDS_ADMINS` ใน Script Properties ก่อนใช้งาน
 3. ต้องตั้งค่า `GEMINI_API_KEY` ใน Script Properties
 4. แนะนำให้รัน `runPreflightAudit()` หลัง Deploy เพื่อยืนยัน Schema Integrity
-5. ติดตาม MAPS_CACHE ขนาด — อาจเกิน 50,000 แถวหลังใช้งาน 6 เดือน
+5. ~~ติดตาม MAPS_CACHE ขนาด~~ — **RESOLVED ใน V5.5.013**: MAPS_CACHE sheet ถูกลบออกแล้ว (ใช้ @customFunction formulas ของ Amit Agarwal แทน)
 
 ---
 
@@ -37,7 +37,7 @@
 
 **Execution Safety (95%)** — Time Guard ครบ, try-catch ครอบทุก entry point, Auto-resume ทำงาน; หัก 5% เนื่องจาก `_MAPS_SHEET_HIT_DIRTY` ยังไม่มี flush ใน finally block และบางฟังก์ชันใช้ manual time check แทน centralized `hasTimePassed_()`
 
-**Data Integrity (95%)** — หัก 5% เนื่องจาก MAPS_CACHE เติบโตไม่จำกัด (ไม่มี TTL-based cleanup) และ `_GLOBAL_GEO_DICT_CACHE` โหลดทั้งชีต (~10,000 แถว) ทุกครั้งที่ cache หมดอายุ ซึ่งอาจทำให้ memory usage สูงเกินไปเมื่อข้อมูลเพิ่มขึ้น
+**Data Integrity (95%)** — เดิมหัก 5% เนื่องจาก MAPS_CACHE เติบโตไม่จำกัด และ `_GLOBAL_GEO_DICT_CACHE` โหลดทั้งชีต (~10,000 แถว) ทุกครั้งที่ cache หมดอายุ — **ปัจจุบัน V5.5.013 ได้ลบ MAPS_CACHE sheet ออกแล้ว** (ใช้ @customFunction formulas แทน) คงเหลือเพียงข้อที่ 2 ที่ยังเป็น residual concern
 
 **Security & Secret Management (90%)** — หัก 10% เนื่องจาก: (1) ยังไม่มี rate limiting สำหรับ API calls, (2) `LMDS_ADMINS` ยังไม่บังคับ — ถ้าไม่ตั้งค่าระบบจะปล่อยผ่านทุกคน, (3) Cookie ยังเก็บเป็น plain text ใน PropertiesService (ไม่ได้ encrypt)
 
@@ -71,7 +71,7 @@
 | 1 | **Single Writer Pattern** (M_ALIAS) | ✅ PASS | เฉพาะ `autoEnrichAliasesFromFactBatch_()` (10_MatchEngine.gs L299) เขียน M_ALIAS ใน Auto Pipeline. Admin path: `createGlobalAlias()` (ADMIN_MERGE_ACT), `flushGlobalAliasRows_()` (Hardening), `migrateEntityAliasToGlobalBatch_()` (Migration) |
 | 2 | **Trinity Framework** (Person+Place+Geo → Dest) | ✅ PASS | `09_DestinationService.gs` L71: `if (!personId \|\| !placeId \|\| !geoId)` — ตรวจ Trinity ครบก่อนสร้าง Destination |
 | 3 | **Group 1/Group 2 Separation** | ✅ PASS | Group 1 (05-10, 16, 20, 21): Master DB operations. Group 2 (04, 11-13, 15, 17, 18): Daily Ops. Group 2 อ่าน Master ผ่าน resolver functions เท่านั้น |
-| 4 | **3-Layer Cache** (RAM → Sheet → API) | ✅ PASS | `15_GoogleMapsAPI.gs` L175: `cachedGeoLookup_()` — RAM Cache (CacheService) → Sheet Cache (MAPS_CACHE) → Google Maps API + Retry |
+| 4 | **3-Layer Cache** (RAM → CacheService → API) | ✅ PASS | `15_GoogleMapsAPI.gs` (V5.5.013 rewrite): @customFunction formulas (GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG, GOOGLEMAPS_ADDRESS, GOOGLEMAPS_REVERSEGEOCODE, GOOGLEMAPS_COUNTRY, GOOGLEMAPS_DIRECTIONS) + CacheService 6 ชม. — ไม่ใช้ Sheet Cache แล้ว (ลบ MAPS_CACHE) |
 | 5 | **Hybrid Alias Architecture** | ✅ PASS | `21_AliasService.gs`: M_ALIAS ตารางกลาง + M_PERSON_ALIAS/M_PLACE_ALIAS entity-specific views. Read path: `fastLookupByShipToName()` (Tier 0) → `resolvePerson()` (Tier 1) |
 | 6 | **Checkpoint Resume** | ✅ PASS | `saveMigrationCheckpoint_()`/`loadMigrationCheckpoint_()` (21_AliasService.gs L1128-1148), `installAutoResume_()`/`removeAutoResume_()` (10_MatchEngine.gs L1132-1143) |
 | 7 | **Batch Operations** | ✅ PASS | ทุก write operation ใช้ `setValues()` ไม่ใช้ `setValue()` ใน loop. Batch stats: `batchUpdateEntityStats_()` (14_Utils.gs L633) |
@@ -119,7 +119,7 @@
 
 | # | ความเสี่ยง | ระดับ | รายละเอียด | ข้อเสนอแนะ |
 |---|-----------|-------|------------|------------|
-| R-01 | MAPS_CACHE เติบโตไม่จำกัด | 🟡 MEDIUM | ไม่มีการลบแถวเก่าใน MAPS_CACHE อัตโนมัติ — เมื่อใช้งาน 6+ เดือนอาจมี > 50,000 แถว ทำให้ `_loadSheetCache_()` ช้า | เพิ่ม TTL-based cleanup หรือ limit จำนวนแถวสูงสุด |
+| R-01 | ~~MAPS_CACHE เติบโตไม่จำกัด~~ ✅ RESOLVED V5.5.013 | 🟢 RESOLVED | MAPS_CACHE sheet ถูกลบออกใน V5.5.013 (ใช้ @customFunction formulas ของ Amit Agarwal แทน) — ไม่มี cache sheet growth อีกต่อไป | — |
 | R-02 | `_GLOBAL_GEO_DICT_CACHE` โหลดทั้งชีต | 🟡 MEDIUM | `loadCachedGeoRows_()` ใน 16_GeoDictionaryBuilder.gs โหลด ~10,000 แถวทุกครั้งที่ cache หมดอายุ — อาจทำให้ memory usage สูง | พิจารณาแบ่งเป็น regional chunks |
 | R-03 | CacheService 100KB limit | 🟢 LOW | `saveChunkedCache_()` จัดการแล้ว แต่เมื่อข้อมูลเติบโตมาก จำนวน chunks จะเพิ่มขึ้น → API calls เพิ่ม | ติดตามจำนวน chunks ใน log |
 | R-04 | `findPersonCandidates()` full scan fallback | 🟢 LOW | เมื่อ Inverted Index ไม่มี (execution แรก) จะใช้ O(N) scan | สร้าง index ล่วงหน้าใน `loadAllPersons_()` |
@@ -308,8 +308,7 @@
 | รายการ | ช่วงเวลา | วิธีการ |
 |--------|---------|---------|
 | SYS_LOG Error entries | สัปดาห์แรก | ตรวจสอบทุกวัน |
-| MAPS_CACHE จำนวนแถว | เดือนแรก | ตรวจสอบทุกสัปดาห์ |
-| Cache hit ratio | เดือนแรก | ตรวจสอบ MAPS_CACHE hit_count column |
+| Cache hit ratio | เดือนแรก | ตรวจสอบ CacheService entries (ผ่าน @customFunction behavior) |
 | Migration resume count | ระหว่าง Migration | ตรวจสอบ PropertiesService checkpoint |
 | Auto-resume trigger ทำงาน | สัปดาห์แรก | ตรวจสอบ Trigger page |
 
@@ -323,8 +322,8 @@
 |--------|------|----------------------|----------|
 | Group 0 (Core) | 00_App, 01_Config, 02_Schema, 03_SetupSheets, 14_Utils, 19_Hardening | ~3,987 | ~83 |
 | Group 1 (Master DB) | 05_NormalizeService, 06_PersonService, 07_PlaceService, 08_GeoService, 09_DestinationService, 10_MatchEngine, 16_GeoDictionaryBuilder, 20_ThGeoService, 21_AliasService | ~6,225 | ~156 |
-| Group 2 (Daily Ops) | 04_SourceRepository, 11_TransactionService, 12_ReviewService, 13_ReportService, 15_GoogleMapsAPI, 17_SearchService, 18_ServiceSCG | ~3,540 | ~72 |
-| **รวม** | **22 ไฟล์** | **~16,200** | **313** |
+| Group 2 (Daily Ops) | 04_SourceRepository, 11_TransactionService, 12_ReviewService, 13_ReportService, 15_GoogleMapsAPI, 17_SearchService, 18_ServiceSCG | ~3,540 | ~70 |
+| **รวม** | **22 ไฟล์** | **~16,355** | **311** |
 
 #### 8.2 Version History
 
@@ -338,6 +337,8 @@
 | V5.5.006 | 2026-06-15 | Consistency Sync (doc-only) | 28 doc inconsistencies fixed |
 | V5.5.007 | 2026-06-18 | CACHE FIX (P0+P1) | 9 cache issues (4 P0 + 5 P1) |
 | V5.5.011 | 2026-06-18 | CACHE CLEANUP (P2) | 6 cache cleanup issues |
+| V5.5.012 | 2026-06-19 | ANTIPATTERN FIX + DOC SYNC | 3 antipattern + 2 doc fixes |
+| V5.5.013 | 2026-06-19 | GOOGLE MAPS REFACTOR | ลบ MAPS_CACHE sheet + ฟังก์ชันเก่า 9 ตัว, เพิ่มสูตร Amit Agarwal 7 ตัว (@customFunction) |
 
 #### 8.3 Test Coverage Summary
 
@@ -371,7 +372,7 @@
 
 | Priority | รายการ | เหตุผล |
 |----------|--------|--------|
-| High | เพิ่ม MAPS_CACHE TTL-based cleanup | ป้องกันตารางเติบโตไม่จำกัด (R-01) |
+| High | ~~เพิ่ม MAPS_CACHE TTL-based cleanup~~ ✅ RESOLVED V5.5.013 | MAPS_CACHE sheet ถูกลบออกแล้ว |
 | High | เปลี่ยน LMDS_ADMINS เป็นบังคับ | เพิ่มความปลอดภัย (R-07) |
 | Medium | เพิ่ม Migration Time Limit เป็น 25 นาที | ลดจำนวนครั้งที่ต้อง resume (R-05) |
 | Medium | ลบ deprecated wrappers | ลดความสับสน (R-06) |
@@ -386,7 +387,7 @@
 |------|---------|---------|------------------|----------------------|
 | Architecture Integrity | 100/100 | × 0.20 | 20.00 | −3: Dependency Map header ไม่อัปเดตบางไฟล์; −2: ReviewService ยังเรียก Group 1 CRUD ในบางกรณี |
 | Execution Safety | 95/100 | × 0.20 | 19.00 | −5: runLookupEnrichment/generatePersonAliasesFromHistory ใช้ manual time check; −3: _MAPS_SHEET_HIT_DIRTY ไม่ flush ใน finally |
-| Data Integrity | 95/100 | × 0.25 | 23.75 | −3: MAPS_CACHE เติบโตไม่จำกัด; −2: _GLOBAL_GEO_DICT_CACHE โหลดทั้งชีต |
+| Data Integrity | 95/100 | × 0.25 | 23.75 | ~~−3: MAPS_CACHE เติบโตไม่จำกัด~~ RESOLVED V5.5.013; −2: _GLOBAL_GEO_DICT_CACHE โหลดทั้งชีต |
 | Security & Secret Management | 90/100 | × 0.20 | 18.00 | −5: ไม่มี rate limiting; −3: LMDS_ADMINS ไม่บังคับ; −2: Cookie เก็บ plain text |
 | Clean Code Compliance | 100/100 | × 0.15 | 15.00 | 16/16 COMPLIANT |
 | **รวม** | | **1.00** | **95.75** | **คะแนนรวม: 95%** |
@@ -427,6 +428,6 @@
 
 **ผู้ประเมิน:** Automated Assessment System
 **วันที่ประเมิน:** 2026-06-12
-**เวอร์ชันโค้ด:** V5.5.012 (post-ANTIPATTERN-FIX; original V5.5.004)
+**เวอร์ชันโค้ด:** V5.5.013 (post-GOOGLE-MAPS-REFACTOR; original V5.5.004)
 **เวอร์ชันเอกสาร:** 1.0
 **อ้างอิง:** LMDS_V5.5_VERIFY_REFACTOR_FIX_Report.md

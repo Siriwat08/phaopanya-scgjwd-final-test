@@ -457,14 +457,13 @@ ADMIN มีบทบาทหลักในการ:
 | 10 | SCGนครหลวงJWDภูมิภาค | Raw | ข้อมูลดิบจากคนขับ |
 | 11 | ตารางงานประจำวัน | Daily | งานประจำวันจาก SCG API |
 | 12 | SYS_TH_GEO | System | ข้อมูลภูมิศาสตร์ไทย (7,537 แถว) |
-| 13 | MAPS_CACHE | System | แคช Geocoding |
-| 14 | SYS_LOG | System | บันทึกระบบ |
-| 15 | SYS_CONFIG | System | การตั้งค่าระบบ |
-| 16 | ข้อมูลพนักงาน | Daily | ข้อมูลพนักงาน |
-| 17 | Input | System | Cookie + ShipmentNos |
-| 18 | สรุป_เจ้าของสินค้า | Daily | สรุปตามเจ้าของ |
-| 19 | สรุป_Shipment | Daily | สรุปตาม Shipment |
-| 20 | RPT_DATA_QUALITY | System | รายงานคุณภาพข้อมูล |
+| 13 | SYS_LOG | System | บันทึกระบบ |
+| 14 | SYS_CONFIG | System | การตั้งค่าระบบ |
+| 15 | ข้อมูลพนักงาน | Daily | ข้อมูลพนักงาน |
+| 16 | Input | System | Cookie + ShipmentNos |
+| 17 | สรุป_เจ้าของสินค้า | Daily | สรุปตามเจ้าของ |
+| 18 | สรุป_Shipment | Daily | สรุปตาม Shipment |
+| 19 | RPT_DATA_QUALITY | System | รายงานคุณภาพข้อมูล |
 
 ### 12.2 การติดต่อทีมสนับสนุน
 
@@ -479,8 +478,8 @@ ADMIN มีบทบาทหลักในการ:
 
 > **เอกสารฉบับนี้จัดทำสำหรับ ADMIN ของระบบ LMDS V5.5**
 >
-> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.012) | **วันที่:** มิถุนายน 2569
+> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.013) | **วันที่:** มิถุนายน 2569
 >
-> **หมายเหตุ:** ข้อมูลในเอกสารนี้อ้างอิงจากโค้ดจริงใน Repository (APP_VERSION = 5.5.012) ซึ่งตรงกันกับ LMDS_System_Guide.md แล้ว ระบบ Search Service ใช้ 2 Tier เท่านั้น (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — ไม่ใช่ 6 Tier ตาม Guide ฉบับเก่าที่ถูกลบออกไปแล้ว
+> **หมายเหตุ:** ข้อมูลในเอกสารนี้อ้างอิงจากโค้ดจริงใน Repository (APP_VERSION = 5.5.013) ซึ่งตรงกันกับ LMDS_System_Guide.md แล้ว ระบบ Search Service ใช้ 2 Tier เท่านั้น (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — ไม่ใช่ 6 Tier ตาม Guide ฉบับเก่าที่ถูกลบออกไปแล้ว
 >
-> **สถิติระบบ:** ฟังก์ชัน 313 | บรรทัดโค้ด ~16,200 | IDX sets 17 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)
+> **สถิติระบบ:** ฟังก์ชัน 311 | บรรทัดโค้ด ~16,355 | IDX sets 16 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)

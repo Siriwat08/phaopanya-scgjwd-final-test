@@ -1,545 +1,377 @@
 /**
- * VERSION: 5.5.012
+ * VERSION: 5.5.013
  * FILE: 15_GoogleMapsAPI.gs
- * LMDS V5.5 — Google Maps API Service (Hybrid Cache)
+ * LMDS V5.5 — Google Maps Custom Functions (@customFunction)
  * ===================================================
  * PURPOSE:
- *   ให้บริการ Geocoding (ที่อยู่ → พิกัด) และ Reverse Geocoding (พิกัด → ที่อยู่)
- *   พร้อมระบบแคช 3 ชั้น: RAM Cache → Sheet Cache → Google Maps API
- *   รองรับการดึงข้อมูลจังหวัด/อำเภอจากพิกัด เพื่อใช้ในระบบ Enrichment
+ *   ให้บริการสูตร Google Maps สำหรับพิมพ์ใน Google Sheet โดยตรง
+ *   สูตรทั้งหมดมี @customFunction annotation → พิมพ์ในเซลล์ได้เลย
+ *   มีระบบ Cache (CacheService 6 ชม.) เพื่อลดการเรียก API
+ *
+ *   ต้นฉบับ: Amit Agarwal — https://labnol.org/google-maps-formulas-for-sheets-200817
+ *   ปรับใช้ใน LMDS V5.5.013 — ลบระบบ 3-layer cache + MAPS_CACHE sheet ออก
+ *   เพราะระบบ LMDS ไม่ได้เรียก Google Maps API ผ่าน code อีกต่อไป
+ *   (DIST_FROM_WH และ RESOLVED_ADDR มาจาก AppSheet ที่ผู้ใช้ทำไว้แล้ว)
  * ===================================================
- *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
- *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
- *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
- *       17_SearchService ส่ง normResult เข้า resolvePerson แทน cleanName (ลด normalize ซ้อน)
- *     - [FIX #4] reprocessReviewQueue ใช้ REVIEW_IDX/FACT_IDX constants แทน headers.indexOf()
- *       ปฏิบัติตาม Single Source of Truth rule
- *     - [FIX #5] validateConfig เรียก validateSchemaConsistency เพิ่ม — onOpen จับ SCHEMA drift ได้
- *     - [FIX #2] CHANGELOG sync — เพิ่ม v5.5.011 entry ในไฟล์ที่ยังไม่มี (20 ไฟล์)
- *     - [DOC] แก้ broken cross-references ใน README (ลบ reports/* และ LMDS_V5.5_COMPLETE_Audit_Report.md)
- *     - [DOC] Standardize function count = 313 ในเอกสาร .md
- *     - [DOC] อัปเดต DEPENDENCIES/ARCHITECTURE section ในไฟล์ที่แก้ (00, 01, 06, 12, 17)
- *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX:
- *     - [FIX] 02_Schema.gs เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] (37 cols) ที่ขาดหายไป
- *     - [FIX] 17_SearchService findBestGeoByPersonPlace ผ่าน normalizePersonNameFull ก่อนค้นหา
- *     - [ADD] 12_ReviewService buildRecommendedAction_ สร้าง ID สำหรับ Smart Navigation
- *     - [ADD] 00_App handleRecommendClick_ + navigateFromRecommend_ สำหรับ Q_REVIEW Nav
- *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
- *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
- *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
- *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
- *       Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม → fallback → 825KB > 100KB → "M_PLACE Cache เต็ม"
- *     - [FIX HOTFIX #3] loadAllPlaceAliases_ ลบ fallback path เดียวกัน — บังคับใช้ saveChunkedCache_
- *       Root cause: 312KB > 100KB → "M_PLACE_ALIAS Cache write error: อาร์กิวเมนต์มากเกินไป"
- *     - [ADD] รวม reprocessReviewQueue + analyzeReviewPatterns จาก 22_AccuracyPatch.gs เข้า 12_ReviewService.gs
- *       Auto-resolve Q_REVIEW 3 กลุ่ม: GEO_NEARBY_YELLOW+name, NEW_RECORD+Geo, FUZZY_MATCH 85+
- *   v5.5.009 (2026-06-18) — DOC SYNC:
- *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
- *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
- *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
- *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
- *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
- *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
- *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
- *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
- *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
- *     - [FIX P2 #12] ลบ redundant manual cache nulling ใน populateGeoMetadata ใช้ invalidate*Cache_* แทน
- *     - [FIX P2 #13] saveChunkedCache_ ล้าง orphaned chunks เมื่อขนาดข้อมูลลดลง (large→small)
- *     - [FIX P2 #14] getCachedDistricts_ write-back to cache on miss (consistent with getCachedProvinces_)
- *     - [CONFIRM P2 #15] TH_GEO_POSTCODE chunk size byte-based ใน primary path (V5.5.007 แก้แล้ว)
- *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
- *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
- *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
- *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
- *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
- *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
- *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
- *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
- *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
- *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
- *   v5.5.006 (2026-06-18) — Consistency Sync:
- *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
- *     - [SYNC] Documentation consistency: line count 13,831, function count 310
- *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
- *   v5.5.004 (2026-06-15) — full sync cycle:
- *     - [SYNC] All 22 files version bump 5.5.003 → 5.5.004
- *     - [SYNC] Documentation audit: 28 inconsistencies fixed
- *   v5.5.003 (2026-06-12) — post-REFACTOR sync:
- *     - [SYNC] Version header V5.4 → V5.5, VERSION → 5.5.003
- *     - [SYNC] CHANGELOG entries added for 5 Audit Cycles
- *   v5.5.002 (2026-06-11) — CRITICAL Fix Cycle (8 issues):
- *     - [FIX] CRIT-001 through CRIT-008 — see CRITICAL audit report
- *     - [FIX] RAM Cache, Safe Batching, Checkpoint+Resume enhancements
- *   v5.5.001 (2026-06-04) — 22-file bug fix + RAM Cache:
- *     - [FIX] 22 files updated — bug fixes per CRITICAL/PERFORMANCE audits
- *     - [ADD] RAM Cache layer (_SOURCE_ROWS_RAM_CACHE, _MAPS_SHEET_CACHE)
- *     - [ADD] SearchKey, safeUiAlert_, JSON.parse guard
- *   v5.5.001 (2026-06-05) — RAM Cache + Batch hit_count:
- *     - [FIX] getFromSheetCache_: เพิ่ม RAM cache layer (_MAPS_SHEET_CACHE) ไม่อ่านชีตทุกครั้ง
- *     - [FIX] getFromSheetCache_: batch hit_count updates แทน setValue ทุกครั้ง
- *     - [FIX] clearMapsCache / saveToSheetCache_: invalidate RAM cache เมื่อข้อมูลเปลี่ยน
- *   v5.4.001 (2026-05-24) — Single Writer Pattern:
- *     - [REVIEW] clearMapsCache: ต้องตรวจสอบ bug — keys จาก sheet อาจไม่ตรงกับ CacheService keys
- *   v5.4.000 (2026-05-23):
- *     - [UPGRADE] Version bump to 5.4.000
- *   v5.2.010:
- *     - [UPGRADE] อัปเกรดระบบเป็น 5.2.010
- *   v5.2.009:
- *     - [FIX] clearMapsCache: ดึงรายชื่อ Cache Key จากชีตก่อนลบ เพื่อลบ CacheService ได้ถูกต้อง
- *   v5.2.003:
- *     - [FIX] geocodeAddress: Normalize address ก่อน Hash + break ใน if(OK)
- *     - [FIX] reverseGeocode: เพิ่ม .setRegion('TH') + Cache รองรับ province/district
- *     - [FIX] getRouteDistanceKm: guard routes + legs ก่อนใช้
- *     - [FIX] Sheet Cache: ใช้ MC_* constants แทน hardcode + คืน province/district
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *     - [REWRITE] ลบฟังก์ชันเก่าทั้งหมด (geocodeAddress, reverseGeocode,
+ *       getRouteDistanceKm, cachedGeoLookup_, _loadSheetCache_, _flushHitCounts_,
+ *       getFromSheetCache_, saveToSheetCache_, clearMapsCache)
+ *       เหตุผล: ไม่มี caller ในระบบจริง (ไม่มีไฟล์ไหนเรียกเลย)
+ *     - [REMOVE] ลบ MAPS_CACHE sheet — ไม่ได้ใช้ใน pipeline อีกต่อไป
+ *     - [ADD] เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction:
+ *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
+ *       GOOGLEMAPS_ADDRESS, GOOGLEMAPS_REVERSEGEOCODE, GOOGLEMAPS_COUNTRY,
+ *       GOOGLEMAPS_DIRECTIONS
+ *     - [ADD] ระบบ Cache (CacheService.getDocumentCache 6 ชม.) ตามต้นฉบับ Amit
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
+ *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
+ *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
+ *       GOOGLEMAPS_ADDRESS, GOOGLEMAPS_REVERSEGEOCODE, GOOGLEMAPS_COUNTRY, GOOGLEMAPS_DIRECTIONS
+ *     - [REMOVE] ลบ MAPS_CACHE sheet จาก SCHEMA, SHEET, MAPS_CACHE_IDX, setupAllSheets
+ *     - [REMOVE] ลบฟังก์ชันเก่าที่ไม่มี caller: geocodeAddress, reverseGeocode,
+ *       getRouteDistanceKm, cachedGeoLookup_, _loadSheetCache_, _flushHitCounts_,
+ *       getFromSheetCache_, saveToSheetCache_, clearMapsCache
+ *     - เหตุผล: ระบบ LMDS ไม่ได้เรียก Google Maps API ผ่าน code แล้ว
+ *       DIST_FROM_WH และ RESOLVED_ADDR มาจาก AppSheet ที่ผู้ใช้ทำไว้แล้ว
+ *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
+ *     - [FIX] showVersionInfo, resolvePerson double normalization, reprocessReviewQueue
+ *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX
+ *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor integration
+ *   v5.5.009 (2026-06-18) — DOC SYNC
+ *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2)
+ *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1)
+ *   v5.5.006 (2026-06-18) — Consistency Sync
  * ===================================================
  * DEPENDENCIES:
  *   REQUIRES (Load Order):
- *     - 01_Config.gs          (SHEET.MAPS_CACHE, AI_CONFIG, APP_CONST)
- *     - 02_Schema.gs          (SCHEMA[SHEET.MAPS_CACHE])
- *     - 14_Utils.gs           (generateMd5Hash, isValidLatLng, parseLatLng)
- *     - 03_SetupSheets.gs     (logError, logInfo)
+ *     - 01_Config.gs          (AI_CONFIG.CACHE_TTL_SEC)
+ *     - 03_SetupSheets.gs     (logError — ใช้ใน GOOGLEMAPS_* เผื่อ error)
  *   CALLS (Invokes):
- *     - (Google Maps API via Maps.newGeocoder / Maps.newDirectionFinder)
+ *     - Google Maps API via Maps.newGeocoder / Maps.newDirectionFinder / Maps.newElevationSampler
  *   EXPORTS TO:
- *     - 08_GeoService.gs       (geocodeAddress, reverseGeocode)
- *     - 07_PlaceService.gs     (geocodeAddress — Geo enrichment)
- *     - 00_App.gs              (clearMapsCache — menu)
+ *     - Google Sheet users (พิมพ์สูตรในเซลล์ได้โดยตรง)
  *   SHEETS ACCESSED:
- *     - SHEET.MAPS_CACHE       (Read+Write: 3-layer cache, geocode/reverse results)
+ *     - (ไม่มี — ไม่ใช้ MAPS_CACHE sheet อีกต่อไป)
  * ===================================================
  * ARCHITECTURE:
  *   ┌─────────────────────────────────────────────────────────────┐
- *   │  15_GoogleMapsAPI.gs (Maps Service + Hybrid Cache)          │
- *   │  ├── geocodeAddress()   — Address → LatLng (3-layer cache) │
- *   │  │   ├── ชั้น 1: RAM Cache (CacheService)                    │
- *   │  │   ├── ชั้น 2: Sheet Cache (MAPS_CACHE)                   │
- *   │  │   └── ชั้น 3: Google Maps API + retry                    │
- *   │  ├── reverseGeocode()  — LatLng → Address (3-layer cache) │
- *   │  ├── getRouteDistanceKm() — Road distance between 2 points │
- *   │  ├── getFromSheetCache_()  — Read MAPS_CACHE               │
- *   │  ├── saveToSheetCache_()   — Write MAPS_CACHE              │
- *   │  └── clearMapsCache()      — Clear all cache layers        │
- *   │      └── [V5.5.008 P2 #10] calls _flushHitCounts_() BEFORE │
- *   │          clearing to persist _MAPS_SHEET_HIT_DIRTY →       │
- *   │          hit_count analytics (was lost on clear)           │
+ *   │  15_GoogleMapsAPI.gs (Amit Agarwal Custom Functions)        │
+ *   │  ├── Cache helpers: _mapsMd5, _mapsGetCache, _mapsSetCache │
+ *   │  ├── GOOGLEMAPS_DISTANCE()   — ระยะทางระหว่าง 2 จุด         │
+ *   │  ├── GOOGLEMAPS_DURATION()   — เวลาเดินทางระหว่าง 2 จุด     │
+ *   │  ├── GOOGLEMAPS_LATLONG()    — ที่อยู่ → lat,lng             │
+ *   │  ├── GOOGLEMAPS_ADDRESS()    — รหัสไปรษณีย์/ที่อยู่บางส่วน → ที่อยู่เต็ม │
+ *   │  ├── GOOGLEMAPS_REVERSEGEOCODE() — lat,lng → ที่อยู่         │
+ *   │  ├── GOOGLEMAPS_COUNTRY()    — ที่อยู่ → ประเทศ               │
+ *   │  └── GOOGLEMAPS_DIRECTIONS() — เส้นทางขับขี่ระหว่าง 2 จุด     │
  *   └─────────────────────────────────────────────────────────────┘
  * ===================================================
  */
 
 // ============================================================
-// SECTION 1: SCHEMA Index สำหรับ MAPS_CACHE
+// SECTION 1: Cache Helpers (ตามต้นฉบับ Amit Agarwal)
+// ใช้ CacheService.getDocumentCache — TTL 6 ชม.
 // ============================================================
 
-// MAPS_CACHE columns — ดู MAPS_CACHE_IDX ใน 01_Config.gs
-// [FIX v5.4.003] MC_* constants ถูกแทนที่ด้วย MAPS_CACHE_IDX.*
-// MC_KEY  → MAPS_CACHE_IDX.KEY  (0)
-// MC_LAT  → MAPS_CACHE_IDX.LAT  (2)
-// MC_LNG  → MAPS_CACHE_IDX.LNG  (3)
-// MC_ADDR → MAPS_CACHE_IDX.ADDR (4)
-// MC_HIT  → MAPS_CACHE_IDX.HIT  (7)
-// MC_PROV → MAPS_CACHE_IDX.PROV_NAME (8)
-// MC_DIST → MAPS_CACHE_IDX.DIST_NAME (9)
-
-// [FIX v5.5.001] RAM Cache Layer — ไม่อ่าน MAPS_CACHE sheet ทุกครั้ง
-let _MAPS_SHEET_CACHE = null;       // Map: cacheKey → {rowIdx, lat, lng, resolvedAddr, province, district, hitCount}
-let _MAPS_SHEET_HIT_DIRTY = null;   // Map: cacheKey → pending hit_count increment
+/**
+ * _mapsMd5 — สร้าง MD5 hash สำหรับ cache key
+ * ทำให้ "New York" และ "new york  " มี key เดียวกัน
+ */
+const _mapsMd5 = (key = "") => {
+  const code = key.toLowerCase().replace(/\s/g, "");
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, code)
+    .map((char) => (char + 256).toString(16).slice(-2))
+    .join("");
+};
 
 /**
- * _loadSheetCache_ — โหลด MAPS_CACHE sheet ลง _MAPS_SHEET_CACHE ทั้งหมด (ครั้งเดียว)
- * [NEW v5.5.001]
+ * _mapsGetCache — อ่านจาก cache
  */
-function _loadSheetCache_() {
-  if (_MAPS_SHEET_CACHE !== null) return; // โหลดแล้ว ข้าม
-
-  // [FIX B6 v5.5.002] กำหนดค่า Map ก่อน try — ถ้า sheet read พัง จะได้มี empty Map เป็น fallback
-  _MAPS_SHEET_CACHE = new Map();
-  _MAPS_SHEET_HIT_DIRTY = new Map();
-
+const _mapsGetCache = (key) => {
   try {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET.MAPS_CACHE);
-
-  if (!sheet || sheet.getLastRow() < 2) return;
-
-  const totalCols = SCHEMA[SHEET.MAPS_CACHE].length;
-  const data      = sheet.getRange(2, 1, sheet.getLastRow() - 1, totalCols).getValues();
-
-  for (let i = 0; i < data.length; i++) {
-    const key = String(data[i][MAPS_CACHE_IDX.KEY]).trim();
-    if (!key) continue;
-    _MAPS_SHEET_CACHE.set(key, {
-      rowIdx:       i,
-      lat:          Number(data[i][MAPS_CACHE_IDX.LAT])  || 0,
-      lng:          Number(data[i][MAPS_CACHE_IDX.LNG])  || 0,
-      resolvedAddr: String(data[i][MAPS_CACHE_IDX.ADDR]) || '',
-      province:     String(data[i][MAPS_CACHE_IDX.PROV_NAME]) || '',
-      district:     String(data[i][MAPS_CACHE_IDX.DIST_NAME]) || '',
-      hitCount:     Number(data[i][MAPS_CACHE_IDX.HIT] || 0),
-    });
-  }
+    return CacheService.getDocumentCache().get(_mapsMd5(key));
   } catch (e) {
-    logError('MapsAPI', '_loadSheetCache_ ล้มเหลว: ' + e.message, e);
-    // _MAPS_SHEET_CACHE เป็น empty Map — fallback ไปใช้ API โดยตรง
-  }
-}
-
-/**
- * _flushHitCounts_ — เขียน hit_count ที่สะสมไว้ลงชีต (batch)
- * [FIX B1 v5.5.002] ใช้ range read+write 1 ครั้ง แทน N× setValue
- */
-function _flushHitCounts_() {
-  if (!_MAPS_SHEET_HIT_DIRTY || _MAPS_SHEET_HIT_DIRTY.size === 0) return;
-  if (!_MAPS_SHEET_CACHE || _MAPS_SHEET_CACHE.size === 0) return;
-
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET.MAPS_CACHE);
-  if (!sheet) return;
-
-  const hitCol    = MAPS_CACHE_IDX.HIT + 1;
-
-  // [FIX B1] Batch approach: อ่าน hit column range → update in RAM → setValues 1 ครั้ง
-  const rowNumbers = Array.from(_MAPS_SHEET_HIT_DIRTY.keys())
-    .map(k => _MAPS_SHEET_CACHE.get(k))
-    .filter(e => e != null)
-    .map(e => e.rowIdx + 2);
-
-  if (rowNumbers.length === 0) { _MAPS_SHEET_HIT_DIRTY.clear(); return; }
-
-  // [FIX B3 v5.5.002] ใช้ reduce() แทน Math.min/max(...spread) — ป้องกัน stack overflow เมื่อ MAPS_CACHE ใหญ่
-  const minRow = rowNumbers.reduce((a, b) => a < b ? a : b);
-  const maxRow = rowNumbers.reduce((a, b) => a > b ? a : b);
-
-  const range = sheet.getRange(minRow, hitCol, maxRow - minRow + 1, 1);
-  const vals  = range.getValues(); // 1 read
-
-  _MAPS_SHEET_HIT_DIRTY.forEach((increment, cacheKey) => {
-    const entry = _MAPS_SHEET_CACHE.get(cacheKey);
-    if (!entry) return;
-    const offsetRow = entry.rowIdx + 2 - minRow;
-    if (offsetRow >= 0 && offsetRow < vals.length) {
-      vals[offsetRow][0] = entry.hitCount;
-    }
-  });
-
-  range.setValues(vals); // 1 write
-  _MAPS_SHEET_HIT_DIRTY.clear();
-}
-
-// ============================================================
-// SECTION 2: 3-Layer Cache Pattern — Generic Helper
-// [REF-016] Extracted common RAM→Sheet→API pattern
-// ============================================================
-
-/**
- * cachedGeoLookup_ — [REF-016] Generic 3-layer cache lookup for geocoding operations
- * Implements: RAM Cache → Sheet Cache → API Call with Retry → Save to both caches
- * @param {string} cacheKey - Cache key for RAM + Sheet lookup
- * @param {string} inputAddr - Original input string (for Sheet Cache storage)
- * @param {Function} apiCallFn - Function that returns result object on success, null on non-OK status
- *   (should throw on API exception to trigger retry)
- * @param {string} callerName - Name for logging (e.g. 'geocodeAddress')
- * @return {Object|null} Result object or null
- */
-function cachedGeoLookup_(cacheKey, inputAddr, apiCallFn, callerName) {
-  // [FIX B7/B8 v5.5.002] outer try-catch — cache read error must fallback to API, not crash
-  try {
-  // Layer 1: RAM Cache
-  const ramCache  = CacheService.getScriptCache();
-  const ramCached = ramCache.get(cacheKey);
-  if (ramCached) {
-    try { return JSON.parse(ramCached); } catch(e) { logDebug('MapsAPI', callerName + ' RAM cache parse error: ' + e.message); }
-  }
-
-  // Layer 2: Sheet Cache
-  const sheetResult = getFromSheetCache_(cacheKey);
-  if (sheetResult) {
-    ramCache.put(cacheKey, JSON.stringify(sheetResult), AI_CONFIG.CACHE_TTL_SEC);
-    return sheetResult;
-  }
-
-  // Layer 3: API Call with Retry
-  let result  = null;
-  let retries = 0;
-
-  while (retries < APP_CONST.MAX_RETRIES) {
-    try {
-      result = apiCallFn();
-      if (result) break; // Non-null = success (API returned OK status)
-      // null = non-OK status → retry
-      retries++;
-      if (retries < APP_CONST.MAX_RETRIES) Utilities.sleep(1000 * retries);
-
-    } catch (apiErr) {
-      retries++;
-      if (retries < APP_CONST.MAX_RETRIES) {
-        Utilities.sleep(1000 * retries);
-      } else {
-        logError('MapsAPI', callerName + ' ล้มเหลว: ' + apiErr.message, apiErr);
-      }
-    }
-  }
-
-  if (result) {
-    ramCache.put(cacheKey, JSON.stringify(result), AI_CONFIG.CACHE_TTL_SEC);
-    saveToSheetCache_(cacheKey, inputAddr, result);
-  }
-
-  return result;
-
-  } catch (e) {
-    logError('MapsAPI', callerName + ' ล้มเหลว (outer): ' + e.message, e);
     return null;
   }
-}
-
-// ============================================================
-// SECTION 2a: geocodeAddress — Address → LatLng
-// [REF-016] Now a thin wrapper around cachedGeoLookup_
-// ============================================================
+};
 
 /**
- * geocodeAddress — แปลงที่อยู่เป็นพิกัด GPS
- * [FIX v003] Normalize address ก่อน Hash
- * [FIX v003] break อยู่ใน if(OK) ป้องกัน break แม้ API ล้มเหลว
- * [REF-016] Refactored to use cachedGeoLookup_ — preserves all behavior
+ * _mapsSetCache — เขียนลง cache (TTL 6 ชม.)
  */
-function geocodeAddress(address) {
-  if (!address || String(address).trim().length < 5) return null;
-
-  // [FIX v003] Normalize ก่อน Hash → "บางนา กรุงเทพ" = "บางนา,กรุงเทพ"
-  const normalizedAddr = String(address).trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-  const cacheKey = 'GEO_' + generateMd5Hash(normalizedAddr);
-
-  return cachedGeoLookup_(cacheKey, String(address).trim(), function() {
-    const geoResult = Maps.newGeocoder()
-                          .setLanguage('th')
-                          .setRegion('TH')
-                          .geocode(String(address).trim());
-
-    // [FIX v003] break อยู่ใน if(OK) → return result only if status OK
-    if (geoResult.status === 'OK' && geoResult.results.length > 0) {
-      const loc        = geoResult.results[0].geometry.location;
-      const components = geoResult.results[0].address_components || [];
-      return {
-        lat:          loc.lat,
-        lng:          loc.lng,
-        resolvedAddr: geoResult.results[0].formatted_address || '',
-        province:     extractAddrComponent_(components, 'administrative_area_level_1'),
-        district:     extractAddrComponent_(components, 'administrative_area_level_2'),
-      };
-    }
-    return null; // Non-OK status → will retry in cachedGeoLookup_
-  }, 'geocodeAddress');
-}
-
-// ============================================================
-// SECTION 2b: reverseGeocode — LatLng → Address
-// [REF-016] Now a thin wrapper around cachedGeoLookup_
-// ============================================================
-
-/**
- * reverseGeocode — แปลงพิกัด GPS เป็นที่อยู่
- * [FIX v003] เพิ่ม .setRegion('TH')
- * [FIX v003] Cache schema รองรับ province/district
- * [REF-016] Refactored to use cachedGeoLookup_ — preserves all behavior
- */
-function reverseGeocode(lat, lng) {
-  if (!isValidLatLng(lat, lng)) return null;
-
-  const cacheKey = 'RGEO_' + generateMd5Hash(`${lat},${lng}`);
-
-  return cachedGeoLookup_(cacheKey, `${lat},${lng}`, function() {
-    // [FIX v003] เพิ่ม .setRegion('TH') ป้องกัน format ต่างประเทศ
-    const geoResult = Maps.newGeocoder()
-                          .setLanguage('th')
-                          .setRegion('TH')
-                          .reverseGeocode(lat, lng);
-
-    if (geoResult.status === 'OK' && geoResult.results.length > 0) {
-      const components = geoResult.results[0].address_components || [];
-      return {
-        resolvedAddr: geoResult.results[0].formatted_address || '',
-        province:     extractAddrComponent_(components, 'administrative_area_level_1'),
-        district:     extractAddrComponent_(components, 'administrative_area_level_2'),
-        lat:          lat,
-        lng:          lng,
-      };
-    }
-    return null; // Non-OK status → will retry in cachedGeoLookup_
-  }, 'reverseGeocode');
-}
-
-/**
- * extractAddrComponent_ — ดึงค่าจาก Address Component
- */
-function extractAddrComponent_(components, typeName) {
-  const comp = components.find(c => c.types && c.types.includes(typeName));
-  if (!comp) return '';
-  // ใช้ long_name ก่อน fallback short_name
-  return comp.long_name || comp.short_name || '';
-}
-
-// ============================================================
-// SECTION 4: getRouteDistanceKm
-// ============================================================
-
-/**
- * getRouteDistanceKm — ระยะทางบนถนนจริง
- * [FIX v003] guard legs ก่อนใช้
- * [NOTE] ใช้ Maps Directions API Quota สูง — อย่ารันใน Loop
- */
-function getRouteDistanceKm(originAddr, destAddr) {
+const _mapsSetCache = (key, value) => {
   try {
-    const directions = Maps.newDirectionFinder()
-      .setOrigin(originAddr)
-      .setDestination(destAddr)
-      .setMode(Maps.DirectionFinder.Mode.DRIVING)
-      .getDirections();
-
-    if (directions.status !== 'OK') return -1;
-
-    // [FIX v003] guard routes + legs ก่อนใช้
-    const routes = directions.routes;
-    if (!routes || routes.length === 0) return -1;
-
-    const legs = routes[0].legs;
-    if (!legs || legs.length === 0) return -1;
-
-    const totalMeters = legs.reduce((sum, leg) => sum + (leg.distance.value || 0), 0);
-    return Math.round(totalMeters / 100) / 10;
-
-  } catch (err) {
-    logError('MapsAPI', `getRouteDistanceKm ล้มเหลว: ${err.message}`, err);
-    return -1;
-  }
-}
-
-// ============================================================
-// SECTION 5: Sheet Cache — Persistent Storage
-// ============================================================
-
-/**
- * getFromSheetCache_ — ดึงข้อมูลจาก MAPS_CACHE Sheet
- * [FIX v5.5.001] ใช้ RAM cache layer ไม่อ่านชีตทุกครั้ง
- * [FIX v5.5.001] batch hit_count updates แทน setValue ทุกครั้ง
- * [FIX v003] ใช้ MAPS_CACHE_IDX constants แทน hardcode index
- * [FIX v003] คืน province + district ด้วย
- */
-function getFromSheetCache_(cacheKey) {
-  _loadSheetCache_(); // โหลด RAM cache ถ้ายังไม่ได้โหลด
-
-  const entry = _MAPS_SHEET_CACHE.get(cacheKey);
-  if (!entry) return null;
-
-  // [FIX v5.5.001] สะสม hit_count ใน memory แทน setValue ทุกครั้ง
-  entry.hitCount++;
-  _MAPS_SHEET_HIT_DIRTY.set(cacheKey, (_MAPS_SHEET_HIT_DIRTY.get(cacheKey) || 0) + 1);
-
-  return {
-    lat:          entry.lat,
-    lng:          entry.lng,
-    resolvedAddr: entry.resolvedAddr,
-    province:     entry.province,
-    district:     entry.district,
-  };
-}
-
-/**
- * saveToSheetCache_ — บันทึกผลลง MAPS_CACHE Sheet
- * [FIX v5.5.001] flush dirty hit_counts ก่อนเขียน + update RAM cache
- * [FIX v003] เพิ่ม province + district ใน row
- */
-function saveToSheetCache_(cacheKey, inputAddr, result) {
-  try {
-    const ss    = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET.MAPS_CACHE);
-    if (!sheet) return;
-
-    // [FIX v5.5.001] flush dirty hit_counts ก่อนเขียน row ใหม่
-    _flushHitCounts_();
-
-    // [FIX LAW-04 v5.4.003] ใช้ getRange+setValues แทน appendRow เพื่อความเสถียร
-    const newRow = [[
-      cacheKey,
-      inputAddr,
-      result.lat          || 0,
-      result.lng          || 0,
-      result.resolvedAddr || '',
-      'maps_api',
-      new Date(),
-      1,
-      result.province     || '',  // [FIX v003] col [8]
-      result.district     || '',  // [FIX v003] col [9]
-    ]];
-    const lastRow = sheet.getLastRow();
-    sheet.getRange(lastRow + 1, 1, 1, newRow[0].length).setValues(newRow);
-
-    // [FIX v5.5.001] update RAM cache ด้วย row ใหม่
-    if (_MAPS_SHEET_CACHE !== null) {
-      _MAPS_SHEET_CACHE.set(cacheKey, {
-        rowIdx:       lastRow - 1, // 0-based index (row 2 = index 0)
-        lat:          result.lat          || 0,
-        lng:          result.lng          || 0,
-        resolvedAddr: result.resolvedAddr || '',
-        province:     result.province     || '',
-        district:     result.district     || '',
-        hitCount:     1,
-      });
-    }
-  } catch (err) {
-    logError('MapsAPI', `saveToSheetCache_ ล้มเหลว: ${err.message}`, err);
-  }
-}
-
-/**
- * clearMapsCache — ล้าง MAPS_CACHE Sheet และ RAM Cache ทั้งหมด
- * [FIX v5.5.001] invalidate RAM cache เมื่อล้างข้อมูล
- * [FIX v5.5.008 P2 #10] flush pending hit_count ก่อนล้าง เพื่อรักษา analytics
- *   เดิม null _MAPS_SHEET_HIT_DIRTY เลย → pending hit_count increments หายเงียบๆ
- *   ตอนนี้เรียก _flushHitCounts_() ก่อน เพื่อ persist ค่า hit_count ลงชีต
- *   แม้ว่าจะ clear cache อยู่ ก็ยังเก็บ analytics สะสมไว้ในชีตก่อนลบ
- */
-function clearMapsCache() {
-  // [FIX B3 v5.5.002] เพิ่ม try-catch — menu entry point ต้องมี error handling
-  try {
-  // [FIX v5.5.008 P2 #10] flush pending hit counts ก่อนล้าง — รักษา analytics
-  //   ถ้าไม่ flush, hit_count ที่สะสมใน _MAPS_SHEET_HIT_DIRTY จะหายไปเงียบๆ
-  //   flush ที่นี่จะ persist ค่า hit_count ลง MAPS_CACHE sheet ก่อนที่จะลบแถวทิ้ง
-  //   (user อาจเลือกล้าง cache เพื่อ rebuild แต่ยังอยากเก็บ analytics สะสม)
-  try {
-    if (typeof _flushHitCounts_ === 'function') _flushHitCounts_();
-  } catch (flushErr) {
-    // ไม่บล็อกการ clear cache ถ้า flush ล้มเหลว
-    logWarn('MapsAPI', '_flushHitCounts_ ล้มเหลวก่อน clearMapsCache: ' + flushErr.message);
-  }
-
-  // [FIX v5.5.001] invalidate RAM cache layer
-  _MAPS_SHEET_CACHE = null;
-  _MAPS_SHEET_HIT_DIRTY = null;
-
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET.MAPS_CACHE);
-
-  if (sheet && sheet.getLastRow() > 1) {
-    // [FIX v5.2.009] ดึงรายชื่อ Cache Key ทั้งหมดจากชีตก่อนลบ เพื่อนำไปลบใน CacheService ได้ถูกต้อง
-    const keys = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().map(r => String(r[0] || '').trim()).filter(Boolean);
-    if (keys.length > 0) {
-      // ลบทีละ 200 keys เพื่อไม่ให้เกิน limit ของ CacheService.removeAll
-      const cache = CacheService.getScriptCache();
-      for (let i = 0; i < keys.length; i += 200) {
-        cache.removeAll(keys.slice(i, i + 200));
-      }
-    }
-    sheet.deleteRows(2, sheet.getLastRow() - 1);
-  }
-
-  logInfo('MapsAPI', 'ล้าง MAPS_CACHE เรียบร้อย (pending hit_count ถูก persist ก่อนล้าง)');
-
+    const expirationInSeconds = 6 * 60 * 60; // 6 hours
+    CacheService.getDocumentCache().put(_mapsMd5(key), value, expirationInSeconds);
   } catch (e) {
-    logError('MapsAPI', 'clearMapsCache ล้มเหลว: ' + e.message, e);
-    safeUiAlert_('เกิดข้อผิดพลาดในการล้าง Cache: ' + e.message);
+    // Cache write failure ไม่ควรบล็อกการทำงาน
   }
-}
+};
+
+
+// ============================================================
+// SECTION 2: @customFunction — สูตรสำหรับพิมพ์ใน Google Sheet
+// ============================================================
+
+/**
+ * GOOGLEMAPS_DISTANCE — คำนวณระยะทางระหว่าง 2 จุด
+ *
+ * ตัวอย่าง: =GOOGLEMAPS_DISTANCE("กรุงเทพ", "นนทบุรี", "driving")
+ *           =GOOGLEMAPS_DISTANCE(A1, B1, "driving")
+ *
+ * @param {String} origin ที่อยู่จุดเริ่มต้น
+ * @param {String} destination ที่อยู่ปลายทาง
+ * @param {String} mode โหมดการเดินทาง (driving, walking, bicycling, transit)
+ * @return {String} ระยะทาง (เช่น "15.2 km")
+ * @customFunction
+ */
+const GOOGLEMAPS_DISTANCE = (origin, destination, mode = "driving") => {
+  if (!origin || !destination) {
+    return "ต้องระบุจุดเริ่มต้นและปลายทาง";
+  }
+  if (origin.map) {
+    return origin.map(o => GOOGLEMAPS_DISTANCE(o, destination, mode));
+  }
+
+  const key = ["distance", origin, destination, mode].join(",");
+  const value = _mapsGetCache(key);
+  if (value !== null) return value;
+
+  const { routes: [data] = [] } = Maps.newDirectionFinder()
+    .setOrigin(origin)
+    .setDestination(destination)
+    .setMode(mode)
+    .getDirections();
+
+  if (!data) {
+    return "ไม่พบเส้นทาง";
+  }
+
+  const { legs: [{ distance: { text: distance } } = {}] = [] } = data;
+  _mapsSetCache(key, distance);
+  return distance;
+};
+
+
+/**
+ * GOOGLEMAPS_DURATION — คำนวณเวลาเดินทางระหว่าง 2 จุด
+ *
+ * ตัวอย่าง: =GOOGLEMAPS_DURATION("กรุงเทพ", "นนทบุรี", "driving")
+ *           =GOOGLEMAPS_DURATION(A1, B1, "walking")
+ *
+ * @param {String} origin ที่อยู่จุดเริ่มต้น
+ * @param {String} destination ที่อยู่ปลายทาง
+ * @param {String} mode โหมดการเดินทาง (driving, walking, bicycling, transit)
+ * @return {String} เวลาเดินทาง (เช่น "25 mins")
+ * @customFunction
+ */
+const GOOGLEMAPS_DURATION = (origin, destination, mode = "driving") => {
+  if (!origin || !destination) {
+    return "ต้องระบุจุดเริ่มต้นและปลายทาง";
+  }
+  if (origin.map) {
+    return origin.map(o => GOOGLEMAPS_DURATION(o, destination, mode));
+  }
+
+  const key = ["duration", origin, destination, mode].join(",");
+  const value = _mapsGetCache(key);
+  if (value !== null) return value;
+
+  const { routes: [data] = [] } = Maps.newDirectionFinder()
+    .setOrigin(origin)
+    .setDestination(destination)
+    .setMode(mode)
+    .getDirections();
+
+  if (!data) {
+    return "ไม่พบเส้นทาง";
+  }
+
+  const { legs: [{ duration: { text: time } } = {}] = [] } = data;
+  _mapsSetCache(key, time);
+  return time;
+};
+
+
+/**
+ * GOOGLEMAPS_LATLONG — แปลงที่อยู่เป็นพิกัด lat,lng
+ *
+ * ตัวอย่าง: =GOOGLEMAPS_LATLONG("สยามพารากอน กรุงเทพ")
+ *           =GOOGLEMAPS_LATLONG(A1)
+ *
+ * @param {String} address ที่อยู่ที่ต้องการค้นหา
+ * @return {String} พิกัด "lat, lng" (เช่น "13.7466, 100.5347")
+ * @customFunction
+ */
+const GOOGLEMAPS_LATLONG = (address) => {
+  if (!address) {
+    return "ต้องระบุที่อยู่";
+  }
+  if (address.map) {
+    return address.map(a => GOOGLEMAPS_LATLONG(a));
+  }
+
+  const key = ["latlong", address].join(",");
+  const value = _mapsGetCache(key);
+  if (value !== null) return value;
+
+  const { results: [data = null] = [] } = Maps.newGeocoder().geocode(address);
+  if (data === null) {
+    return "ไม่พบที่อยู่";
+  }
+
+  const { geometry: { location: { lat, lng } } = {} } = data;
+  const answer = `${lat}, ${lng}`;
+  _mapsSetCache(key, answer);
+  return answer;
+};
+
+
+/**
+ * GOOGLEMAPS_ADDRESS — แปลงรหัสไปรษณีย์/ที่อยู่บางส่วนเป็นที่อยู่เต็ม
+ *
+ * ตัวอย่าง: =GOOGLEMAPS_ADDRESS("10110")
+ *           =GOOGLEMAPS_ADDRESS(A1)
+ *
+ * @param {String} address รหัสไปรษณีย์หรือที่อยู่บางส่วน
+ * @return {String} ที่อยู่เต็มจาก Google Maps
+ * @customFunction
+ */
+const GOOGLEMAPS_ADDRESS = (address) => {
+  if (!address) {
+    return "ต้องระบุที่อยู่";
+  }
+  if (address.map) {
+    return address.map(a => GOOGLEMAPS_ADDRESS(a));
+  }
+
+  const key = ["address", address].join(",");
+  const value = _mapsGetCache(key);
+  if (value !== null) return value;
+
+  const { results: [data = null] = [] } = Maps.newGeocoder().geocode(address);
+  if (data === null) {
+    return "ไม่พบที่อยู่";
+  }
+
+  const { formatted_address } = data;
+  _mapsSetCache(key, formatted_address);
+  return formatted_address;
+};
+
+
+/**
+ * GOOGLEMAPS_REVERSEGEOCODE — แปลงพิกัด lat,lng เป็นที่อยู่
+ *
+ * ตัวอย่าง: =GOOGLEMAPS_REVERSEGEOCODE(13.7466, 100.5347)
+ *           =GOOGLEMAPS_REVERSEGEOCODE(A1, B1)
+ *
+ * @param {Number} latitude ละติจูด
+ * @param {Number} longitude ลองจิจูด
+ * @return {String} ที่อยู่จาก Google Maps
+ * @customFunction
+ */
+const GOOGLEMAPS_REVERSEGEOCODE = (latitude, longitude) => {
+  if (!latitude || !longitude) {
+    return "ต้องระบุละติจูดและลองจิจูด";
+  }
+
+  const key = ["reverse", latitude, longitude].join(",");
+  const value = _mapsGetCache(key);
+  if (value !== null) return value;
+
+  const { results: [data = {}] = [] } = Maps.newGeocoder()
+    .reverseGeocode(latitude, longitude);
+
+  const { formatted_address } = data;
+  _mapsSetCache(key, formatted_address);
+  return formatted_address;
+};
+
+
+/**
+ * GOOGLEMAPS_COUNTRY — ดึงชื่อประเทศจากที่อยู่
+ *
+ * ตัวอย่าง: =GOOGLEMAPS_COUNTRY("10 Hanover Square, NY")
+ *
+ * @param {String} address ที่อยู่ที่ต้องการค้นหา
+ * @return {String} ชื่อประเทศ (เช่น "Thailand (TH)")
+ * @customFunction
+ */
+const GOOGLEMAPS_COUNTRY = (address) => {
+  if (!address) {
+    return "ต้องระบุที่อยู่";
+  }
+  if (address.map) {
+    return address.map(a => GOOGLEMAPS_COUNTRY(a));
+  }
+
+  const key = ["country", address].join(",");
+  const value = _mapsGetCache(key);
+  if (value !== null) return value;
+
+  const { results: [data = null] = [] } = Maps.newGeocoder().geocode(address);
+  if (data === null) {
+    return "ไม่พบที่อยู่";
+  }
+
+  const [{ short_name, long_name } = {}] = data.address_components.filter(
+    ({ types: [level] }) => level === "country"
+  );
+
+  if (!short_name) {
+    return "ไม่พบประเทศ";
+  }
+
+  const answer = `${long_name} (${short_name})`;
+  _mapsSetCache(key, answer);
+  return answer;
+};
+
+
+/**
+ * GOOGLEMAPS_DIRECTIONS — แสดงเส้นทางขับขี่ระหว่าง 2 จุด
+ *
+ * ตัวอย่าง: =GOOGLEMAPS_DIRECTIONS("กรุงเทพ", "นนทบุรี", "driving")
+ *
+ * @param {String} origin ที่อยู่จุดเริ่มต้น
+ * @param {String} destination ที่อยู่ปลายทาง
+ * @param {String} mode โหมดการเดินทาง (driving, walking, bicycling, transit)
+ * @return {String} เส้นทางขับขี่ทีละขั้นตอน
+ * @customFunction
+ */
+const GOOGLEMAPS_DIRECTIONS = (origin, destination, mode = "driving") => {
+  if (!origin || !destination) {
+    return "ต้องระบุจุดเริ่มต้นและปลายทาง";
+  }
+
+  const key = ["directions", origin, destination, mode].join(",");
+  const value = _mapsGetCache(key);
+  if (value !== null) return value;
+
+  const { routes = [] } = Maps.newDirectionFinder()
+    .setOrigin(origin)
+    .setDestination(destination)
+    .setMode(mode)
+    .getDirections();
+
+  if (!routes.length) {
+    return "ไม่พบเส้นทาง";
+  }
+
+  const directions = routes
+    .map(({ legs }) => {
+      return legs.map(({ steps }) => {
+        return steps.map((step) => {
+          return step.html_instructions
+            .replace("><", "> <")
+            .replace(/<[^>]+>/g, "");
+        });
+      });
+    })
+    .join(", ");
+
+  _mapsSetCache(key, directions);
+  return directions;
+};

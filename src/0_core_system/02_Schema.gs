@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.012
+ * VERSION: 5.5.013
  * FILE: 02_Schema.gs
  * LMDS V5.5 — Sheet Schema Definitions
  * ===================================================
@@ -7,7 +7,18 @@
  *   กำหนด Schema ของทุก Sheet ในระบบ รวมถึง Column Headers และ Validation Rules
  *   เป็น Single Source of Truth สำหรับโครงสร้างข้อมูล
  * ===================================================
- *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
+ *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
+ *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
+ *       GOOGLEMAPS_ADDRESS, GOOGLEMAPS_REVERSEGEOCODE, GOOGLEMAPS_COUNTRY, GOOGLEMAPS_DIRECTIONS
+ *     - [REMOVE] ลบ MAPS_CACHE sheet จาก SCHEMA, SHEET, MAPS_CACHE_IDX, setupAllSheets
+ *     - [REMOVE] ลบฟังก์ชันเก่าที่ไม่มี caller: geocodeAddress, reverseGeocode,
+ *       getRouteDistanceKm, cachedGeoLookup_, _loadSheetCache_, _flushHitCounts_,
+ *       getFromSheetCache_, saveToSheetCache_, clearMapsCache
+ *     - เหตุผล: ระบบ LMDS ไม่ได้เรียก Google Maps API ผ่าน code แล้ว
+ *       DIST_FROM_WH และ RESOLVED_ADDR มาจาก AppSheet ที่ผู้ใช้ทำไว้แล้ว
+ *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
  *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
  *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
  *       17_SearchService ส่ง normResult เข้า resolvePerson แทน cleanName (ลด normalize ซ้อน)
@@ -342,23 +353,8 @@ const SCHEMA = Object.freeze({
     'notes',         // [7]
   ],
 
-  /**
-   * MAPS_CACHE — 10 คอลัมน์
-   * [FIX v003] เพิ่ม province[8] และ district[9]
-   * เพื่อรองรับ reverseGeocode() ที่ต้องเก็บ province/district
-   */
-  'MAPS_CACHE': [
-    'cache_key',        // [0]
-    'address_input',    // [1]
-    'lat',              // [2]
-    'lng',              // [3]
-    'resolved_address', // [4]
-    'source',           // [5]
-    'created_at',       // [6]
-    'hit_count',        // [7]
-    'province',         // [8] Fix: เพิ่มใหม่
-    'district',         // [9] Fix: เพิ่มใหม่
-  ],
+  // [REMOVE v5.5.013] MAPS_CACHE SCHEMA ถูกลบออก — MAPS_CACHE sheet ไม่ได้ใช้แล้ว
+  //   สูตร Google Maps ใช้ CacheService.getDocumentCache แทน (ดู 15_GoogleMapsAPI.gs)
 
   // ============================================================
   // กลุ่ม 2: Daily Ops

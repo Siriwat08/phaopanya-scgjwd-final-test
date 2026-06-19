@@ -1,10 +1,10 @@
-# 📖 LMDS V5.5.012 — พจนานุกรมคอลัมน์ (Column Dictionary)
+# 📖 LMDS V5.5.013 — พจนานุกรมคอลัมน์ (Column Dictionary)
 
 > **เอกสารฉบับนี้อธิบายความหมายของทุกคอลัมน์ในทุกตารางของระบบ LMDS**
 > ใช้สำหรับ Admin / IT / Developer ที่ต้องการเข้าใจว่าแต่ละคอลัมน์เก็บอะไร และค่ามาจากไหน
 
-**เวอร์ชันเอกสาร:** V5.5.012 (2026-06-19)
-**ตารางทั้งหมด:** 13 ตาราง (ตามที่ผู้ใช้ระบุ)
+**เวอร์ชันเอกสาร:** V5.5.013 (2026-06-19)
+**ตารางทั้งหมด:** 12 ตาราง (MAPS_CACHE ถูกลบใน V5.5.013 — ใช้ @customFunction formulas แทน)
 **รูปแบบ:** ตาราง | คอลัมน์ | ชื่อคอลัมน์ภาษาไทย | ผลลัพท์ (ความหมาย / ที่มา)
 
 ---
@@ -22,8 +22,7 @@
 9. [Q_REVIEW — คิวรอตรวจสอบ](#9-q_review--คิวรอตรวจสอบ)
 10. [SYS_CONFIG — การตั้งค่าระบบ](#10-sys_config--การตั้งค่าระบบ)
 11. [SYS_LOG — บันทึกระบบ](#11-sys_log--บันทึกระบบ)
-12. [MAPS_CACHE — แคช Google Maps](#12-maps_cache--แคช-google-maps)
-13. [RPT_DATA_QUALITY — รายงานคุณภาพข้อมูล](#13-rpt_data_quality--รายงานคุณภาพข้อมูล)
+12. [RPT_DATA_QUALITY — รายงานคุณภาพข้อมูล](#12-rpt_data_quality--รายงานคุณภาพข้อมูล)
 
 ---
 
@@ -258,7 +257,7 @@
 | ตาราง | คอลัมน์ | ชื่อคอลัมน์ภาษาไทย | ผลลัพท์ (ความหมาย / ที่มา) |
 |-------|--------|-------------------|---------------------------|
 | SYS_CONFIG | [0] `config_key` | คีย์การตั้งค่า | ชื่อการตั้งค่า (เช่น `SCHEMA_VERSION`, `LAST_SETUP`) |
-| SYS_CONFIG | [1] `config_value` | ค่าการตั้งค่า | ค่าของการตั้งค่า (เช่น `5.5.012`, `2026-06-19`) |
+| SYS_CONFIG | [1] `config_value` | ค่าการตั้งค่า | ค่าของการตั้งค่า (เช่น `5.5.013`, `2026-06-19`) |
 | SYS_CONFIG | [2] `description` | คำอธิบาย | คำอธิบายว่าการตั้งค่านี้คืออะไร |
 | SYS_CONFIG | [3] `updated_at` | วันที่อัปเดต | วันที่การตั้งค่านี้ถูกอัปเดตล่าสุด |
 
@@ -281,28 +280,7 @@
 
 ---
 
-## 12. MAPS_CACHE — แคช Google Maps
-
-**หน้าที่:** เก็บแคชผลลัพธ์ Google Maps API เพื่อลดการเรียก API (ประหยัดโควต้า)
-**จำนวนคอลัมน์:** 10 คอลัมน์
-**IDX constant:** `MAPS_CACHE_IDX` (01_Config.gs)
-
-| ตาราง | คอลัมน์ | ชื่อคอลัมน์ภาษาไทย | ผลลัพท์ (ความหมาย / ที่มา) |
-|-------|--------|-------------------|---------------------------|
-| MAPS_CACHE | [0] `cache_key` | รหัสแคช | รหัส unique สำหรับ cache entry — สร้างจาก `md5(key)` ของ lat,lng หรือ address |
-| MAPS_CACHE | [1] `address_input` | ที่อยู่ที่ค้นหา | ที่อยู่ที่ส่งเข้า Google Maps สำหรับ geocode |
-| MAPS_CACHE | [2] `lat` | ละติจูด | ละติจูดจาก Google Maps |
-| MAPS_CACHE | [3] `lng` | ลองจิจูด | ลองจิจูดจาก Google Maps |
-| MAPS_CACHE | [4] `resolved_address` | ที่อยู่ที่แก้ไขแล้ว | ที่อยู่ที่ Google Maps คืนมา (formatted_address) |
-| MAPS_CACHE | [5] `source` | แหล่งที่มา | `google` = จาก Google Maps API |
-| MAPS_CACHE | [6] `created_at` | วันที่สร้าง | วันที่ cache entry นี้ถูกสร้าง |
-| MAPS_CACHE | [7] `hit_count` | จำนวนครั้งที่ใช้ | จำนวนครั้งที่ cache entry นี้ถูกอ่าน (analytics) — อัปเดตโดย `_flushHitCounts_()` |
-| MAPS_CACHE | [8] `province` | จังหวัด | จังหวัดที่ดึงจาก Google Maps [FIX v003] |
-| MAPS_CACHE | [9] `district` | อำเภอ/เขต | อำเภอ/เขตที่ดึงจาก Google Maps [FIX v003] |
-
----
-
-## 13. RPT_DATA_QUALITY — รายงานคุณภาพข้อมูล
+## 12. RPT_DATA_QUALITY — รายงานคุณภาพข้อมูล
 
 **หน้าที่:** สรุปคุณภาพข้อมูลการ match รายวัน
 **จำนวนคอลัมน์:** 8 คอลัมน์
@@ -335,10 +313,9 @@
 | Q_REVIEW | 22 | REVIEW_IDX | คิวรอตรวจสอบ |
 | SYS_CONFIG | 4 | — | การตั้งค่าระบบ |
 | SYS_LOG | 6 | SYS_LOG_IDX | บันทึกระบบ |
-| MAPS_CACHE | 10 | MAPS_CACHE_IDX | แคช Google Maps |
 | RPT_DATA_QUALITY | 8 | — | รายงานคุณภาพข้อมูล |
-| **รวม** | **145** | **13 IDX sets** | — |
+| **รวม** | **135** | **12 IDX sets** | — |
 
 ---
 
-*LMDS V5.5.012 — Column Dictionary — Last Updated: 2026-06-19*
+*LMDS V5.5.013 — Column Dictionary — Last Updated: 2026-06-19*

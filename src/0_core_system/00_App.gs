@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.012
+ * VERSION: 5.5.013
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,18 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
+ *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
+ *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
+ *       GOOGLEMAPS_ADDRESS, GOOGLEMAPS_REVERSEGEOCODE, GOOGLEMAPS_COUNTRY, GOOGLEMAPS_DIRECTIONS
+ *     - [REMOVE] ลบ MAPS_CACHE sheet จาก SCHEMA, SHEET, MAPS_CACHE_IDX, setupAllSheets
+ *     - [REMOVE] ลบฟังก์ชันเก่าที่ไม่มี caller: geocodeAddress, reverseGeocode,
+ *       getRouteDistanceKm, cachedGeoLookup_, _loadSheetCache_, _flushHitCounts_,
+ *       getFromSheetCache_, saveToSheetCache_, clearMapsCache
+ *     - เหตุผล: ระบบ LMDS ไม่ได้เรียก Google Maps API ผ่าน code แล้ว
+ *       DIST_FROM_WH และ RESOLVED_ADDR มาจาก AppSheet ที่ผู้ใช้ทำไว้แล้ว
+ *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
  *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
  *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
  *       17_SearchService ส่ง normResult เข้า resolvePerson แทน cleanName (ลด normalize ซ้อน)
@@ -778,7 +789,7 @@ function checkSystemIntegrity() {
       SHEET.M_PERSON, SHEET.M_PERSON_ALIAS, SHEET.M_PLACE, SHEET.M_PLACE_ALIAS,
       SHEET.M_ALIAS, SHEET.M_GEO_POINT, SHEET.M_DESTINATION,
       SHEET.FACT_DELIVERY, SHEET.Q_REVIEW, SHEET.SYS_LOG, SHEET.SYS_CONFIG,
-      SHEET.SYS_TH_GEO, SHEET.MAPS_CACHE, SHEET.RPT_QUALITY,
+      SHEET.SYS_TH_GEO, SHEET.RPT_QUALITY,
       SHEET.DAILY_JOB, SHEET.INPUT, SHEET.EMPLOYEE, SHEET.SOURCE,
     ];
 
@@ -882,28 +893,28 @@ function showVersionInfo() {
     `Schema: v${SCHEMA_VERSION}\n` +
     `Audit Cycles: 9 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.012\n` +
-    `  01_Config.gs             v5.5.012\n` +
-    `  02_Schema.gs             v5.5.012\n` +
-    `  03_SetupSheets.gs        v5.5.012\n` +
-    `  04_SourceRepository.gs   v5.5.012\n` +
-    `  05_NormalizeService.gs   v5.5.012\n` +
-    `  06_PersonService.gs      v5.5.012\n` +
-    `  07_PlaceService.gs       v5.5.012\n` +
-    `  08_GeoService.gs         v5.5.012\n` +
-    `  09_DestinationService.gs v5.5.012\n` +
-    `  10_MatchEngine.gs        v5.5.012\n` +
-    `  11_TransactionService.gs v5.5.012\n` +
-    `  12_ReviewService.gs      v5.5.012\n` +
-    `  13_ReportService.gs      v5.5.012\n` +
-    `  14_Utils.gs              v5.5.012\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.012\n` +
-    `  16_GeoDictionaryBuilder.gs     v5.5.012\n` +
-    `  17_SearchService.gs      v5.5.012\n` +
-    `  18_ServiceSCG.gs         v5.5.012\n` +
-    `  19_Hardening.gs          v5.5.012\n` +
-    `  20_ThGeoService.gs       v5.5.012\n` +
-    `  21_AliasService.gs       v5.5.012\n\n` +
+    `  00_App.gs                v5.5.013\n` +
+    `  01_Config.gs             v5.5.013\n` +
+    `  02_Schema.gs             v5.5.013\n` +
+    `  03_SetupSheets.gs        v5.5.013\n` +
+    `  04_SourceRepository.gs   v5.5.013\n` +
+    `  05_NormalizeService.gs   v5.5.013\n` +
+    `  06_PersonService.gs      v5.5.013\n` +
+    `  07_PlaceService.gs       v5.5.013\n` +
+    `  08_GeoService.gs         v5.5.013\n` +
+    `  09_DestinationService.gs v5.5.013\n` +
+    `  10_MatchEngine.gs        v5.5.013\n` +
+    `  11_TransactionService.gs v5.5.013\n` +
+    `  12_ReviewService.gs      v5.5.013\n` +
+    `  13_ReportService.gs      v5.5.013\n` +
+    `  14_Utils.gs              v5.5.013\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.013\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.013\n` +
+    `  17_SearchService.gs      v5.5.013\n` +
+    `  18_ServiceSCG.gs         v5.5.013\n` +
+    `  19_Hardening.gs          v5.5.013\n` +
+    `  20_ThGeoService.gs       v5.5.013\n` +
+    `  21_AliasService.gs       v5.5.013\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

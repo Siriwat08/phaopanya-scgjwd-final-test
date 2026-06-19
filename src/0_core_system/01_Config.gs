@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.012
+ * VERSION: 5.5.013
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,17 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.013 (2026-06-19) — GOOGLE MAPS REFACTOR:
+ *     - [REWRITE] 15_GoogleMapsAPI.gs เขียนใหม่ทั้งไฟล์ — ลบระบบ 3-layer cache + MAPS_CACHE sheet
+ *       เพิ่มสูตร Amit Agarwal 7 ตัว เป็น @customFunction (พิมพ์ใน Sheet ได้):
+ *       GOOGLEMAPS_DISTANCE, GOOGLEMAPS_DURATION, GOOGLEMAPS_LATLONG,
+ *       GOOGLEMAPS_ADDRESS, GOOGLEMAPS_REVERSEGEOCODE, GOOGLEMAPS_COUNTRY, GOOGLEMAPS_DIRECTIONS
+ *     - [REMOVE] ลบ MAPS_CACHE sheet จาก SCHEMA, SHEET, MAPS_CACHE_IDX, setupAllSheets
+ *     - [REMOVE] ลบฟังก์ชันเก่าที่ไม่มี caller: geocodeAddress, reverseGeocode,
+ *       getRouteDistanceKm, cachedGeoLookup_, _loadSheetCache_, _flushHitCounts_,
+ *       getFromSheetCache_, saveToSheetCache_, clearMapsCache
+ *     - เหตุผล: ระบบ LMDS ไม่ได้เรียก Google Maps API ผ่าน code แล้ว
+ *       DIST_FROM_WH และ RESOLVED_ADDR มาจาก AppSheet ที่ผู้ใช้ทำไว้แล้ว
  *   v5.5.012 (2026-06-19) — ANTIPATTERN FIX + DOC SYNC:
  *     - [FIX #1] showVersionInfo() แก้จาก v5.5.010 → v5.5.012 + Audit Cycles 5 → 9
  *     - [FIX #3] resolvePerson เพิ่ม optional preNormResult เพื่อหลีกเลี่ยง double normalization
@@ -147,8 +158,8 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.012';
-const SCHEMA_VERSION = '5.5.012';
+const APP_VERSION = '5.5.013';
+const SCHEMA_VERSION = '5.5.013';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs
@@ -211,7 +222,8 @@ const SHEET = Object.freeze({
   SYS_LOG:        'SYS_LOG',
   SYS_TH_GEO:     'SYS_TH_GEO',
   RPT_QUALITY:    'RPT_DATA_QUALITY',
-  MAPS_CACHE:     'MAPS_CACHE',
+  // [REMOVE v5.5.013] MAPS_CACHE ถูกลบออก — ไม่ได้ใช้ใน pipeline อีกต่อไป
+  //   สูตร Google Maps ใช้ CacheService.getDocumentCache แทน (ดู 15_GoogleMapsAPI.gs)
   DAILY_JOB:      'ตารางงานประจำวัน',
   INPUT:          'Input',
   EMPLOYEE:       'ข้อมูลพนักงาน',
@@ -675,19 +687,8 @@ const CACHE_KEY = Object.freeze({
   TH_GEO_DISTRICTS:     'TH_GEO_DISTRICTS',       // ใช้ใน 16_GeoDictionaryBuilder.gs
 });
 
-// [ADD v5.4.003] MAPS_CACHE_IDX — ดัชนีคอลัมน์ MAPS_CACHE
-const MAPS_CACHE_IDX = Object.freeze({
-  KEY:       0,  // cache_key
-  INPUT:     1,  // address_input
-  LAT:       2,  // lat
-  LNG:       3,  // lng
-  ADDR:      4,  // resolved_address
-  SOURCE:    5,  // source
-  CREATED:   6,  // created_at
-  HIT:       7,  // hit_count
-  PROV_NAME: 8,  // province
-  DIST_NAME: 9,  // district
-});
+// [REMOVE v5.5.013] MAPS_CACHE_IDX ถูกลบออก — MAPS_CACHE sheet ไม่ได้ใช้แล้ว
+//   สูตร Google Maps ใช้ CacheService.getDocumentCache แทน
 
 // [ADD R3] OWNER_SUM_IDX — สรุป_เจ้าของสินค้า column indices (6 columns)
 // ใช้แทน hardcoded column positions ใน 18_ServiceSCG.gs

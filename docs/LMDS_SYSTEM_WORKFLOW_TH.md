@@ -1,6 +1,6 @@
 # LMDS System Workflow อธิบายการทำงานระบบ
 
-ไฟล์นี้อธิบายระบบ LMDS จากโค้ดจริงในโปรเจกต์ ณ วันที่ 2026-06-19 (V5.5.012) โดยเน้นว่าแต่ละชีตทำงานร่วมกันอย่างไร คอลัมน์ใดเป็นจุดเชื่อม และกฎธุรกิจล่าสุดของ Group 2 ที่ต้องใช้ `ShipToName` เท่านั้นในการค้นหาพิกัด
+ไฟล์นี้อธิบายระบบ LMDS จากโค้ดจริงในโปรเจกต์ ณ วันที่ 2026-06-19 (V5.5.013) โดยเน้นว่าแต่ละชีตทำงานร่วมกันอย่างไร คอลัมน์ใดเป็นจุดเชื่อม และกฎธุรกิจล่าสุดของ Group 2 ที่ต้องใช้ `ShipToName` เท่านั้นในการค้นหาพิกัด
 
 > **[V5.5.011] การเปลี่ยนแปลงล่าสุด:**
 > - **Sheet2 (ตารางงานประจำวัน) Cleaning:** ตอนนี้ `SHIP_TO_NAME` จาก Sheet2 จะผ่าน `normalizePersonNameFull` ก่อนค้นหา (เหมือน Sheet1) ทำให้จับคู่กับ Master ได้แม่นยำขึ้น
@@ -53,7 +53,6 @@ const SHEET = Object.freeze({
   SYS_LOG:        'SYS_LOG',
   SYS_TH_GEO:     'SYS_TH_GEO',
   RPT_QUALITY:    'RPT_DATA_QUALITY',
-  MAPS_CACHE:     'MAPS_CACHE',
   DAILY_JOB:      'ตารางงานประจำวัน',
   INPUT:          'Input',
   EMPLOYEE:       'ข้อมูลพนักงาน',
@@ -61,6 +60,8 @@ const SHEET = Object.freeze({
   SHIPMENT_SUM:   'สรุป_Shipment',
 });
 ```
+
+> **[V5.5.013]** `MAPS_CACHE: 'MAPS_CACHE'` ถูกลบออกจาก SHEET object (ใช้ @customFunction formulas ของ Amit Agarwal แทน)
 
 ## 3. Group 1: Actual Delivery / Master Learning
 

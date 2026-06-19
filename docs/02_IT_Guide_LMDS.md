@@ -244,7 +244,7 @@ autoEnrichAliasesFromFactBatch_() → M_ALIAS + M_PERSON_ALIAS + M_PLACE_ALIAS
 |:---|:---|:---|
 | LAST_PIPELINE_RUN | 2025-01-15T10:30:00 | เวลา Pipeline ล่าสุด |
 | GEO_DICT_BUILT | true | สถานะการสร้าง Geo Dictionary |
-| SCHEMA_VERSION | 5.5.012 | เวอร์ชัน Schema ปัจจุบัน |
+| SCHEMA_VERSION | 5.5.013 | เวอร์ชัน Schema ปัจจุบัน |
 
 ---
 
@@ -487,7 +487,7 @@ function cleanAllAutoResumeTriggers() {
 
 ฟังก์ชัน `applySheetProtection_UI()` จะ:
 - ล็อก Sheet: ข้อมูลพนักงาน, M_PERSON, SCGนครหลวงJWDภูมิภาค, M_GEO_POINT
-- ซ่อน Sheet ที่มีข้อมูลสำคัญ (Input, MAPS_CACHE, SYS_CONFIG)
+- ซ่อน Sheet ที่มีข้อมูลสำคัญ (Input, SYS_CONFIG) — *MAPS_CACHE ถูกลบใน V5.5.013*
 - ตั้งค่าให้เฉพาะ Admin เท่านั้นที่แก้ไขได้
 
 ### 9.3 การ Audit ด้านความปลอดภัย (7 จุดที่แก้ไขแล้ว)
@@ -656,7 +656,7 @@ function handleDoubleProcessing() {
 1. ตรวจสอบ Google Cloud Console → APIs → Geocoding API → Quotas
 2. หาก Quota หมด:
    - เพิ่ม Quota หรือรอรอบใหม่
-   - ตรวจสอบ MAPS_CACHE ว่าใช้ Cache ได้ (ไม่ต้องเรียก API)
+   - ตรวจสอบ CacheService ว่าใช้ Cache ได้ (ผ่าน @customFunction formulas — ไม่ต้องเรียก API ซ้ำ)
 3. ตรวจสอบว่าใช้ Built-in Geocoder แทน API Key ได้หรือไม่
 ```
 
@@ -729,7 +729,7 @@ function handleDoubleProcessing() {
 |:---|:---|:---|:---|
 | Auto Match Rate | ≥ 80% | RPT_DATA_QUALITY | รายสัปดาห์ |
 | Pending Review | = 0 | getReviewStats() | รายวัน |
-| MAPS_CACHE Hit Rate | ≥ 70% | sum(hit_count) / total | รายเดือน |
+| Cache Hit Rate | ≥ 70% | ตรวจสอบ CacheService entries (ผ่าน @customFunction) | รายเดือน |
 | SYS_LOG Error Count | = 0 | กรอง level=ERROR | รายวัน |
 | Script Execution Time | < 5 นาที | Apps Script Dashboard | รายวัน |
 | FACT_DELIVERY Duplicates | = 0 | detectDoubleProcessing() | รายสัปดาห์ |
@@ -811,7 +811,7 @@ MIGRATION_HybridAliasSystem();
 |:---|:---|:---|:---|
 | Execution Time | 6 นาที/ครั้ง | Pipeline อาจหยุดกลางคัน | Checkpoint + Auto-Resume |
 | CacheService Size | 100KB/key | ข้อมูลใหญ่เกินเก็บไม่ได้ | Chunked Cache (200 items/chunk) |
-| CacheService TTL | 6 ชั่วโมง | แคชหมดอายุเร็ว | ใช้ Sheet Cache (MAPS_CACHE) เป็น Permanent Cache |
+| CacheService TTL | 6 ชั่วโมง | แคชหมดอายุเร็ว | ใช้ CacheService 6 ชม. (ผ่าน @customFunction) — *MAPS_CACHE sheet ถูกลบใน V5.5.013* |
 | Spreadsheet API Calls | 20,000/วัน | Batch operations ใช้เร็ว | Safe Batching (getValues/setValues) |
 | URL Fetch | 20,000/วัน | SCG API + Maps API | 3-Layer Cache ลดการเรียก API |
 | Script Properties | 500KB รวม | ข้อมูล Configuration | ใช้ sparingly |
@@ -849,7 +849,6 @@ SHEET = {
   SOURCE: 'SCGนครหลวงJWDภูมิภาค',
   DAILY_JOB: 'ตารางงานประจำวัน',
   TH_GEO: 'SYS_TH_GEO',
-  MAPS_CACHE: 'MAPS_CACHE',
   SYS_LOG: 'SYS_LOG',
   SYS_CONFIG: 'SYS_CONFIG',
   EMPLOYEE: 'ข้อมูลพนักงาน',
@@ -859,6 +858,8 @@ SHEET = {
   RPT_DATA_QUALITY: 'RPT_DATA_QUALITY'
 }
 ```
+
+> **[V5.5.013]** `MAPS_CACHE: 'MAPS_CACHE'` ถูกลบออกจาก SHEET object (ใช้ @customFunction formulas แทน)
 
 ### 15.2 Match Engine Rules
 
@@ -900,14 +901,14 @@ APP_CONST = {
 
 > **เอกสารฉบับนี้จัดทำสำหรับทีม IT ที่ดูแลระบบ LMDS V5.5**
 >
-> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.012) | **วันที่:** มิถุนายน 2569
+> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.013) | **วันที่:** มิถุนายน 2569
 >
 > **✅ หมายเหตุ — เวอร์ชันซิงค์แล้ว:**
 >
-> 1. **APP_VERSION ในโค้ด = `5.5.012`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.012 ได้รับการแก้ไขแล้ว)
+> 1. **APP_VERSION ในโค้ด = `5.5.013`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.013 ได้รับการแก้ไขแล้ว)
 > 2. **Search Service ในโค้ดใช้ 2 Tier เท่านั้น** (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — นี่คือการใช้งานจริง (System Guide ฉบับเก่าอธิบาย 6 Tier ซึ่งเป็นแบบเก่าที่ถูกลบออกไปแล้ว)
 > 3. **ID Format ในโค้ด** ใช้ prefix + 12 hex chars (เช่น Person = `PA3F7B2C9D0E1`) แต่ System Guide แสดงแบบสั้น 6 chars (เช่น `PS3k7x`)
 > 4. **SYS_LOG auto-clean** ในโค้ด trigger เมื่อเกิน 5,001 แถว และเก็บไว้ 1,000 แถวล่าสุด (ไม่ใช่ 5,000 ตามที่ System Guide เขียน)
-> 5. **SHEET count** ในโค้ดมี 20 entries แต่ comment ใน Config บอก 21 (ผิด)
+> 5. **SHEET count** ในโค้ดมี 19 entries (หลัง V5.5.013 ลบ MAPS_CACHE ออก)
 >
-> **สถิติระบบ:** ฟังก์ชัน 313 | บรรทัดโค้ด ~16,200 | IDX sets 17 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)
+> **สถิติระบบ:** ฟังก์ชัน 311 | บรรทัดโค้ด ~16,355 | IDX sets 16 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)

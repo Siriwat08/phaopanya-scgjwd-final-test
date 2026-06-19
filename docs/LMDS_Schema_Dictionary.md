@@ -1,5 +1,5 @@
 # 📘 พจนานุกรมโครงสร้างข้อมูล (LMDS Schema Dictionary)
-**เวอร์ชันระบบ:** V5.5.012 (ANTIPATTERN-FIX)
+**เวอร์ชันระบบ:** V5.5.013 (GOOGLE-MAPS-REFACTOR)
 **วันที่สกัดข้อมูล:** 2026-06-19 ล่าสุดจากไฟล์ `01_Config.gs` และ `02_Schema.gs`
 
 เอกสารนี้ใช้สำหรับ **Cross-Check** (ตรวจสอบความถูกต้อง) ระหว่าง "ชื่อชีต", "ชื่อคอลัมน์" (Headers), และ "ตัวแปร Index ในโค้ด" เพื่อให้นักพัฒนาและ AI สามารถอ้างอิงได้อย่างถูกต้อง 100%
@@ -315,21 +315,7 @@
   - [5] `SHIPMENT_SUM_IDX.QTY_EPOD` ➡️ **"จำนวน_E-POD_ทั้งหมด"**
   - [6] `SHIPMENT_SUM_IDX.LAST_UPDATE` ➡️ **"LastUpdated"**
 
-### 17. ชีต MAPS_CACHE
-- **ตัวแปรเรียกชีต:** `SHEET.MAPS_CACHE`
-- **โครงสร้างคอลัมน์ (MAPS_CACHE_IDX):**
-  - [0] `MAPS_CACHE_IDX.KEY` ➡️ **"cache_key"**
-  - [1] `MAPS_CACHE_IDX.INPUT` ➡️ **"address_input"**
-  - [2] `MAPS_CACHE_IDX.LAT` ➡️ **"lat"**
-  - [3] `MAPS_CACHE_IDX.LNG` ➡️ **"lng"**
-  - [4] `MAPS_CACHE_IDX.ADDR` ➡️ **"resolved_address"**
-  - [5] `MAPS_CACHE_IDX.SOURCE` ➡️ **"source"**
-  - [6] `MAPS_CACHE_IDX.CREATED` ➡️ **"created_at"**
-  - [7] `MAPS_CACHE_IDX.HIT` ➡️ **"hit_count"**
-  - [8] `MAPS_CACHE_IDX.PROV_NAME` ➡️ **"province"**
-  - [9] `MAPS_CACHE_IDX.DIST_NAME` ➡️ **"district"**
-
-### 18. ชีต SYS_LOG
+### 17. ชีต SYS_LOG
 - **ตัวแปรเรียกชีต:** `SHEET.SYS_LOG`
 - **โครงสร้างคอลัมน์ (SYS_LOG_IDX):**
   - [0] `SYS_LOG_IDX.LOG_ID` ➡️ **"log_id"**
@@ -339,7 +325,7 @@
   - [4] `SYS_LOG_IDX.MESSAGE` ➡️ **"message"**
   - [5] `SYS_LOG_IDX.DETAILS` ➡️ **"details"**
 
-### 19. ชีต SYS_CONFIG
+### 18. ชีต SYS_CONFIG
 - **ตัวแปรเรียกชีต:** `SHEET.SYS_CONFIG`
 - **โครงสร้างคอลัมน์:**
   - [0] ➡️ **"config_key"**
@@ -347,7 +333,7 @@
   - [2] ➡️ **"description"**
   - [3] ➡️ **"updated_at"**
 
-### 20. ชีต RPT_DATA_QUALITY
+### 19. ชีต RPT_DATA_QUALITY
 - **ตัวแปรเรียกชีต:** `SHEET.RPT_QUALITY`
 - **โครงสร้างคอลัมน์:**
   - [0] ➡️ **"report_date"**
