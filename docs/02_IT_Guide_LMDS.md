@@ -244,7 +244,7 @@ autoEnrichAliasesFromFactBatch_() → M_ALIAS + M_PERSON_ALIAS + M_PLACE_ALIAS
 |:---|:---|:---|
 | LAST_PIPELINE_RUN | 2025-01-15T10:30:00 | เวลา Pipeline ล่าสุด |
 | GEO_DICT_BUILT | true | สถานะการสร้าง Geo Dictionary |
-| SCHEMA_VERSION | 5.5.013 | เวอร์ชัน Schema ปัจจุบัน |
+| SCHEMA_VERSION | 5.5.014 | เวอร์ชัน Schema ปัจจุบัน |
 
 ---
 
@@ -487,7 +487,7 @@ function cleanAllAutoResumeTriggers() {
 
 ฟังก์ชัน `applySheetProtection_UI()` จะ:
 - ล็อก Sheet: ข้อมูลพนักงาน, M_PERSON, SCGนครหลวงJWDภูมิภาค, M_GEO_POINT
-- ซ่อน Sheet ที่มีข้อมูลสำคัญ (Input, SYS_CONFIG) — *MAPS_CACHE ถูกลบใน V5.5.013*
+- ซ่อน Sheet ที่มีข้อมูลสำคัญ (Input, SYS_CONFIG) — *MAPS_CACHE ถูกลบใน V5.5.013; FACT_DELIVERY +2 cols ใน V5.5.014 DRIVER-VERIFIED*
 - ตั้งค่าให้เฉพาะ Admin เท่านั้นที่แก้ไขได้
 
 ### 9.3 การ Audit ด้านความปลอดภัย (7 จุดที่แก้ไขแล้ว)
@@ -811,7 +811,7 @@ MIGRATION_HybridAliasSystem();
 |:---|:---|:---|:---|
 | Execution Time | 6 นาที/ครั้ง | Pipeline อาจหยุดกลางคัน | Checkpoint + Auto-Resume |
 | CacheService Size | 100KB/key | ข้อมูลใหญ่เกินเก็บไม่ได้ | Chunked Cache (200 items/chunk) |
-| CacheService TTL | 6 ชั่วโมง | แคชหมดอายุเร็ว | ใช้ CacheService 6 ชม. (ผ่าน @customFunction) — *MAPS_CACHE sheet ถูกลบใน V5.5.013* |
+| CacheService TTL | 6 ชั่วโมง | แคชหมดอายุเร็ว | ใช้ CacheService 6 ชม. (ผ่าน @customFunction) — *MAPS_CACHE sheet ถูกลบใน V5.5.013; FACT_DELIVERY +2 cols ใน V5.5.014* |
 | Spreadsheet API Calls | 20,000/วัน | Batch operations ใช้เร็ว | Safe Batching (getValues/setValues) |
 | URL Fetch | 20,000/วัน | SCG API + Maps API | 3-Layer Cache ลดการเรียก API |
 | Script Properties | 500KB รวม | ข้อมูล Configuration | ใช้ sparingly |
@@ -901,14 +901,14 @@ APP_CONST = {
 
 > **เอกสารฉบับนี้จัดทำสำหรับทีม IT ที่ดูแลระบบ LMDS V5.5**
 >
-> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.013) | **วันที่:** มิถุนายน 2569
+> **เวอร์ชันเอกสาร:** 1.2 (ปรับปรุงตามโค้ดจริง V5.5.014) | **วันที่:** มิถุนายน 2569
 >
 > **✅ หมายเหตุ — เวอร์ชันซิงค์แล้ว:**
 >
-> 1. **APP_VERSION ในโค้ด = `5.5.013`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.013 ได้รับการแก้ไขแล้ว)
+> 1. **APP_VERSION ในโค้ด = `5.5.014`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.014 ได้รับการแก้ไขแล้ว)
 > 2. **Search Service ในโค้ดใช้ 2 Tier เท่านั้น** (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — นี่คือการใช้งานจริง (System Guide ฉบับเก่าอธิบาย 6 Tier ซึ่งเป็นแบบเก่าที่ถูกลบออกไปแล้ว)
 > 3. **ID Format ในโค้ด** ใช้ prefix + 12 hex chars (เช่น Person = `PA3F7B2C9D0E1`) แต่ System Guide แสดงแบบสั้น 6 chars (เช่น `PS3k7x`)
 > 4. **SYS_LOG auto-clean** ในโค้ด trigger เมื่อเกิน 5,001 แถว และเก็บไว้ 1,000 แถวล่าสุด (ไม่ใช่ 5,000 ตามที่ System Guide เขียน)
-> 5. **SHEET count** ในโค้ดมี 19 entries (หลัง V5.5.013 ลบ MAPS_CACHE ออก)
+> 5. **SHEET count** ในโค้ดมี 19 entries (หลัง V5.5.013 ลบ MAPS_CACHE ออก; V5.5.014 เพิ่ม 2 cols ใน FACT_DELIVERY/SOURCE/DAILY_JOB)
 >
-> **สถิติระบบ:** ฟังก์ชัน 311 | บรรทัดโค้ด ~16,355 | IDX sets 16 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)
+> **สถิติระบบ:** ฟังก์ชัน 312 | บรรทัดโค้ด ~16,683 | IDX sets 16 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design)

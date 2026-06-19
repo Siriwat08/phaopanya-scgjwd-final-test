@@ -1,10 +1,10 @@
-# 📖 LMDS V5.5.013 — พจนานุกรมคอลัมน์ (Column Dictionary)
+# 📖 LMDS V5.5.014 — พจนานุกรมคอลัมน์ (Column Dictionary)
 
 > **เอกสารฉบับนี้อธิบายความหมายของทุกคอลัมน์ในทุกตารางของระบบ LMDS**
 > ใช้สำหรับ Admin / IT / Developer ที่ต้องการเข้าใจว่าแต่ละคอลัมน์เก็บอะไร และค่ามาจากไหน
 
-**เวอร์ชันเอกสาร:** V5.5.013 (2026-06-19)
-**ตารางทั้งหมด:** 12 ตาราง (MAPS_CACHE ถูกลบใน V5.5.013 — ใช้ @customFunction formulas แทน)
+**เวอร์ชันเอกสาร:** V5.5.014 (2026-06-19)
+**ตารางทั้งหมด:** 12 ตาราง (MAPS_CACHE ถูกลบใน V5.5.013 — ใช้ @customFunction formulas แทน; FACT_DELIVERY +2 cols ใน V5.5.014 DRIVER-VERIFIED)
 **รูปแบบ:** ตาราง | คอลัมน์ | ชื่อคอลัมน์ภาษาไทย | ผลลัพท์ (ความหมาย / ที่มา)
 
 ---
@@ -176,7 +176,7 @@
 ## 8. FACT_DELIVERY — ตารางธุรกรรมการจัดส่ง
 
 **หน้าที่:** ตารางธุรกรรมหลัก — บันทึกทุกการจัดส่งพร้อมผลการ match
-**จำนวนคอลัมน์:** 32 คอลัมน์
+**จำนวนคอลัมน์:** 34 คอลัมน์ (32 เดิม + 2 ใหม่ใน V5.5.014 DRIVER-VERIFIED)
 **IDX constant:** `FACT_IDX` (01_Config.gs)
 
 | ตาราง | คอลัมน์ | ชื่อคอลัมน์ภาษาไทย | ผลลัพท์ (ความหมาย / ที่มา) |
@@ -213,6 +213,8 @@
 | FACT_DELIVERY | [29] `updated_at` | วันที่อัปเดต | วันที่ record นี้ถูกอัปเดตล่าสุด |
 | FACT_DELIVERY | [30] `record_status` | สถานะระเบียน | `Active` / `Inactive` |
 | FACT_DELIVERY | [31] `match_evidence` | หลักฐานการ match | สัญญาณที่ใช้ match (เช่น `name|phone|geo|post_process_v55`) [NEW v5.2.008] |
+| FACT_DELIVERY | [32] `driver_verified_name` | ชื่อลูกค้าปลายทางจริง | ชื่อจริงที่คนขับ/ผู้ดูแลยืนยัน — กรอกใน AppSheet หรือ Google Sheet แล้ว copy จาก Source sheet col 37 (ใช้สร้าง alias ด้วย confidence=100, source=DRIVER_VERIFIED) [NEW V5.5.014] |
+| FACT_DELIVERY | [33] `driver_verified_addr` | ชื่อสถานที่อยู่ลูกค้าปลายทางจริง | ชื่อสถานที่อยู่จริงที่คนขับ/ผู้ดูแลยืนยัน — copy จาก Source sheet col 38 (ใช้สร้าง alias ด้วย confidence=100, source=DRIVER_VERIFIED) [NEW V5.5.014] |
 
 ---
 
@@ -257,7 +259,7 @@
 | ตาราง | คอลัมน์ | ชื่อคอลัมน์ภาษาไทย | ผลลัพท์ (ความหมาย / ที่มา) |
 |-------|--------|-------------------|---------------------------|
 | SYS_CONFIG | [0] `config_key` | คีย์การตั้งค่า | ชื่อการตั้งค่า (เช่น `SCHEMA_VERSION`, `LAST_SETUP`) |
-| SYS_CONFIG | [1] `config_value` | ค่าการตั้งค่า | ค่าของการตั้งค่า (เช่น `5.5.013`, `2026-06-19`) |
+| SYS_CONFIG | [1] `config_value` | ค่าการตั้งค่า | ค่าของการตั้งค่า (เช่น `5.5.014`, `2026-06-19`) |
 | SYS_CONFIG | [2] `description` | คำอธิบาย | คำอธิบายว่าการตั้งค่านี้คืออะไร |
 | SYS_CONFIG | [3] `updated_at` | วันที่อัปเดต | วันที่การตั้งค่านี้ถูกอัปเดตล่าสุด |
 
@@ -309,13 +311,13 @@
 | M_ALIAS | 8 | ALIAS_IDX | ตารางกลาง Alias (Hybrid) |
 | M_GEO_POINT | 14 | GEO_IDX | พิกัดภูมิศาสตร์ |
 | M_DESTINATION | 11 | DEST_IDX | จุดส่งมอบ (Trinity) |
-| FACT_DELIVERY | 32 | FACT_IDX | ธุรกรรมการจัดส่ง |
+| FACT_DELIVERY | 34 | FACT_IDX | ธุรกรรมการจัดส่ง |
 | Q_REVIEW | 22 | REVIEW_IDX | คิวรอตรวจสอบ |
 | SYS_CONFIG | 4 | — | การตั้งค่าระบบ |
 | SYS_LOG | 6 | SYS_LOG_IDX | บันทึกระบบ |
 | RPT_DATA_QUALITY | 8 | — | รายงานคุณภาพข้อมูล |
-| **รวม** | **135** | **12 IDX sets** | — |
+| **รวม** | **137** | **12 IDX sets** | — |
 
 ---
 
-*LMDS V5.5.013 — Column Dictionary — Last Updated: 2026-06-19*
+*LMDS V5.5.014 — Column Dictionary — Last Updated: 2026-06-19*
