@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.014
+ * VERSION: 5.5.015
  * FILE: 18_ServiceSCG.gs
  * LMDS V5.5 — SCG API Service (Group 2 Commander)
  * ===================================================
@@ -8,7 +8,16 @@
  *   แล้วเรียก Module 17 จับคู่พิกัด พร้อมสร้างสรุปเจ้าของสินค้า/Shipment
  *   เป็น Commander ของ Group 2 (Daily Ops)
  * ===================================================
- *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *   v5.5.015 (2026-06-19) — CRITICAL FIX (8 issues):
+ *     - [FIX CRIT-001] factUpdateRow_ เขียน DRIVER_VERIFIED col 32-33 ใน UPDATE path (BLOCKING)
+ *     - [FIX CRIT-002] buildSrcObjFromReview_ อ่าน DRIVER_VERIFIED col 37-38 จาก Source (BLOCKING)
+ *     - [FIX CRIT-003] copyDriverVerifiedToDailyJob_ merge mode แทน one-shot lookup
+ *     - [FIX CRIT-004] buildDailyJobRow_ ShopKey trim ให้ตรงกับ lookup
+ *     - [FIX CRIT-005] populateAliasFromFactDelivery_ อ่าน DRIVER_VERIFIED + สร้าง alias recovery
+ *     - [FIX CRIT-006] showVersionInfo Audit Cycles 9 → 11 + cycle list ครบ
+ *     - [FIX CRIT-007] 02_Schema comment "37 คอลัมน์" → "39 คอลัมน์"
+ *     - [FIX CRIT-008] validateConfig pre-flight check ตรวจ Sheet column count
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
  *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
  *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
  *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
@@ -492,7 +501,7 @@ function buildDailyJobRow_(shipment, note, item, destCount, destListStr, rowNum)
   row[DATA_IDX.DEST_LIST]       = destListStr;
   row[DATA_IDX.SCAN_STATUS]     = 'รอสแกน';
   row[DATA_IDX.DELIVERY_STATUS] = 'ยังไม่ได้ส่ง';
-  row[DATA_IDX.SHOP_KEY]        = (shipment.ShipmentNo || '') + '|' + (note.ShipToName || '');
+  row[DATA_IDX.SHOP_KEY]        = String(shipment.ShipmentNo || '').trim() + '|' + String(note.ShipToName || '').trim();  // [FIX CRIT-004] trim ทั้งสองฝั่ง
   return row;
 }
 
@@ -642,10 +651,10 @@ function copyDriverVerifiedToDailyJob_() {
       var dvAddr = String(r[SRC_IDX.DRIVER_VERIFIED_ADDR] || '').trim();
       if (shipmentNo && shipToName) {
         var key = shipmentNo + '|' + shipToName;
-        // เก็บข้อมูลแรกที่เจอ (ถ้าซ้ำ key จะใช้ของแรก)
-        if (!lookup[key] && (dvName || dvAddr)) {
-          lookup[key] = { name: dvName, addr: dvAddr };
-        }
+        // [FIX CRIT-003] merge mode — เติม field ที่ว่าง แทน one-shot
+        if (!lookup[key]) lookup[key] = { name: '', addr: '' };
+        if (dvName && !lookup[key].name) lookup[key].name = dvName;
+        if (dvAddr && !lookup[key].addr) lookup[key].addr = dvAddr;
       }
     });
 

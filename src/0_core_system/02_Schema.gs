@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.014
+ * VERSION: 5.5.015
  * FILE: 02_Schema.gs
  * LMDS V5.5 — Sheet Schema Definitions
  * ===================================================
@@ -7,7 +7,16 @@
  *   กำหนด Schema ของทุก Sheet ในระบบ รวมถึง Column Headers และ Validation Rules
  *   เป็น Single Source of Truth สำหรับโครงสร้างข้อมูล
  * ===================================================
- *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *   v5.5.015 (2026-06-19) — CRITICAL FIX (8 issues):
+ *     - [FIX CRIT-001] factUpdateRow_ เขียน DRIVER_VERIFIED col 32-33 ใน UPDATE path (BLOCKING)
+ *     - [FIX CRIT-002] buildSrcObjFromReview_ อ่าน DRIVER_VERIFIED col 37-38 จาก Source (BLOCKING)
+ *     - [FIX CRIT-003] copyDriverVerifiedToDailyJob_ merge mode แทน one-shot lookup
+ *     - [FIX CRIT-004] buildDailyJobRow_ ShopKey trim ให้ตรงกับ lookup
+ *     - [FIX CRIT-005] populateAliasFromFactDelivery_ อ่าน DRIVER_VERIFIED + สร้าง alias recovery
+ *     - [FIX CRIT-006] showVersionInfo Audit Cycles 9 → 11 + cycle list ครบ
+ *     - [FIX CRIT-007] 02_Schema comment "37 คอลัมน์" → "39 คอลัมน์"
+ *     - [FIX CRIT-008] validateConfig pre-flight check ตรวจ Sheet column count
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
  *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
  *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
  *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
@@ -455,7 +464,7 @@ const SCHEMA = Object.freeze({
   ],
 
   /**
-   * SCGนครหลวงJWDภูมิภาค — 37 คอลัมน์ (ข้อมูลดิบจากคนขับ)
+   * SCGนครหลวงJWDภูมิภาค — 39 คอลัมน์ (ข้อมูลดิบจากคนขับ)
    * [ADD v5.5.011] เพิ่ม SCHEMA สำหรับ SHEET.SOURCE ที่ขาดหายไป
    *   ก่อนหน้านี้มีเพียง SRC_IDX ใน 01_Config.gs แต่ไม่มีใน SCHEMA
    *   ทำให้ getSheetHeaders(SHEET.SOURCE) และ validateSchemaConsistency ไม่ทำงานสำหรับชีตนี้

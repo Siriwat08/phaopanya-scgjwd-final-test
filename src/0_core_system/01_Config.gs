@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.014
+ * VERSION: 5.5.015
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -8,6 +8,15 @@
  *   เป็น Single Source of Truth สำหรับ Constants, Sheets, AI Config
  * ===================================================
  * CHANGELOG:
+ *   v5.5.015 (2026-06-19) — CRITICAL FIX (8 issues):
+ *     - [FIX CRIT-001] factUpdateRow_ เขียน DRIVER_VERIFIED col 32-33 ใน UPDATE path (BLOCKING)
+ *     - [FIX CRIT-002] buildSrcObjFromReview_ อ่าน DRIVER_VERIFIED col 37-38 จาก Source (BLOCKING)
+ *     - [FIX CRIT-003] copyDriverVerifiedToDailyJob_ merge mode แทน one-shot lookup
+ *     - [FIX CRIT-004] buildDailyJobRow_ ShopKey trim ให้ตรงกับ lookup
+ *     - [FIX CRIT-005] populateAliasFromFactDelivery_ อ่าน DRIVER_VERIFIED + สร้าง alias recovery
+ *     - [FIX CRIT-006] showVersionInfo Audit Cycles 9 → 11 + cycle list ครบ
+ *     - [FIX CRIT-007] 02_Schema comment "37 คอลัมน์" → "39 คอลัมน์"
+ *     - [FIX CRIT-008] validateConfig pre-flight check ตรวจ Sheet column count
  *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
  *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
  *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
@@ -167,8 +176,8 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.014';
-const SCHEMA_VERSION = '5.5.014';
+const APP_VERSION = '5.5.015';
+const SCHEMA_VERSION = '5.5.015';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs
@@ -811,6 +820,24 @@ function validateConfig() {
     if (typeof validateSchemaConsistency === 'function') {
       validateSchemaConsistency();
     }
+
+    // [FIX CRIT-008] Pre-flight check — ตรวจว่า Sheet มีคอลัมน์เพียงพอสำหรับ V5.5.014
+    //   ถ้า admin ไม่เพิ่มคอลัมน์ใน Sheet จริง → จะ throw error ทันที แทนที่จะพังกลางคัน
+    const sheetColChecks = [
+      { name: SHEET.SOURCE,         minCols: SCHEMA[SHEET.SOURCE].length },
+      { name: SHEET.DAILY_JOB,      minCols: SCHEMA[SHEET.DAILY_JOB].length },
+      { name: SHEET.FACT_DELIVERY,  minCols: SCHEMA[SHEET.FACT_DELIVERY].length },
+    ];
+    sheetColChecks.forEach(function(item) {
+      var sheet = ss.getSheetByName(item.name);
+      if (sheet && sheet.getMaxColumns() < item.minCols) {
+        throw new Error(
+          'คอลัมน์ไม่เพียงพอ: ชีต "' + item.name + '" มี ' + sheet.getMaxColumns() +
+          ' คอลัมน์ แต่ SCHEMA ต้องการ ' + item.minCols + ' คอลัมน์\n' +
+          'กรุณาเพิ่มคอลัมน์ให้ครบก่อนใช้งาน V5.5.014'
+        );
+      }
+    });
   }
   logInfo('Config', `validateConfig ผ่าน — Schema v${SCHEMA_VERSION}`);
 }

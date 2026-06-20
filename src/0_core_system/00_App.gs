@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.014
+ * VERSION: 5.5.015
  * FILE: 00_App.gs
  * LMDS V5.5 — Application Entry Point & Menu Controller
  * ===================================================
@@ -7,7 +7,16 @@
  *   จุดเริ่มต้นหลักของระบบ LMDS ควบคุม Custom Menu และ Pipeline Triggers
  *   ทำหน้าที่เป็น Gateway สำหรับการเรียกใช้งานระบบทั้งหมด
  * ===================================================
- *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *   v5.5.015 (2026-06-19) — CRITICAL FIX (8 issues):
+ *     - [FIX CRIT-001] factUpdateRow_ เขียน DRIVER_VERIFIED col 32-33 ใน UPDATE path (BLOCKING)
+ *     - [FIX CRIT-002] buildSrcObjFromReview_ อ่าน DRIVER_VERIFIED col 37-38 จาก Source (BLOCKING)
+ *     - [FIX CRIT-003] copyDriverVerifiedToDailyJob_ merge mode แทน one-shot lookup
+ *     - [FIX CRIT-004] buildDailyJobRow_ ShopKey trim ให้ตรงกับ lookup
+ *     - [FIX CRIT-005] populateAliasFromFactDelivery_ อ่าน DRIVER_VERIFIED + สร้าง alias recovery
+ *     - [FIX CRIT-006] showVersionInfo Audit Cycles 9 → 11 + cycle list ครบ
+ *     - [FIX CRIT-007] 02_Schema comment "37 คอลัมน์" → "39 คอลัมน์"
+ *     - [FIX CRIT-008] validateConfig pre-flight check ตรวจ Sheet column count
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
  *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
  *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
  *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
@@ -900,30 +909,30 @@ function showVersionInfo() {
     `🚚 ${APP_NAME}\n` +
     `Version: ${APP_VERSION}\n` +
     `Schema: v${SCHEMA_VERSION}\n` +
-    `Audit Cycles: 9 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC)\n\n` +
+    `Audit Cycles: 11 (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED)\n\n` +
     `📦 Modules (22 files):\n` +
-    `  00_App.gs                v5.5.014\n` +
-    `  01_Config.gs             v5.5.014\n` +
-    `  02_Schema.gs             v5.5.014\n` +
-    `  03_SetupSheets.gs        v5.5.014\n` +
-    `  04_SourceRepository.gs   v5.5.014\n` +
-    `  05_NormalizeService.gs   v5.5.014\n` +
-    `  06_PersonService.gs      v5.5.014\n` +
-    `  07_PlaceService.gs       v5.5.014\n` +
-    `  08_GeoService.gs         v5.5.014\n` +
-    `  09_DestinationService.gs v5.5.014\n` +
-    `  10_MatchEngine.gs        v5.5.014\n` +
-    `  11_TransactionService.gs v5.5.014\n` +
-    `  12_ReviewService.gs      v5.5.014\n` +
-    `  13_ReportService.gs      v5.5.014\n` +
-    `  14_Utils.gs              v5.5.014\n` +
-    `  15_GoogleMapsAPI.gs      v5.5.014\n` +
-    `  16_GeoDictionaryBuilder.gs     v5.5.014\n` +
-    `  17_SearchService.gs      v5.5.014\n` +
-    `  18_ServiceSCG.gs         v5.5.014\n` +
-    `  19_Hardening.gs          v5.5.014\n` +
-    `  20_ThGeoService.gs       v5.5.014\n` +
-    `  21_AliasService.gs       v5.5.014\n\n` +
+    `  00_App.gs                v5.5.015\n` +
+    `  01_Config.gs             v5.5.015\n` +
+    `  02_Schema.gs             v5.5.015\n` +
+    `  03_SetupSheets.gs        v5.5.015\n` +
+    `  04_SourceRepository.gs   v5.5.015\n` +
+    `  05_NormalizeService.gs   v5.5.015\n` +
+    `  06_PersonService.gs      v5.5.015\n` +
+    `  07_PlaceService.gs       v5.5.015\n` +
+    `  08_GeoService.gs         v5.5.015\n` +
+    `  09_DestinationService.gs v5.5.015\n` +
+    `  10_MatchEngine.gs        v5.5.015\n` +
+    `  11_TransactionService.gs v5.5.015\n` +
+    `  12_ReviewService.gs      v5.5.015\n` +
+    `  13_ReportService.gs      v5.5.015\n` +
+    `  14_Utils.gs              v5.5.015\n` +
+    `  15_GoogleMapsAPI.gs      v5.5.015\n` +
+    `  16_GeoDictionaryBuilder.gs     v5.5.015\n` +
+    `  17_SearchService.gs      v5.5.015\n` +
+    `  18_ServiceSCG.gs         v5.5.015\n` +
+    `  19_Hardening.gs          v5.5.015\n` +
+    `  20_ThGeoService.gs       v5.5.015\n` +
+    `  21_AliasService.gs       v5.5.015\n\n` +
     `⚙️ Core System (Group 0): App, Config, Schema, Setup, Utils, Hardening\n` +
     `🟩 Group 1 — Master DB: Normalize, Person, Place, Geo, Dest, Match, GeoDict, ThGeo, Alias\n` +
     `🟦 Group 2 — Daily Ops: SourceRepo, Transaction, Review, Report, Maps, Search, SCG`;

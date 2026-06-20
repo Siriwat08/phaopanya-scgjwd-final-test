@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.014
+ * VERSION: 5.5.015
  * FILE: 21_AliasService.gs
  * LMDS V5.5 — Hybrid Alias Architecture (Global M_ALIAS + Entity-Specific Views)
  * ===================================================
@@ -8,7 +8,16 @@
  *   เป็น Single Source of Truth สำหรับ Alias Resolution ที่ Group 2 ใช้ค้นหา
  *   ⚠️ Auto Pipeline ไม่เขียน M_ALIAS ที่นี่ — เขียนที่ autoEnrichAliasesFromFactBatch_() เท่านั้น
  * ===================================================
- *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *   v5.5.015 (2026-06-19) — CRITICAL FIX (8 issues):
+ *     - [FIX CRIT-001] factUpdateRow_ เขียน DRIVER_VERIFIED col 32-33 ใน UPDATE path (BLOCKING)
+ *     - [FIX CRIT-002] buildSrcObjFromReview_ อ่าน DRIVER_VERIFIED col 37-38 จาก Source (BLOCKING)
+ *     - [FIX CRIT-003] copyDriverVerifiedToDailyJob_ merge mode แทน one-shot lookup
+ *     - [FIX CRIT-004] buildDailyJobRow_ ShopKey trim ให้ตรงกับ lookup
+ *     - [FIX CRIT-005] populateAliasFromFactDelivery_ อ่าน DRIVER_VERIFIED + สร้าง alias recovery
+ *     - [FIX CRIT-006] showVersionInfo Audit Cycles 9 → 11 + cycle list ครบ
+ *     - [FIX CRIT-007] 02_Schema comment "37 คอลัมน์" → "39 คอลัมน์"
+ *     - [FIX CRIT-008] validateConfig pre-flight check ตรวจ Sheet column count
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
  *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
  *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
  *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
@@ -1116,10 +1125,22 @@ function populateAliasFromFactDelivery_() {
     const rawName  = String(r[FACT_IDX.SHIP_TO_NAME] || '').trim();
     const personId = String(r[FACT_IDX.PERSON_ID]    || '').trim();
     const placeId  = String(r[FACT_IDX.PLACE_ID]     || '').trim();
+    // [FIX CRIT-005] อ่าน DRIVER_VERIFIED ด้วย
+    const dvName   = String(r[FACT_IDX.DRIVER_VERIFIED_NAME] || '').trim();
+    const dvAddr   = String(r[FACT_IDX.DRIVER_VERIFIED_ADDR] || '').trim();
+
     if (!rawName || rawName.length < 2) return;
     const normKey = normalizeForCompare(rawName);
     if (!normKey || normKey.length < 2) return;
     if (!nameMap[normKey]) nameMap[normKey] = { rawName: rawName, personId: personId, placeId: placeId };
+
+    // [FIX CRIT-005] เพิ่ม DRIVER_VERIFIED เข้า nameMap ด้วย
+    if (dvName && dvName.length >= 2) {
+      var dvNormKey = normalizeForCompare(dvName);
+      if (dvNormKey && dvNormKey.length >= 2 && !nameMap[dvNormKey]) {
+        nameMap[dvNormKey] = { rawName: dvName, personId: personId, placeId: placeId, source: 'DRIVER_VERIFIED_RECOVERY' };
+      }
+    }
   });
 
   // ─── 2. [REF-012] โหลด dedup set ครั้งเดียว — centralized buildGlobalAliasDedupSet_() ───

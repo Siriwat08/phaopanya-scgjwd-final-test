@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.014
+ * VERSION: 5.5.015
  * FILE: 11_TransactionService.gs
  * LMDS V5.5 — FACT_DELIVERY Transaction Service
  * ===================================================
@@ -7,7 +7,16 @@
  *   จัดการตาราง FACT_DELIVERY — บันทึกประวัติการจัดส่งทั้งหมด
  *   เป็น Single Source of Truth สำหรับประวัติขนส่ง
  * ===================================================
- *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
+ *   v5.5.015 (2026-06-19) — CRITICAL FIX (8 issues):
+ *     - [FIX CRIT-001] factUpdateRow_ เขียน DRIVER_VERIFIED col 32-33 ใน UPDATE path (BLOCKING)
+ *     - [FIX CRIT-002] buildSrcObjFromReview_ อ่าน DRIVER_VERIFIED col 37-38 จาก Source (BLOCKING)
+ *     - [FIX CRIT-003] copyDriverVerifiedToDailyJob_ merge mode แทน one-shot lookup
+ *     - [FIX CRIT-004] buildDailyJobRow_ ShopKey trim ให้ตรงกับ lookup
+ *     - [FIX CRIT-005] populateAliasFromFactDelivery_ อ่าน DRIVER_VERIFIED + สร้าง alias recovery
+ *     - [FIX CRIT-006] showVersionInfo Audit Cycles 9 → 11 + cycle list ครบ
+ *     - [FIX CRIT-007] 02_Schema comment "37 คอลัมน์" → "39 คอลัมน์"
+ *     - [FIX CRIT-008] validateConfig pre-flight check ตรวจ Sheet column count
+ *   v5.5.014 (2026-06-19) — DRIVER VERIFIED COLUMNS + ALIAS ENRICHMENT:
  *     - [ADD] เพิ่ม 2 คอลัมน์ "ชื่อลูกค้าปลายทางจริง" + "ชื่อสถานที่อยู่ลูกค้าปลายทางจริง"
  *       ใน Source sheet (col 38-39), DAILY_JOB (col 29-30), FACT_DELIVERY (col 32-33)
  *     - [ADD] SRC_IDX.DRIVER_VERIFIED_NAME/ADDR, DATA_IDX.DRIVER_VERIFIED_NAME/ADDR, FACT_IDX.DRIVER_VERIFIED_NAME/ADDR
@@ -217,7 +226,7 @@ function upsertFactDelivery(srcObj, personId, placeId, geoId, destId, decision) 
                       SCHEMA[SHEET.FACT_DELIVERY].length);
     const rowData  = rowRange.getValues()[0];
     return factUpdateRow_(rowRange, rowData, personId, placeId, geoId, destId,
-                          decision, resolvedLat, resolvedLng, now);
+                          decision, resolvedLat, resolvedLng, now, srcObj);
 
   } else {
     // --- INSERT ---
@@ -250,7 +259,7 @@ function upsertFactDelivery(srcObj, personId, placeId, geoId, destId, decision) 
  * @param {Date} now
  * @return {{ txId: string, isNew: boolean, rowData: null }}
  */
-function factUpdateRow_(rowRange, rowData, personId, placeId, geoId, destId, decision, resolvedLat, resolvedLng, now) {
+function factUpdateRow_(rowRange, rowData, personId, placeId, geoId, destId, decision, resolvedLat, resolvedLng, now, srcObj) {
   // [FIX v5.5.001] ใช้ nullish coalescing logic แทน ||
   // เพื่อไม่ให้ค่าว่าง '' ถูกมองเป็น falsy แล้ว fallback ไปใช้ค่าเก่า
   rowData[FACT_IDX.PERSON_ID]    = personId  != null ? personId  : rowData[FACT_IDX.PERSON_ID];
@@ -266,6 +275,13 @@ function factUpdateRow_(rowRange, rowData, personId, placeId, geoId, destId, dec
   rowData[FACT_IDX.MATCH_ACTION] = decision.action  || '';
   rowData[FACT_IDX.UPDATED_AT]   = now;
   rowData[FACT_IDX.EVIDENCE]     = decision.evidence || rowData[FACT_IDX.EVIDENCE] || '';
+  // [FIX CRIT-001] เขียน DRIVER_VERIFIED ใน UPDATE path — merge mode (ไม่เขียนทับค่าเดิม)
+  if (srcObj && srcObj.driverVerifiedName) {
+    rowData[FACT_IDX.DRIVER_VERIFIED_NAME] = srcObj.driverVerifiedName;
+  }
+  if (srcObj && srcObj.driverVerifiedAddr) {
+    rowData[FACT_IDX.DRIVER_VERIFIED_ADDR] = srcObj.driverVerifiedAddr;
+  }
 
   rowRange.setValues([rowData]);
   return { txId: rowData[FACT_IDX.TX_ID], isNew: false, rowData: null };
