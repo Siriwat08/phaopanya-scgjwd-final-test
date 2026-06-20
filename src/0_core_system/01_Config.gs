@@ -823,6 +823,7 @@ function validateConfig() {
 
     // [FIX CRIT-008] Pre-flight check — ตรวจว่า Sheet มีคอลัมน์เพียงพอสำหรับ V5.5.014
     //   ถ้า admin ไม่เพิ่มคอลัมน์ใน Sheet จริง → จะ throw error ทันที แทนที่จะพังกลางคัน
+    var ss = SpreadsheetApp.getActiveSpreadsheet();  // [FIX] ss ไม่ได้ประกาศก่อนหน้านี้
     const sheetColChecks = [
       { name: SHEET.SOURCE,         minCols: SCHEMA[SHEET.SOURCE].length },
       { name: SHEET.DAILY_JOB,      minCols: SCHEMA[SHEET.DAILY_JOB].length },
