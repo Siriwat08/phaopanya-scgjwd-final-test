@@ -696,7 +696,7 @@ function oldFunction() {
 
 ให้ AI ตรวจสอบก่อนส่งโค้ดทุกครั้ง:
 
-> ✅ **FIRST_AUDIT_REVIEW15 + REFACTOR (2026-06-12) ได้ดำเนินการเสร็จสิ้นแล้ว** — กฎข้อ 1, 2, 3, 5, 7, 9, 13 ที่เคยมีการละเมิด ได้รับการแก้ไขครบถ้วนแล้ว (SHOULD_FIX/NICE_TO_HAVE → PASS) ผล Compliance: 8/16 PASS → **16/16 COMPLIANT** (+8). REFACTOR cycle: 21 REF issues, 16 files changed. APP_VERSION = '5.5.014', SCHEMA_VERSION = '5.5.014'.
+> ✅ **FIRST_AUDIT_REVIEW15 + REFACTOR (2026-06-12) ได้ดำเนินการเสร็จสิ้นแล้ว** — กฎข้อ 1, 2, 3, 5, 7, 9, 13 ที่เคยมีการละเมิด ได้รับการแก้ไขครบถ้วนแล้ว (SHOULD_FIX/NICE_TO_HAVE → PASS) ผล Compliance: 8/16 PASS → **16/16 COMPLIANT** (+8). REFACTOR cycle: 21 REF issues, 16 files changed. APP_VERSION = '5.5.015', SCHEMA_VERSION = '5.5.015'.
 
 ### Syntax & Naming
 - [ ] ใช้ `camelCase` สำหรับชื่อทั้งหมด
@@ -774,7 +774,7 @@ function oldFunction() {
 
 ---
 
-> **เวอร์ชัน:** 5.5.014 (post-DRIVER-VERIFIED) — รวมจาก 2 ไฟล์เดิม + ปรับปรูงข้อ 1.1 + อัปเดตล่าสุด V5.5.014
-> **APP_VERSION:** '5.5.014' | **SCHEMA_VERSION:** '5.5.014'
+> **เวอร์ชัน:** 5.5.015 (post-CRITICAL-FIX) — รวมจาก 2 ไฟล์เดิม + ปรับปรูงข้อ 1.1 + อัปเดตล่าสุด V5.5.015
+> **APP_VERSION:** '5.5.015' | **SCHEMA_VERSION:** '5.5.015'
 > **อัปเดตล่าสุด:** 2026-06-19
 > **ตัวอย่างโค้ดทั้งหมด:** Google Apps Script (JavaScript)

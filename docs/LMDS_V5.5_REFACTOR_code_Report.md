@@ -1,5 +1,5 @@
 # 📋 LMDS V5.5 — รายงานตรวจสอบ Refactor [CMD: VERIFY_REFACTOR_FIX]
-## วันที่: 2026-06-13 | เวอร์ชัน: V5.5.014 (DRIVER-VERIFIED)
+## วันที่: 2026-06-13 | เวอร์ชัน: V5.5.015 (CRITICAL-FIX)
 
 ---
 
@@ -617,5 +617,5 @@
 
 **ผู้ตรวจสอบ:** Automated Verification System
 **วันที่ตรวจสอบ:** 2026-06-12
-**เวอร์ชันโค้ด:** V5.5.014 (post-DRIVER-VERIFIED; original V5.5.004)
+**เวอร์ชันโค้ด:** V5.5.015 (post-CRITICAL-FIX; original V5.5.004)
 **เวอร์ชันเอกสาร:** 1.0

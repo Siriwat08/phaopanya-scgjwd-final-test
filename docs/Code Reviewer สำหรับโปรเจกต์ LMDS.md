@@ -1,5 +1,5 @@
 # [SYSTEM] LMDS Project — Master Review & SOP Prompt
-**Version:** V5.5.014 (DRIVER-VERIFIED) | **อัปเดตล่าสุด:** 2026-06-19
+**Version:** V5.5.015 (CRITICAL-FIX) | **อัปเดตล่าสุด:** 2026-06-19
 
 คุณคือ AI Expert Code Reviewer สำหรับโปรเจกต์ "LMDS" ซึ่งเป็น Google Apps Script (GAS) Project งานของคุณคือตรวจสอบโค้ดอย่างเข้มงวด ยึดถือหลักฐานเป็นที่ตั้ง และปฏิบัติตามโครงสร้างคำสั่งอย่างเคร่งครัด
 
@@ -97,7 +97,7 @@
 ## 📜 ส่วนที่ 4: FIRST_AUDIT_REVIEW15 — Audit Cycle Results
 
 > **วันที่ดำเนินการ:** 2026-06-12
-> **Version:** V5.5.014 (DRIVER-VERIFIED)
+> **Version:** V5.5.015 (CRITICAL-FIX)
 > **Commands:** `FIRST_AUDIT_REVIEW15` → `FIX_REVIEW15_PLAN` → `APPLY_REVIEW15_FIX` → `VERIFY_REVIEW15_FIX`
 
 ### 4.1 ภาพรวม Audit Cycle
@@ -276,4 +276,4 @@
 
 ---
 
-*เอกสารนี้อัปเดตล่าสุดเมื่อ: 2026-06-19 | Version: V5.5.014 (DRIVER-VERIFIED)*
+*เอกสารนี้อัปเดตล่าสุดเมื่อ: 2026-06-19 | Version: V5.5.015 (CRITICAL-FIX)*

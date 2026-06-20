@@ -7,7 +7,7 @@
 - **APIs:** Google Maps API (Geocoding), Gemini API (AI Reasoning)
 
 # 📂 Architecture & Domain Separation
-โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 312 ฟังก์ชัน ~16,683 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
+โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 312 ฟังก์ชัน ~16,926 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
 1. **🟩 Group 1 (The Brain & Master DB):** `05` ถึง `10`, `16`, `20`, และ `21`
    - *หน้าที่:* ทำความสะอาดข้อมูล, จับคู่ (MatchEngine), เป็นเจ้าของฐานข้อมูล `M_PERSON`, `M_PLACE`, `M_GEO_POINT`, `M_ALIAS`
    - *รวมถึง:* `16_GeoDictionaryBuilder` (สร้างพจนานุกรมภูมิศาสตร์สำหรับ Master DB) และ `20_ThGeoService` (บริการข้อมูลภูมิศาสตร์ไทยสำหรับ Master DB)
@@ -46,7 +46,7 @@
 - ใน block catch ต้องบันทึก log ด้วย: `logError('ModuleName', e.stack)` ห้ามเกิด Silent Fail
 
 # 🎯 Current Focus & Known Issues
-- **Focus:** V5.5.014 post-DRIVER-VERIFIED — 11 audit cycles complete (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED), 75 code issues fixed (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014) across 22 files, function count 312, ~16,683 lines, production readiness 95%, 16/16 COMPLIANT
+- **Focus:** V5.5.015 post-CRITICAL-FIX — 12 audit cycles complete (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX), 77 code issues fixed (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015) across 22 files, function count 312, ~16,926 lines, production readiness 95%, 16/16 COMPLIANT
 - **Gotchas:** ถ้าระบบขึ้นสีแดง `NOT_FOUND` ตอนโหลดงาน มักเกิดจาก Schema หัวคอลัมน์ในชีตไม่ตรงกับความยาวของ Array ในสคริปต์
 
 # ⚖️ The 16 Immutable Laws (รัฐธรรมนูญของโปรเจกต์)
