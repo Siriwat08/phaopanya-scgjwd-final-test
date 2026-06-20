@@ -590,45 +590,25 @@ function getCachedPostcodeMap_() {
  *   เดิมแบ่ง chunk ตามจำนวน keys (350/chunk) + sequential cache.put()
  *   ตอนนี้ใช้ saveChunkedCache_ ที่แบ่งตามขนาด KB (90KB/chunk) + putAll() แบบ batch
  *   ปลอดภัยกว่าเพราะ chunk size ปรับตามขนาดข้อมูลจริง ไม่ใช่จำนวน items
+ * [PERF-011] Removed legacy fallback — saveChunkedCache_ is required dependency
  */
 function savePostcodeMapToCache_(postcodeMap) {
+  // [PERF-011] Defensive check — saveChunkedCache_ is required dependency from 14_Utils.gs
+  if (typeof saveChunkedCache_ !== 'function') {
+    throw new Error('savePostcodeMapToCache_: saveChunkedCache_ not loaded — check 14_Utils.gs');
+  }
   const cache = CacheService.getScriptCache();
-
-  // [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_ (putAll + byte-based chunking)
-  if (typeof saveChunkedCache_ === 'function') {
-    saveChunkedCache_(cache, 'TH_GEO_POSTCODE', postcodeMap);
-    // [FIX] ล้าง legacy keys ที่อาจตกค้างจาก version เก่า
-    try {
-      const legacyTotal = cache.get('TH_GEO_POSTCODE_TOTAL');
-      if (legacyTotal) {
-        const legacyChunks = Number(legacyTotal);
-        const keysToRemove = ['TH_GEO_POSTCODE_TOTAL'];
-        for (let i = 0; i < legacyChunks; i++) keysToRemove.push('TH_GEO_POSTCODE_' + i);
-        cache.removeAll(keysToRemove);
-      }
-    } catch (e) { /* ignore cleanup errors */ }
-    return;
-  }
-
-  // Fallback: legacy implementation (backward compatibility)
-  // [FIX v5.5.008 P2 #15] ใช้ chunkSize=350 แค่ใน fallback path เท่านั้น
-  //   primary path ใช้ saveChunkedCache_ ที่แบ่งตามขนาด KB (90KB/chunk) — ปลอดภัยกว่า
-  //   chunkSize=350 เป็นค่าประมาณการที่เดิมใช้เพราะ postcode entry ~250 bytes ต่อตัว
-  //   350 × 250 = ~87.5KB พอดี แต่ถ้า entry ใหญ่ขึ้นจะ fail — primary path แก้ปัญหานี้แล้ว
-  const keys = Object.keys(postcodeMap);
-  const chunkSize = 350;
-  const totalChunks = Math.ceil(keys.length / chunkSize);
-  try { cache.put('TH_GEO_POSTCODE_TOTAL', String(totalChunks), AI_CONFIG.CACHE_TTL_SEC); } catch(e){}
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkKeys = keys.slice(i * chunkSize, (i + 1) * chunkSize);
-    const chunkObj = {};
-    chunkKeys.forEach(k => { chunkObj[k] = postcodeMap[k]; });
-    try {
-      cache.put('TH_GEO_POSTCODE_' + i, JSON.stringify(chunkObj), AI_CONFIG.CACHE_TTL_SEC);
-    } catch(e) {
-      logWarn('GeoDictBuilder', `Cache POSTCODE_${i} ล้มเหลว (legacy): ${e.message}`);
+  saveChunkedCache_(cache, 'TH_GEO_POSTCODE', postcodeMap);
+  // [FIX] ล้าง legacy keys ที่อาจตกค้างจาก version เก่า
+  try {
+    const legacyTotal = cache.get('TH_GEO_POSTCODE_TOTAL');
+    if (legacyTotal) {
+      const legacyChunks = Number(legacyTotal);
+      const keysToRemove = ['TH_GEO_POSTCODE_TOTAL'];
+      for (let i = 0; i < legacyChunks; i++) keysToRemove.push('TH_GEO_POSTCODE_' + i);
+      cache.removeAll(keysToRemove);
     }
-  }
+  } catch (e) { /* ignore cleanup errors */ }
 }
 
 function getCachedProvinces_() {

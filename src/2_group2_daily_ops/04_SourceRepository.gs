@@ -347,91 +347,34 @@ function getProcessedInvoiceSet_() {
  *   เดิมใช้ sequential cache.put() ใน loop (ช้ากว่า putAll() 5-10×)
  *   ตอนนี้ delegate ไปที่ saveChunkedCache_ ใน 14_Utils.gs ซึ่งใช้ putAll() แบบ batch
  *   และแบ่ง chunk ตามขนาด KB (90KB/chunk) แทนจำนวน items (200/chunk)
+ * [PERF-011] Removed legacy fallback — saveChunkedCache_ is required dependency
+ *   (declared in 14_Utils.gs which is always loaded first)
  * @param {GoogleAppsScript.Cache.Cache} cache
  * @param {Set<string>} doneSet
  */
 function saveProcessedInvoicesToCache_(cache, doneSet) {
-  const invoiceArr = [...doneSet];
-
-  // [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_ (putAll + byte-based chunking)
-  if (typeof saveChunkedCache_ === 'function') {
-    saveChunkedCache_(cache, CACHE_KEY_INVOICES, invoiceArr);
-    return;
+  // [PERF-011] Defensive check — saveChunkedCache_ is required dependency from 14_Utils.gs
+  if (typeof saveChunkedCache_ !== 'function') {
+    throw new Error('saveProcessedInvoicesToCache_: saveChunkedCache_ not loaded — check 14_Utils.gs');
   }
-
-  // Fallback: legacy implementation (backward compatibility)
-  const json = JSON.stringify(invoiceArr);
-  if (json.length < 90000) {
-    try {
-      cache.put(CACHE_KEY_INVOICES, json, AI_CONFIG.CACHE_TTL_SEC);
-      cache.put(CACHE_KEY_INVOICES + '_CHUNKS', '0', AI_CONFIG.CACHE_TTL_SEC);
-    } catch (e) {
-      logWarn('SourceRepo', 'PROCESSED_INVOICES Cache write error (< 90KB): ' + e.message);
-    }
-    return;
-  }
-  const CHUNK_SIZE = 200;
-  const totalChunks = Math.ceil(invoiceArr.length / CHUNK_SIZE);
-  try { cache.put(CACHE_KEY_INVOICES + '_CHUNKS', String(totalChunks), AI_CONFIG.CACHE_TTL_SEC); } catch(e) {
-    logWarn('SourceRepo', 'PROCESSED_INVOICES _CHUNKS write error: ' + e.message);
-    return;
-  }
-  for (let i = 0; i < totalChunks; i++) {
-    const chunk = invoiceArr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-    try {
-      cache.put(CACHE_KEY_INVOICES + '_' + i, JSON.stringify(chunk), AI_CONFIG.CACHE_TTL_SEC);
-    } catch (e) {
-      logWarn('SourceRepo', 'PROCESSED_INVOICES chunk ' + i + '/' + totalChunks + ' write error: ' + e.message);
-      try {
-        const keysToRemove = [];
-        for (let j = 0; j <= i; j++) keysToRemove.push(CACHE_KEY_INVOICES + '_' + j);
-        keysToRemove.push(CACHE_KEY_INVOICES + '_CHUNKS');
-        cache.removeAll(keysToRemove);
-      } catch (_) {}
-      return;
-    }
-  }
-  logDebug('SourceRepo', 'Chunked invoice cache (legacy): ' + invoiceArr.length + ' items → ' + totalChunks + ' chunks');
+  saveChunkedCache_(cache, CACHE_KEY_INVOICES, Array.from(doneSet));
 }
 
 /**
  * loadProcessedInvoicesFromCache_ — [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_
  *   เดิมใช้ sequential cache.get() ใน loop (ช้ากว่า getAll() 5-10×)
+ * [PERF-011] Removed legacy fallback — loadChunkedCache_ is required dependency
  * @param {GoogleAppsScript.Cache.Cache} cache
  * @return {Set<string>|null}
  */
 function loadProcessedInvoicesFromCache_(cache) {
-  // [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_ (getAll + batch read)
-  if (typeof loadChunkedCache_ === 'function') {
-    const cached = loadChunkedCache_(cache, CACHE_KEY_INVOICES);
-    if (cached && Array.isArray(cached)) {
-      return new Set(cached);
-    }
-    return null;
+  // [PERF-011] Defensive check — loadChunkedCache_ is required dependency from 14_Utils.gs
+  if (typeof loadChunkedCache_ !== 'function') {
+    throw new Error('loadProcessedInvoicesFromCache_: loadChunkedCache_ not loaded — check 14_Utils.gs');
   }
-
-  // Fallback: legacy implementation
-  const singleCached = cache.get(CACHE_KEY_INVOICES);
-  if (singleCached) {
-    try { return new Set(JSON.parse(singleCached)); } catch (e) { logDebug('SourceRepo', 'PROCESSED_INVOICES Cache parse error: ' + e.message); }
-  }
-  const totalStr = cache.get(CACHE_KEY_INVOICES + '_CHUNKS');
-  if (!totalStr) return null;
-  const totalChunks = Number(totalStr);
-  if (isNaN(totalChunks) || totalChunks <= 0) return null;
-  let isComplete = true;
-  const merged = [];
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkStr = cache.get(CACHE_KEY_INVOICES + '_' + i);
-    if (!chunkStr) { isComplete = false; break; }
-    try {
-      const chunk = JSON.parse(chunkStr);
-      for (let j = 0; j < chunk.length; j++) merged.push(chunk[j]);
-    } catch (e) { isComplete = false; break; }
-  }
-  if (isComplete && merged.length > 0) {
-    logDebug('SourceRepo', 'Chunked invoice cache hit (legacy): ' + merged.length + ' items from ' + totalChunks + ' chunks');
-    return new Set(merged);
+  const cached = loadChunkedCache_(cache, CACHE_KEY_INVOICES);
+  if (cached && Array.isArray(cached)) {
+    return new Set(cached);
   }
   return null;
 }
@@ -579,86 +522,29 @@ function saveSourceRowsToCache_(result) {
   if (!result || result.length === 0) return;
   const cache = CacheService.getScriptCache();
 
-  // [FIX v5.5.007 P1 #7] ใช้ centralized saveChunkedCache_ (putAll + byte-based chunking)
-  if (typeof saveChunkedCache_ === 'function') {
-    saveChunkedCache_(cache, CACHE_KEY_SOURCE, result);
-    return;
+  // [PERF-011] Removed legacy fallback — saveChunkedCache_ is required dependency
+  //   saveChunkedCache_ declared in 14_Utils.gs which is always loaded first
+  if (typeof saveChunkedCache_ !== 'function') {
+    throw new Error('saveSourceRowsToCache_: saveChunkedCache_ not loaded — check 14_Utils.gs');
   }
-
-  // Fallback: legacy implementation (backward compatibility)
-  const json = JSON.stringify(result);
-  if (json.length < 90000) {
-    try {
-      cache.put(CACHE_KEY_SOURCE, json, AI_CONFIG.CACHE_TTL_SEC);
-      cache.put(CACHE_KEY_SOURCE + '_TOTAL', '0', AI_CONFIG.CACHE_TTL_SEC);
-      return;
-    } catch (e) {
-      logWarn('SourceRepo', 'Cache put ล้มเหลว (แม้ขนาด < 90KB): ' + e.message);
-      return;
-    }
-  }
-  const CHUNK_SIZE = 200;
-  const totalChunks = Math.ceil(result.length / CHUNK_SIZE);
-  try { cache.put(CACHE_KEY_SOURCE + '_TOTAL', String(totalChunks), AI_CONFIG.CACHE_TTL_SEC); } catch(e) {
-    logWarn('SourceRepo', 'Cache _TOTAL write ล้มเหลว: ' + e.message);
-    return;
-  }
-  for (let i = 0; i < totalChunks; i++) {
-    const chunk = result.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-    try {
-      cache.put(CACHE_KEY_SOURCE + '_' + i, JSON.stringify(chunk), AI_CONFIG.CACHE_TTL_SEC);
-    } catch (e) {
-      logWarn('SourceRepo', `Cache chunk ${i}/${totalChunks} write ล้มเหลว: ${e.message}`);
-      try {
-        const keysToRemove = [];
-        for (let j = 0; j <= i; j++) keysToRemove.push(CACHE_KEY_SOURCE + '_' + j);
-        keysToRemove.push(CACHE_KEY_SOURCE + '_TOTAL');
-        cache.removeAll(keysToRemove);
-      } catch (_) {}
-      return;
-    }
-  }
-  logDebug('SourceRepo', `Chunked cache (legacy): ${result.length} items → ${totalChunks} chunks`);
+  saveChunkedCache_(cache, CACHE_KEY_SOURCE, result);
 }
 
 /**
  * loadSourceRowsFromCache_ — [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_
  *   เดิมใช้ sequential cache.get() ใน loop (ช้ากว่า getAll() 5-10×)
+ * [PERF-011] Removed legacy fallback — loadChunkedCache_ is required dependency
  * @param {GoogleAppsScript.Cache.Cache} cache
  * @return {Object[]|null}
  */
 function loadSourceRowsFromCache_(cache) {
-  // [FIX v5.5.007 P1 #7] ใช้ centralized loadChunkedCache_ (getAll + batch read)
-  if (typeof loadChunkedCache_ === 'function') {
-    const cached = loadChunkedCache_(cache, CACHE_KEY_SOURCE);
-    if (cached && Array.isArray(cached)) {
-      return cached;
-    }
-    return null;
+  // [PERF-011] Defensive check — loadChunkedCache_ is required dependency from 14_Utils.gs
+  if (typeof loadChunkedCache_ !== 'function') {
+    throw new Error('loadSourceRowsFromCache_: loadChunkedCache_ not loaded — check 14_Utils.gs');
   }
-
-  // Fallback: legacy implementation
-  const singleCached = cache.get(CACHE_KEY_SOURCE);
-  if (singleCached) {
-    try { return JSON.parse(singleCached); } catch (e) { logDebug('SourceRepo', 'SOURCE_ROWS_V3 Cache parse error: ' + e.message); }
-  }
-  const totalStr = cache.get(CACHE_KEY_SOURCE + '_TOTAL');
-  if (!totalStr) return null;
-  const totalChunks = Number(totalStr);
-  if (isNaN(totalChunks) || totalChunks <= 0) return null;
-  let isComplete = true;
-  const merged = [];
-  for (let i = 0; i < totalChunks; i++) {
-    const chunkStr = cache.get(CACHE_KEY_SOURCE + '_' + i);
-    if (!chunkStr) { isComplete = false; break; }
-    try {
-      const chunk = JSON.parse(chunkStr);
-      for (let j = 0; j < chunk.length; j++) merged.push(chunk[j]);
-    } catch (e) { isComplete = false; break; }
-  }
-  if (isComplete && merged.length > 0) {
-    logDebug('SourceRepo', `Chunked cache hit (legacy): ${merged.length} items from ${totalChunks} chunks`);
-    return merged;
+  const cached = loadChunkedCache_(cache, CACHE_KEY_SOURCE);
+  if (cached && Array.isArray(cached)) {
+    return cached;
   }
   return null;
 }

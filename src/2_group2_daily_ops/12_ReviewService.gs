@@ -178,6 +178,13 @@
  */
 
 // ============================================================
+// SECTION 0: Module-level Constants
+// ============================================================
+
+// [PERF-001] Checkpoint key for reprocessReviewQueue Resume mechanism
+var REPROCESS_REVIEW_CHECKPOINT_KEY = 'REPROCESS_REVIEW_CHECKPOINT';
+
+// ============================================================
 // SECTION 1: enqueueReview
 // ============================================================
 
@@ -327,17 +334,12 @@ function buildRecommendedAction_(personResult, placeResult, geoResult, decision)
 // ============================================================
 
 function applyAllPendingDecisions() {
-  // [FIX CRIT-006] เพิ่ม LockService — ป้องกัน Race Condition เมื่อ 2 ผู้ใช้รันพร้อมกัน
+  // [PERF-008] Idiomatic LockService pattern (เหมือน fetchDataFromSCGJWD)
+  //   เดิมใช้ try-catch + hasLock แยก 2 step + ข้อความ error ซ้ำซ้อน 2 อัน
+  //   ตอนนี้ใช้ if (!lock.tryLock(...)) แบบ idiomatic — ลด 13 บรรทัด → 5 บรรทัด + 1 ข้อความชัดเจน
   const lock = LockService.getScriptLock();
-  try {
-    lock.tryLock(APP_CONST.LOCK_TIMEOUT_MS);
-  } catch (e) {
-    safeUiAlert_('⚠️ ไม่สามารถประมวลผล Review ได้ — มีการรันซ้อนอยู่');
-    return;
-  }
-  
-  if (!lock.hasLock()) {
-    safeUiAlert_('⚠️ ระบบกำลังประมวลผล Review อยู่ กรุณารอสักครู่');
+  if (!lock.tryLock(APP_CONST.LOCK_TIMEOUT_MS)) {
+    safeUiAlert_('⚠️ ระบบกำลังประมวลผล Review อยู่ กรุณารอสักครู่แล้วลองใหม่');
     return;
   }
 
@@ -822,15 +824,45 @@ function getReviewStats() {
   return stats;
 }
 
-function highlightHighPriorityReviews() {
+/**
+ * highlightHighPriorityReviews — ทาสี Q_REVIEW ตาม priority/status
+ * [PERF-006] รองรับ single-row update สำหรับ onEdit (ลด 44,000 → 22 cell ops ต่อคลิก)
+ *   - onEdit caller ส่ง optTargetRow → ทาสีเฉพาะแถวนั้น (1 read + 1 write, 22 cells)
+ *   - bulk ops caller (reprocessReviewQueue, applyAllPendingDecisions) ไม่ส่ง → full refresh
+ *
+ * @param {number} [optTargetRow] - 1-based row number (สำหรับ onEdit single-row update)
+ *                                   ถ้าไม่ระบุ → full-sheet refresh (สำหรับ bulk ops)
+ */
+function highlightHighPriorityReviews(optTargetRow) {
   // [FIX B2 v5.5.002] เพิ่ม try-catch — menu entry point ต้องมี error handling
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(SHEET.Q_REVIEW);
     if (!sheet || sheet.getLastRow() < 2) return;
 
-    const totalRows = sheet.getLastRow() - 1;
     const totalCols = SCHEMA[SHEET.Q_REVIEW].length;
+
+    // ─── [PERF-006] Single-row mode สำหรับ onEdit ───
+    //   เดิม: ทุก onEdit ทำ full-sheet refresh (read + write ~22,000 cells)
+    //   ใหม่: ถ้าส่ง optTargetRow → ทำเฉพาะ row นั้น (read + write ~22 cells)
+    //   ลดจาก 44,000 cell ops → 22 cell ops ต่อ onEdit click (ลด ~95%)
+    if (optTargetRow && optTargetRow >= 2) {
+      const rowData = sheet.getRange(optTargetRow, 1, 1, totalCols).getValues()[0];
+      const priority = Number(rowData[REVIEW_IDX.PRIORITY] || 0);
+      const status   = String(rowData[REVIEW_IDX.STATUS] || '').trim();
+
+      let color = null;
+      if (status === 'Done') color = '#d9ead3';
+      else if (priority >= 3) color = '#f4cccc';
+      else if (priority === 2) color = '#fff2cc';
+
+      sheet.getRange(optTargetRow, 1, 1, totalCols).setBackground(color);
+      logDebug('ReviewService', 'highlightHighPriorityReviews: single-row ' + optTargetRow);
+      return;
+    }
+
+    // ─── Full-sheet refresh (existing — สำหรับ bulk ops เช่น reprocessReviewQueue) ───
+    const totalRows = sheet.getLastRow() - 1;
     const data = sheet.getRange(2, 1, totalRows, totalCols).getValues();
 
     const bgColors = [];
@@ -847,7 +879,7 @@ function highlightHighPriorityReviews() {
     });
 
     sheet.getRange(2, 1, totalRows, totalCols).setBackgrounds(bgColors);
-    logDebug('ReviewService', 'highlightHighPriorityReviews: ' + totalRows + ' แถว');
+    logDebug('ReviewService', 'highlightHighPriorityReviews: full-sheet ' + totalRows + ' แถว');
   } catch (e) {
     logError('ReviewService', 'highlightHighPriorityReviews ล้มเหลว: ' + e.message, e);
   }
@@ -926,36 +958,61 @@ function safeExtractArr_(arr, idx) {
  * วิธีรัน: เลือกฟังก์ชันนี้ใน dropdown → กด ▶ Run
  */
 function reprocessReviewQueue() {
+  // [PERF-001] BLOCKING FIX — เพิ่ม LockService + Time Guard + Checkpoint/Resume + flushLogBuffer_
+  //   ปัญหาเดิม: ไม่มี guards ใดๆ → Q_REVIEW 200+ rows เสี่ยง Timeout แน่นอน
+  //     - LockService: กัน concurrent writes (2 users พร้อมกัน → duplicate FACT rows)
+  //     - Time Guard: หยุดที่ 5 นาที + บันทึก checkpoint → resume รอบถัดไป
+  //     - Checkpoint: กัน CPU waste (เริ่มจาก 0 ใหม่ทุกครั้ง → ~30-60s waste/รอบ)
+  //     - flushLogBuffer_: กัน log entries สูญหายเมื่อ Timeout
+
+  // ─── STEP 1: LockService (idiomatic pattern เหมือน applyAllPendingDecisions) ───
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(APP_CONST.LOCK_TIMEOUT_MS)) {
+    safeUiAlert_('⚠️ ระบบกำลังประมวลผล Review อยู่ กรุณารอสักครู่แล้วลองใหม่');
+    return;
+  }
+
   var startTime = Date.now();
+  var timeLimit = AI_CONFIG.TIME_LIMIT_MS || (5 * 60 * 1000);
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
-  var factSheet = ss.getSheetByName(SHEET.FACT_DELIVERY);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
+    var factSheet = ss.getSheetByName(SHEET.FACT_DELIVERY);
 
-  if (!reviewSheet || reviewSheet.getLastRow() < 2) {
-    safeUiAlert_('Q_REVIEW ว่าง — ไม่มีข้อมูลจัดการ');
-    return;
-  }
-  if (!factSheet) {
-    safeUiAlert_('ไม่พบชีต FACT_DELIVERY');
-    return;
-  }
+    if (!reviewSheet || reviewSheet.getLastRow() < 2) {
+      safeUiAlert_('Q_REVIEW ว่าง — ไม่มีข้อมูลจัดการ');
+      return;
+    }
+    if (!factSheet) {
+      safeUiAlert_('ไม่พบชีต FACT_DELIVERY');
+      return;
+    }
 
-  // ═══════════════════════════════════════
-  // PHASE 1: อ่านข้อมูลทั้งหมดเข้า Memory
-  // ═══════════════════════════════════════
+    // ═══════════════════════════════════════
+    // PHASE 1: อ่านข้อมูลทั้งหมดเข้า Memory (ครั้งเดียว — resume ใช้ต่อ)
+    // ═══════════════════════════════════════
 
-  var reviewLastRow = reviewSheet.getLastRow();
-  var reviewCols = reviewSheet.getLastColumn();
-  var reviewHeaders = reviewSheet.getRange(1, 1, 1, reviewCols).getValues()[0];
-  var reviewData = reviewSheet.getRange(2, 1, reviewLastRow - 1, reviewCols).getValues();
+    var reviewLastRow = reviewSheet.getLastRow();
+    var reviewCols = reviewSheet.getLastColumn();
+    var reviewData = reviewSheet.getRange(2, 1, reviewLastRow - 1, reviewCols).getValues();
 
-  var factLastRow = factSheet.getLastRow();
-  var factCols = factSheet.getLastColumn();
-  var factHeaders = factSheet.getRange(1, 1, 1, factCols).getValues()[0];
-  var factData = factLastRow > 1
-    ? factSheet.getRange(2, 1, factLastRow - 1, factCols).getValues()
-    : [];
+    var factLastRow = factSheet.getLastRow();
+    var factCols = factSheet.getLastColumn();
+    var factData = factLastRow > 1
+      ? factSheet.getRange(2, 1, factLastRow - 1, factCols).getValues()
+      : [];
+
+    // ─── STEP 3: โหลด Checkpoint ───
+    //   ถ้ามี checkpoint (จากการ Time Guard หยุดกลางคันรอบก่อน) → เริ่มจาก idx นั้น
+    //   ถ้าไม่มี → เริ่มจาก 0
+    var checkpoint = loadReprocessCheckpoint_();
+    var startIdx = checkpoint.startIdx || 0;
+
+    if (startIdx > 0) {
+      ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
+      logInfo('ReviewService', 'reprocessReviewQueue: resume จาก idx ' + startIdx);
+    }
 
   // ═══════════════════════════════════════
   // PHASE 2: สร้าง Column Index Map (จาก Single Source of Truth)
@@ -1028,9 +1085,21 @@ function reprocessReviewQueue() {
   };
 
   var now = new Date();
+  var timedOut = false;
 
-  for (var i = 0; i < reviewData.length; i++) {
+  // [PERF-001] เริ่มลูปจาก startIdx (จาก checkpoint) แทน 0
+  for (var i = startIdx; i < reviewData.length; i++) {
     var r = reviewData[i];
+
+    // ─── STEP 2: Time Guard ทุก 20 แถว (เหมือน applyAllPendingDecisions) ───
+    //   ใช้ hasTimePassed_() จาก 14_Utils.gs — ลดความเสี่ยง GAS Timeout 6 นาที
+    //   บันทึก checkpoint ก่อน break → resume รอบถัดไปไม่ต้องเริ่มจาก 0
+    if (i > startIdx && (i - startIdx) % 20 === 0 && hasTimePassed_(startTime, timeLimit)) {
+      logWarn('ReviewService', 'reprocessReviewQueue: Time Guard หยุดที่แถว ' + i + '/' + reviewData.length);
+      saveReprocessCheckpoint_(i);  // STEP 3: save checkpoint ก่อน break
+      timedOut = true;
+      break;
+    }
 
     // Skip non-pending
     if (String(safeExtractArr_(r, RI.status)).trim() !== 'Pending') continue;
@@ -1249,16 +1318,24 @@ function reprocessReviewQueue() {
     return;
   }
 
+  // ─── STEP 3: ล้าง Checkpoint เมื่อเสร็จสมบูรณ์ ───
+  //   ถ้าไม่ Timeout → ประมวลผลครบแล้ว → ล้าง checkpoint
+  //   ถ้า Timeout → เก็บ checkpoint ไว้ให้ resume รอบถัดไป
+  if (!timedOut) {
+    clearReprocessCheckpoint_();
+  }
+
   // ═══════════════════════════════════════
   // PHASE 5: รายงานผล
   // ═══════════════════════════════════════
 
   var totalResolved = stats.groupA + stats.groupB + stats.groupC;
   var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  var remaining = (reviewLastRow - 1) - totalResolved;
+  var remaining = (reviewLastRow - 1) - totalResolved - startIdx;
 
   var msg =
-    '✅ Post-Processor เสร็จสมบูรณ์ (' + elapsed + ' วินาที)\n\n' +
+    '✅ Post-Processor ' + (timedOut ? 'หยุดกลางคัน (Time Guard)' : 'เสร็จสมบูรณ์') + ' (' + elapsed + ' วินาที)\n\n' +
+    (startIdx > 0 ? '🔄 Resume จากแถว ' + (startIdx + 1) + '\n\n' : '') +
     '━━━ ผลลัพธ์ ━━━\n' +
     '🟢 GEO_NEARBY_YELLOW + name → AUTO_MATCH: ' + stats.groupA + ' รายการ\n' +
     '🔵 NEW_RECORD_PENDING + Geo → CREATE_NEW: ' + stats.groupB + ' รายการ\n' +
@@ -1268,8 +1345,11 @@ function reprocessReviewQueue() {
     '❌ ไม่พบใน FACT: ' + stats.notFound + ' รายการ\n' +
     '⚠️ Errors: ' + stats.errors + ' รายการ\n\n' +
     '━━━ สรุป ━━━\n' +
-    'ลด Q_REVIEW: ' + totalResolved + ' → คงเหลือ: ~' + remaining + ' รายการ\n' +
-    'ลดลง: ' + Math.round(totalResolved / (reviewLastRow - 1) * 100) + '%';
+    'ลด Q_REVIEW: ' + totalResolved + ' → คงเหลือ: ~' + Math.max(0, remaining) + ' รายการ\n';
+
+  if (timedOut) {
+    msg += '\n💾 บันทึกตำแหน่งไว้แล้ว กด Run อีกครั้งจะทำต่อจากแถวที่ ' + (i + 1);
+  }
 
   if (stats.errorList.length > 0) {
     var showErrors = stats.errorList.slice(0, 5);
@@ -1281,10 +1361,67 @@ function reprocessReviewQueue() {
 
   safeUiAlert_(msg);
   logInfo('ReviewService',
-    'reprocessReviewQueue เสร็จ ' + elapsed + 's | A=' + stats.groupA + ' B=' + stats.groupB +
+    'reprocessReviewQueue ' + (timedOut ? 'หยุดกลางคัน' : 'เสร็จ') + ' ' + elapsed + 's | A=' + stats.groupA + ' B=' + stats.groupB +
     ' C=' + stats.groupC + ' Skip=' + stats.skipped +
-    ' Err=' + stats.errors + ' Dest=' + stats.destCreated
+    ' Err=' + stats.errors + ' Dest=' + stats.destCreated +
+    (timedOut ? ' (checkpoint@' + i + ')' : '')
   );
+
+  } catch (err) {
+    logError('ReviewService', 'reprocessReviewQueue: ' + err.message, err);
+    safeUiAlert_('❌ เกิดข้อผิดพลาด: ' + err.message);
+  } finally {
+    // ─── STEP 1: ปล่อย Lock เสมอ แม้เกิด error ───
+    lock.releaseLock();
+    // ─── STEP 4: Flush log buffer ก่อน execution จบ ───
+    //   ป้องกัน log entries ที่สะสมใน _LOG_BUFFER หายเมื่อ Timeout (P2 #11 V5.5.008)
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
+  }
+}
+
+// ============================================================
+// SECTION 6b: [PERF-001] reprocessReviewQueue Checkpoint Helpers
+//   ใช้ PropertiesService เก็บตำแหน่ง idx ปัจจุบัน — เหมือน MIGRATION_HybridAliasSystem pattern
+// ============================================================
+
+/**
+ * saveReprocessCheckpoint_ — [PERF-001] บันทึกตำแหน่ง reprocessReviewQueue ปัจจุบัน
+ *   เรียกเมื่อ Time Guard หยุดกลางคัน → resume รอบถัดไปเริ่มจาก idx นี้
+ * @param {number} idx - ตำแหน่ง array index ปัจจุบัน (0-based)
+ */
+function saveReprocessCheckpoint_(idx) {
+  PropertiesService.getScriptProperties().setProperty(
+    REPROCESS_REVIEW_CHECKPOINT_KEY,
+    JSON.stringify({ startIdx: idx, timestamp: Date.now() })
+  );
+}
+
+/**
+ * loadReprocessCheckpoint_ — [PERF-001] โหลดตำแหน่ง reprocessReviewQueue ที่บันทึกไว้
+ *   Stale protection: checkpoint เก่ากว่า 24 ชม. → auto clear (กัน garbage)
+ * @return {{ startIdx: number, timestamp: number }}
+ */
+function loadReprocessCheckpoint_() {
+  var raw = PropertiesService.getScriptProperties().getProperty(REPROCESS_REVIEW_CHECKPOINT_KEY);
+  if (!raw) return { startIdx: 0 };
+  try {
+    var cp = JSON.parse(raw);
+    // Stale protection: เก่ากว่า 24 ชม. → clear
+    if (cp.timestamp && (Date.now() - cp.timestamp) > 24 * 60 * 60 * 1000) {
+      clearReprocessCheckpoint_();
+      return { startIdx: 0 };
+    }
+    return cp;
+  } catch (e) {
+    return { startIdx: 0 };
+  }
+}
+
+/**
+ * clearReprocessCheckpoint_ — [PERF-001] ล้าง checkpoint หลัง reprocessReviewQueue เสร็จสมบูรณ์
+ */
+function clearReprocessCheckpoint_() {
+  PropertiesService.getScriptProperties().deleteProperty(REPROCESS_REVIEW_CHECKPOINT_KEY);
 }
 
 /**
@@ -1302,19 +1439,22 @@ function analyzeReviewPatterns() {
     }
 
     var totalRows = reviewSheet.getLastRow() - 1;
-    var totalCols = reviewSheet.getLastColumn();
+    var totalCols = SCHEMA[SHEET.Q_REVIEW].length;
 
-    var headers = reviewSheet.getRange(1, 1, 1, totalCols).getValues()[0];
+    // [PERF-013] ใช้ REVIEW_IDX.* constants แทน headers.indexOf() — Single Source of Truth
+    //   เดิมอ่าน headers แล้ว indexOf ทำให้ละเมิด V5.5.012 anti-pattern rule
+    //   และเสี่ยง silent wrong data ถ้า sheet header เปลี่ยน
+    //   ตอนนี้อ้างอิงจาก REVIEW_IDX (01_Config.gs) โดยตรง + ลด 1 API call (no headers read)
     var data = reviewSheet.getRange(2, 1, totalRows, totalCols).getValues();
 
     var col = {
-      issueType:  headers.indexOf('issue_type'),
-      score:      headers.indexOf('match_score'),
-      status:     headers.indexOf('status'),
-      rawLat:     headers.indexOf('raw_lat'),
-      candPerson: headers.indexOf('candidate_person_ids'),
-      candPlace:  headers.indexOf('candidate_place_ids'),
-      candGeo:    headers.indexOf('candidate_geo_ids')
+      issueType:  REVIEW_IDX.ISSUE_TYPE,
+      score:      REVIEW_IDX.MATCH_SCORE,
+      status:     REVIEW_IDX.STATUS,
+      rawLat:     REVIEW_IDX.RAW_LAT,
+      candPerson: REVIEW_IDX.CAND_PERSONS,
+      candPlace:  REVIEW_IDX.CAND_PLACES,
+      candGeo:    REVIEW_IDX.CAND_GEOS
     };
 
     var patterns = {

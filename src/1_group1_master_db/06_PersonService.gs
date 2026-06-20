@@ -157,6 +157,10 @@
 // [PERF-010] Note Inverted Index — Map: word → Set<personId> สำหรับค้นหา Note แบบ O(1)
 var _PERSON_NOTE_INVERTED_INDEX = null;
 
+// [PERF-009] Alias Inverted Index — Map<normalized_alias, Set<personId>>
+//   Build ครั้งเดียวใน loadAllAliases_ — ลด findByAlias_ จาก O(A) scan → O(1) lookup
+var _PERSON_ALIAS_INVERTED_INDEX = null;
+
 // ============================================================
 // SECTION 1: resolvePerson
 // ============================================================
@@ -218,6 +222,9 @@ function resolvePerson(rawName, preNormResult) {
 function findPersonCandidates(cleanName, phone) {
   const allPersons = loadAllPersons_();
   const results    = [];
+  // [PERF-004] ใช้ Set<string> สำหรับ O(1) dedup lookup แทน results.some() O(K)
+  //   ลดจาก 1M × O(K) → 1M × O(1) ใน Pipeline 1,000 source rows × M_PERSON 1,000
+  const existingIds = new Set();
 
   const aliasResolve = typeof resolveMasterUuidViaGlobalAlias === 'function' ? resolveMasterUuidViaGlobalAlias(cleanName, 'PERSON') : null;
   if (aliasResolve && aliasResolve.masterUuid && aliasResolve.score >= 95) {
@@ -241,7 +248,11 @@ function findPersonCandidates(cleanName, phone) {
     if (byPhone.length > 1) {
       // [FIX v003] เจอหลายคน → เพิ่มเข้า results แล้วไปต่อ scoring
       byPhone.forEach(p => {
-        if (!results.some(r => r.personId === p.personId)) results.push(p);
+        // [PERF-004] sync existingIds Set ด้วย (กัน Phone Match path ตกหล่น)
+        if (!existingIds.has(p.personId)) {
+          results.push(p);
+          existingIds.add(p.personId);
+        }
       });
     }
   }
@@ -250,27 +261,34 @@ function findPersonCandidates(cleanName, phone) {
   const aliasMatches = findByAlias_(cleanName);
   aliasMatches.forEach(personId => {
     const found = allPersons.find(p => p.personId === personId);
-    // [FIX v003] ใช้ .some() แทน .includes() กัน object reference bug
-    if (found && !results.some(r => r.personId === found.personId)) {
+    // [PERF-004] O(1) Set lookup แทน results.some() O(K)
+    if (found && !existingIds.has(found.personId)) {
       results.push(found);
+      existingIds.add(found.personId);
     }
   });
 
   // --- 3. Phonetic / Name Match ---
   const searchKey = buildThaiPhoneticKey(cleanName);
+  // [PERF-004] ดึง normA ออกนอกลูป (computed ครั้งเดียว ไม่ใช่ทุก iteration)
+  //   เดิม: normalizeForCompare(cleanName) ถูกเรียก 1,000 ครั้ง (1 ต่อ person)
+  //   ใหม่: เรียกครั้งเดียว + reuse → ลด CPU ~99% สำหรับส่วนนี้
+  const normA = normalizeForCompare(cleanName);
+  const normAPrefix3 = normA.length >= 3 ? normA.substring(0, 3) : '';
+
   allPersons.forEach(person => {
-    if (results.some(r => r.personId === person.personId)) return;
+    // [PERF-004] O(1) Set lookup แทน results.some() O(K)
+    if (existingIds.has(person.personId)) return;
     const personKey = buildThaiPhoneticKey(person.normalized);
 
     if (searchKey && personKey && searchKey === personKey) {
       results.push(person);
-    } else {
-      // [FIX v003] Fallback 3 ตัวอักษร แทน 2 (ลด false positive)
-      const normA = normalizeForCompare(cleanName);
+      existingIds.add(person.personId);
+    } else if (normAPrefix3) {
       const normB = normalizeForCompare(person.normalized);
-      if (normA.length >= 3 && normB.length >= 3 &&
-          normB.startsWith(normA.substring(0, 3))) {
+      if (normB && normB.length >= 3 && normB.startsWith(normAPrefix3)) {
         results.push(person);
+        existingIds.add(person.personId);
       }
     }
   });
@@ -290,15 +308,23 @@ function findPersonCandidates(cleanName, phone) {
       });
       matchingPersonIds.forEach(function(pid) {
         var found = allPersons.find(function(p) { return p.personId === pid; });
-        if (found) results.push(found);
+        // [PERF-004] sync existingIds Set
+        if (found && !existingIds.has(found.personId)) {
+          results.push(found);
+          existingIds.add(found.personId);
+        }
       });
     } else {
       // Fallback: ถ้ายังไม่มี index ใช้วิธีเดิม
       allPersons.forEach(function(person) {
+        if (existingIds.has(person.personId)) return;
         var noteStr = String(person.note || '');
         if (!noteStr) return;
         var isMatch = queryParts.some(function(part) { return noteStr.includes(part); });
-        if (isMatch) results.push(person);
+        if (isMatch) {
+          results.push(person);
+          existingIds.add(person.personId);
+        }
       });
     }
   }
@@ -309,10 +335,27 @@ function findPersonCandidates(cleanName, phone) {
 /**
  * findByAlias_ — ค้นหา Person ID จาก M_PERSON_ALIAS
  * [FIX v003] ใช้ Set กัน duplicate
+ * [PERF-009] ใช้ _PERSON_ALIAS_INVERTED_INDEX (O(1) lookup) แทน forEach O(A) scan
+ *   เดิม: 1,000 source rows × 2,000 aliases = 2M comparisons + 2M redundant normalizeForCompare
+ *   ใหม่: 1,000 source rows × 1 index lookup = 1,000 O(1) lookups
  */
 function findByAlias_(cleanName) {
-  const allAliases = loadAllAliases_();
+  // [PERF-009] Trigger index build if not yet built
+  if (!_PERSON_ALIAS_INVERTED_INDEX) {
+    loadAllAliases_();
+  }
+
   const targetNorm = normalizeForCompare(cleanName);
+  if (!targetNorm) return [];
+
+  // [PERF-009] O(1) index lookup แทน O(A) forEach scan
+  if (_PERSON_ALIAS_INVERTED_INDEX) {
+    const personIdSet = _PERSON_ALIAS_INVERTED_INDEX.get(targetNorm);
+    return personIdSet ? Array.from(personIdSet) : [];
+  }
+
+  // Fallback (defensive — ถ้า index build ล้มเหลว): legacy O(A) scan
+  const allAliases = loadAllAliases_();
   const foundSet   = new Set();
 
   allAliases.forEach(alias => {
@@ -323,7 +366,7 @@ function findByAlias_(cleanName) {
     }
   });
 
-  return [...foundSet];
+  return Array.from(foundSet);
 }
 
 // ============================================================
@@ -603,7 +646,11 @@ function loadAllAliases_() {
   const cache    = CacheService.getScriptCache();
   // [PERF-004] ลองอ่าน chunked cache ก่อน
   const cachedData = loadChunkedCache_(cache, cacheKey);
-  if (cachedData) return cachedData;
+  if (cachedData) {
+    // [PERF-009] Build inverted index ครั้งเดียวหลัง cache hit
+    _buildPersonAliasInvertedIndex_(cachedData);
+    return cachedData;
+  }
 
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET.M_PERSON_ALIAS);
@@ -614,7 +661,33 @@ function loadAllAliases_() {
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, colsToRead).getValues();
   // [PERF-004] Chunked cache — แบ่งข้อมูลเป็น chunk ละ 200 items
   saveChunkedCache_(cache, cacheKey, rows);
+  // [PERF-009] Build inverted index ครั้งเดียวหลัง sheet read
+  _buildPersonAliasInvertedIndex_(rows);
   return rows;
+}
+
+/**
+ * _buildPersonAliasInvertedIndex_ — [PERF-009] Build Map<normalized_alias, Set<personId>>
+ *   เรียกครั้งเดียวหลัง loadAllAliases_ เพื่อให้ findByAlias_ ใช้ O(1) lookup แทน O(A) scan
+ *   Index ถูก cache ใน RAM (_PERSON_ALIAS_INVERTED_INDEX) — rebuild เมื่อ invalidateAliasCache_
+ * @param {Array[]} allAliases - 2D array ของ M_PERSON_ALIAS rows
+ * @private
+ */
+function _buildPersonAliasInvertedIndex_(allAliases) {
+  if (_PERSON_ALIAS_INVERTED_INDEX) return;  // already built
+  _PERSON_ALIAS_INVERTED_INDEX = new Map();
+  if (!allAliases || allAliases.length === 0) return;
+
+  allAliases.forEach(function(alias) {
+    if (!alias[PERSON_ALIAS_IDX.ACTIVE_FLAG]) return;
+    var aliasNorm = normalizeForCompare(alias[PERSON_ALIAS_IDX.ALIAS_NAME]);
+    if (!aliasNorm) return;
+    var personId = String(alias[PERSON_ALIAS_IDX.PERSON_ID]);
+    if (!_PERSON_ALIAS_INVERTED_INDEX.has(aliasNorm)) {
+      _PERSON_ALIAS_INVERTED_INDEX.set(aliasNorm, new Set());
+    }
+    _PERSON_ALIAS_INVERTED_INDEX.get(aliasNorm).add(personId);
+  });
 }
 
 /**
@@ -634,8 +707,11 @@ function invalidatePersonCache_() {
 }
 /**
  * invalidateAliasCache_ — [REF-011] Uses centralized invalidateChunkedCache_
+ * [PERF-009] ล้าง _PERSON_ALIAS_INVERTED_INDEX ด้วย — กัน stale index หลัง alias changes
+ *   (createPersonAlias, autoEnrichAliasesFromFactBatch_, MIGRATION Step 2)
  */
 function invalidateAliasCache_() {
+  _PERSON_ALIAS_INVERTED_INDEX = null;  // [PERF-009] clear inverted index → rebuild on next loadAllAliases_
   invalidateChunkedCache_('M_PERSON_ALIAS_ALL');
 }
 

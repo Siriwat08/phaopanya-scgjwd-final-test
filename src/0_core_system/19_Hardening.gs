@@ -167,6 +167,9 @@
  * ===================================================
  */
 
+// [PERF-007] Checkpoint key for generatePersonAliasesFromHistory Resume mechanism
+var HARDENING_ALIAS_CHECKPOINT_KEY = 'HARDENING_ALIAS_CHECKPOINT';
+
 // ============================================================
 // SECTION 1: runPreflightAudit
 // [FIX BUG-A2] เพิ่ม try-catch outer
@@ -344,6 +347,18 @@ function generatePersonAliasesFromHistory() {
       2, 1, factRows - 1, SCHEMA[SHEET.FACT_DELIVERY].length
     ).getValues();
 
+    // ─── [PERF-007] โหลด Checkpoint ───
+    //   ถ้ามี checkpoint (จากการ Time Guard หยุดกลางคันรอบก่อน) → เริ่มจาก idx นั้น
+    //   ถ้าไม่มี → เริ่มจาก 0
+    //   Stale protection: checkpoint เก่ากว่า 24 ชม. → auto clear (กัน garbage)
+    var checkpoint = loadHardeningAliasCheckpoint_();
+    var startIdx = checkpoint.startIdx || 0;
+
+    if (startIdx > 0) {
+      ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
+      logInfo('Hardening', 'generatePersonAliasesFromHistory: resume จาก idx ' + startIdx);
+    }
+
     // โหลด Person Map
     const allPersons        = loadAllPersons_();
     const personCanonicalMap = new Map();
@@ -368,8 +383,11 @@ function generatePersonAliasesFromHistory() {
 
     // NOTE: ALIAS_ENRICH_SCORE ประกาศที่ต้นฟังก์ชัน (บรรทัด 248)
 
-    for (let idx = 0; idx < factData.length; idx++) {
-      // [REFACTOR-05] Time Guard: flush แล้ว break แทน forEach return
+    // ─── [PERF-007] เริ่มลูปจาก startIdx (จาก checkpoint) แทน 0 ───
+    //   เดิม: ทุกครั้งเริ่มจาก idx 0 → รอบที่ 2 ประมวลผล 1,500 แถวแรกซ้ำ (CPU waste ~30-60s)
+    //   ใหม่: resume จาก checkpoint → ประหยัดเวลา ~50-70% สำหรับการ hardening ครั้งใหญ่
+    for (let idx = startIdx; idx < factData.length; idx++) {
+      // [REFACTOR-05] Time Guard: flush แล้ว break + บันทึก checkpoint
       if (idx % 100 === 0 && (new Date() - hardeningStart) > (hardeningLimit - 30000)) {
         if (newAliasRows.length + newGlobalRows.length > 0) {
           const flushedPA = flushPersonAliasRows_(aliasSheet, newAliasRows);
@@ -378,6 +396,8 @@ function generatePersonAliasesFromHistory() {
           newGlobalRows = [];
           logWarn('Hardening', `generatePersonAliasesFromHistory: flushed partial at ${idx}/${factData.length} (PA:${flushedPA}, GA:${flushedGA})`);
         }
+        // [PERF-007] บันทึก checkpoint ก่อน break → resume รอบถัดไป
+        saveHardeningAliasCheckpoint_(idx);
         timedOut = true;
         break;
       }
@@ -394,7 +414,14 @@ function generatePersonAliasesFromHistory() {
     const totalPA = flushPersonAliasRows_(aliasSheet, newAliasRows);
     const totalGA = flushGlobalAliasRows_(ss, newGlobalRows);
 
-    const timeoutMsg = timedOut ? '\n\n⚠️ หยุดก่อนเพราะ Timeout — กรุณารันใหม่เพื่อต่อ' : '';
+    // [PERF-007] ล้าง checkpoint เมื่อเสร็จสมบูรณ์ (ถ้าไม่ Timeout)
+    if (!timedOut) {
+      clearHardeningAliasCheckpoint_();
+    }
+
+    const timeoutMsg = timedOut
+      ? '\n\n⚠️ หยุดก่อนเพราะ Timeout — บันทึกตำแหน่งไว้แล้ว กด Run ใหม่จะทำต่อ'
+      : '';
     safeUiAlert_(
       (totalPA > 0 || totalGA > 0)
         ? '✅ สร้าง Alias สำเร็จ!\n' +
@@ -408,7 +435,55 @@ function generatePersonAliasesFromHistory() {
   } catch (err) {
     logError('Hardening', 'generatePersonAliasesFromHistory ล้มเหลว: ' + err.message, err);
     safeUiAlert_('เกิดข้อผิดพลาด: ' + err.message);
+  } finally {
+    // [PERF-007] flushLogBuffer_ ใน finally — กัน log entries สูญหายเมื่อ Timeout
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
   }
+}
+
+// ============================================================
+// SECTION 6b: [PERF-007] generatePersonAliasesFromHistory Checkpoint Helpers
+//   ใช้ PropertiesService เก็บตำแหน่ง idx ปัจจุบัน — เหมือน MIGRATION_HybridAliasSystem pattern
+// ============================================================
+
+/**
+ * saveHardeningAliasCheckpoint_ — [PERF-007] บันทึกตำแหน่ง generatePersonAliasesFromHistory ปัจจุบัน
+ *   เรียกเมื่อ Time Guard หยุดกลางคัน → resume รอบถัดไปเริ่มจาก idx นี้
+ * @param {number} idx - ตำแหน่ง array index ปัจจุบัน (0-based)
+ */
+function saveHardeningAliasCheckpoint_(idx) {
+  PropertiesService.getScriptProperties().setProperty(
+    HARDENING_ALIAS_CHECKPOINT_KEY,
+    JSON.stringify({ startIdx: idx, timestamp: Date.now() })
+  );
+}
+
+/**
+ * loadHardeningAliasCheckpoint_ — [PERF-007] โหลดตำแหน่ง generatePersonAliasesFromHistory ที่บันทึกไว้
+ *   Stale protection: checkpoint เก่ากว่า 24 ชม. → auto clear (กัน garbage)
+ * @return {{ startIdx: number, timestamp: number }}
+ */
+function loadHardeningAliasCheckpoint_() {
+  var raw = PropertiesService.getScriptProperties().getProperty(HARDENING_ALIAS_CHECKPOINT_KEY);
+  if (!raw) return { startIdx: 0 };
+  try {
+    var cp = JSON.parse(raw);
+    // Stale protection: เก่ากว่า 24 ชม. → clear
+    if (cp.timestamp && (Date.now() - cp.timestamp) > 24 * 60 * 60 * 1000) {
+      clearHardeningAliasCheckpoint_();
+      return { startIdx: 0 };
+    }
+    return cp;
+  } catch (e) {
+    return { startIdx: 0 };
+  }
+}
+
+/**
+ * clearHardeningAliasCheckpoint_ — [PERF-007] ล้าง checkpoint หลัง generatePersonAliasesFromHistory เสร็จสมบูรณ์
+ */
+function clearHardeningAliasCheckpoint_() {
+  PropertiesService.getScriptProperties().deleteProperty(HARDENING_ALIAS_CHECKPOINT_KEY);
 }
 
 /**

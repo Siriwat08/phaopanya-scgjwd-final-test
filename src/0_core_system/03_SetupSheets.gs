@@ -618,12 +618,17 @@ function setupInputSheet_(ss) {
   }
 
   // ตรวจสอบและทำความสะอาดแถว 1 คอลัมน์ที่เหลือ
+  // [PERF-010] Batch read row 1 (1 API call แทน N calls ในลูป)
+  //   เดิม: getValue() ในลูป — N API calls, ~1s สำหรับ sheet 100+ cols
+  //   ใหม่: getValues() ครั้งเดียว + iterate array — 1 API call, ~0.05s
   const lastCol = Math.max(3, sheet.getLastColumn());
-  for (let col = 2; col <= lastCol; col++) {
-    const cell = sheet.getRange(1, col);
-    const val = String(cell.getValue()).trim();
+  const row1Values = sheet.getRange(1, 2, 1, Math.max(0, lastCol - 1)).getValues()[0];
+
+  for (let colIdx = 0; colIdx < row1Values.length; colIdx++) {
+    const val = String(row1Values[colIdx] || '').trim();
     if (val === 'Shipment_No' || val === 'หมายเหตุ') {
-      cell.clearContent().setFontWeight('normal').setBackground(null).setFontColor(null);
+      const col = colIdx + 2;  // convert 0-based array index → 1-based column number (offset by 2  because we started at col 2)
+      sheet.getRange(1, col).clearContent().setFontWeight('normal').setBackground(null).setFontColor(null);
     }
   }
 

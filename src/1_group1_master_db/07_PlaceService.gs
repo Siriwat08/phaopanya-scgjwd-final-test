@@ -175,6 +175,10 @@
 
 // [NEW v5.2.001] Global RAM Cache for batch runs (Managed in 01_Config.gs)
 
+// [PERF-009] Place Alias Inverted Index — Map<normalized_alias, Set<placeId>>
+//   Build ครั้งเดียวใน loadAllPlaceAliases_ — ลด findPlaceByAlias_ จาก O(A) scan → O(1) lookup
+var _PLACE_ALIAS_INVERTED_INDEX = null;
+
 // ============================================================
 // SECTION 1: resolvePlace
 // ============================================================
@@ -228,10 +232,15 @@ function resolvePlace(rawName, rawAddress) {
  * findPlaceCandidates
  * [FIX v003] Object reference: includes → .some(p => p.placeId===)
  * [FIX v003] เพิ่ม normB guard ก่อน startsWith
+ * [PERF-005] ใช้ Set<string> สำหรับ O(1) dedup lookup แทน results.some() O(K)
+ *   ลดจาก 1M × O(K) → 1M × O(1) ใน Pipeline 1,000 source rows × M_PLACE 1,000
+ * [PERF-005] ดึง normA ออกนอกลูป (computed ครั้งเดียว ไม่ใช่ทุก iteration)
  */
 function findPlaceCandidates(cleanPlace, rawAddress) {
   const allPlaces = loadAllPlaces_();
   const results   = [];
+  // [PERF-005] O(1) dedup lookup แทน results.some() O(K)
+  const existingIds = new Set();
 
   const aliasResolve = typeof resolveMasterUuidViaGlobalAlias === 'function' ? resolveMasterUuidViaGlobalAlias(cleanPlace, 'PLACE') : null;
   if (aliasResolve && aliasResolve.masterUuid && aliasResolve.score >= 95) {
@@ -244,25 +253,35 @@ function findPlaceCandidates(cleanPlace, rawAddress) {
   const aliasMatches = findPlaceByAlias_(cleanPlace);
   aliasMatches.forEach(placeId => {
     const found = allPlaces.find(p => p.placeId === placeId);
-    if (found && !results.some(r => r.placeId === found.placeId)) {
+    // [PERF-005] O(1) Set lookup แทน results.some() O(K)
+    if (found && !existingIds.has(found.placeId)) {
       results.push(found);
+      existingIds.add(found.placeId);
     }
   });
 
   // Phonetic / Name Match
   const searchKey = buildThaiPhoneticKey(cleanPlace);
+  // [PERF-005] ดึง normA ออกนอกลูป (computed ครั้งเดียว ไม่ใช่ทุก iteration)
+  //   เดิม: normalizeForCompare(cleanPlace) ถูกเรียก 1,000 ครั้ง (1 ต่อ place)
+  //   ใหม่: เรียกครั้งเดียว + reuse → ลด CPU ~99% สำหรับส่วนนี้
+  const normA = normalizeForCompare(cleanPlace);
+  const normAPrefix3 = normA.length >= 3 ? normA.substring(0, 3) : '';
+
   allPlaces.forEach(place => {
-    if (results.some(r => r.placeId === place.placeId)) return;
+    // [PERF-005] O(1) Set lookup แทน results.some() O(K)
+    if (existingIds.has(place.placeId)) return;
     const placeKey = buildThaiPhoneticKey(place.normalized);
 
     if (searchKey && placeKey && searchKey === placeKey) {
       results.push(place);
-    } else {
-      const normA = normalizeForCompare(cleanPlace);
+      existingIds.add(place.placeId);
+    } else if (normAPrefix3) {
       const normB = normalizeForCompare(place.normalized);
       // [FIX v003] เพิ่ม guard normB ก่อน startsWith
-      if (normA.length >= 3 && normB && normB.startsWith(normA.substring(0, 3))) {
+      if (normB && normB.length >= 3 && normB.startsWith(normAPrefix3)) {
         results.push(place);
+        existingIds.add(place.placeId);
       }
     }
   });
@@ -271,12 +290,14 @@ function findPlaceCandidates(cleanPlace, rawAddress) {
   if (results.length === 0) {
     const queryParts = cleanPlace.split(/\s+/).filter(p => p.length >= 2);
     allPlaces.forEach(place => {
+      if (existingIds.has(place.placeId)) return;  // [PERF-005] skip already in results
       const noteStr = String(place.note || '');
       if (!noteStr) return;
-      
+
       const isMatch = queryParts.some(part => noteStr.includes(part));
       if (isMatch) {
         results.push(place);
+        existingIds.add(place.placeId);
       }
     });
   }
@@ -284,9 +305,29 @@ function findPlaceCandidates(cleanPlace, rawAddress) {
   return results;
 }
 
+/**
+ * findPlaceByAlias_ — ค้นหา Place ID จาก M_PLACE_ALIAS
+ * [PERF-009] ใช้ _PLACE_ALIAS_INVERTED_INDEX (O(1) lookup) แทน forEach O(A) scan
+ *   เดิม: 1,000 source rows × 2,000 aliases = 2M comparisons + 2M redundant normalizeForCompare
+ *   ใหม่: 1,000 source rows × 1 index lookup = 1,000 O(1) lookups
+ */
 function findPlaceByAlias_(cleanPlace) {
-  const allAliases = loadAllPlaceAliases_();
+  // [PERF-009] Trigger index build if not yet built
+  if (!_PLACE_ALIAS_INVERTED_INDEX) {
+    loadAllPlaceAliases_();
+  }
+
   const targetNorm = normalizeForCompare(cleanPlace);
+  if (!targetNorm) return [];
+
+  // [PERF-009] O(1) index lookup แทน O(A) forEach scan
+  if (_PLACE_ALIAS_INVERTED_INDEX) {
+    const placeIdSet = _PLACE_ALIAS_INVERTED_INDEX.get(targetNorm);
+    return placeIdSet ? Array.from(placeIdSet) : [];
+  }
+
+  // Fallback (defensive — ถ้า index build ล้มเหลว): legacy O(A) scan
+  const allAliases = loadAllPlaceAliases_();
   const foundSet   = new Set();
 
   allAliases.forEach(alias => {
@@ -296,7 +337,7 @@ function findPlaceByAlias_(cleanPlace) {
       foundSet.add(String(alias[PLACE_ALIAS_IDX.PLACE_ID]));
     }
   });
-  return [...foundSet];
+  return Array.from(foundSet);
 }
 
 // ============================================================
@@ -882,7 +923,11 @@ function loadAllPlaceAliases_() {
     logError('PlaceService', 'loadChunkedCache_ ไม่พร้อม — กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
   } else {
     const cached = loadChunkedCache_(cache, cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      // [PERF-009] Build inverted index ครั้งเดียวหลัง cache hit
+      _buildPlaceAliasInvertedIndex_(cached);
+      return cached;
+    }
   }
 
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
@@ -901,7 +946,33 @@ function loadAllPlaceAliases_() {
     logError('PlaceService', 'saveChunkedCache_ ไม่พร้อม — skip cache write for M_PLACE_ALIAS_ALL (' +
              rows.length + ' aliases). กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
   }
+  // [PERF-009] Build inverted index ครั้งเดียวหลัง sheet read
+  _buildPlaceAliasInvertedIndex_(rows);
   return rows;
+}
+
+/**
+ * _buildPlaceAliasInvertedIndex_ — [PERF-009] Build Map<normalized_alias, Set<placeId>>
+ *   เรียกครั้งเดียวหลัง loadAllPlaceAliases_ เพื่อให้ findPlaceByAlias_ ใช้ O(1) lookup แทน O(A) scan
+ *   Index ถูก cache ใน RAM (_PLACE_ALIAS_INVERTED_INDEX) — rebuild เมื่อ invalidatePlaceAliasCache_
+ * @param {Array[]} allAliases - 2D array ของ M_PLACE_ALIAS rows
+ * @private
+ */
+function _buildPlaceAliasInvertedIndex_(allAliases) {
+  if (_PLACE_ALIAS_INVERTED_INDEX) return;  // already built
+  _PLACE_ALIAS_INVERTED_INDEX = new Map();
+  if (!allAliases || allAliases.length === 0) return;
+
+  allAliases.forEach(function(alias) {
+    if (!alias[PLACE_ALIAS_IDX.ACTIVE_FLAG]) return;
+    var aliasNorm = normalizeForCompare(alias[PLACE_ALIAS_IDX.ALIAS_NAME]);
+    if (!aliasNorm) return;
+    var placeId = String(alias[PLACE_ALIAS_IDX.PLACE_ID]);
+    if (!_PLACE_ALIAS_INVERTED_INDEX.has(aliasNorm)) {
+      _PLACE_ALIAS_INVERTED_INDEX.set(aliasNorm, new Set());
+    }
+    _PLACE_ALIAS_INVERTED_INDEX.get(aliasNorm).add(placeId);
+  });
 }
 
 /**
@@ -921,8 +992,11 @@ function invalidatePlaceCache_() {
 }
 /**
  * invalidatePlaceAliasCache_ — [REF-011] Uses centralized invalidateChunkedCache_
+ * [PERF-009] ล้าง _PLACE_ALIAS_INVERTED_INDEX ด้วย — กัน stale index หลัง alias changes
+ *   (createPlaceAlias, autoEnrichAliasesFromFactBatch_, MIGRATION Step 3)
  */
 function invalidatePlaceAliasCache_() {
+  _PLACE_ALIAS_INVERTED_INDEX = null;  // [PERF-009] clear inverted index → rebuild on next loadAllPlaceAliases_
   invalidateChunkedCache_('M_PLACE_ALIAS_ALL');
 }
 
