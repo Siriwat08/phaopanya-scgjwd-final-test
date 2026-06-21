@@ -184,7 +184,7 @@ let _isClearingOldLogs_ = false;
 
 // [PERF-012] Log Buffer — สะสม log entries ใน RAM แล้ว flush เป็น batch ทุก 50 entries
 var _LOG_BUFFER = [];
-var _LOG_BUFFER_LIMIT = 50;
+const _LOG_BUFFER_LIMIT = 50;
 
 // ============================================================
 // SECTION 1: setupAllSheets — Entry Point

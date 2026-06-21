@@ -263,7 +263,8 @@ function upsertFactDelivery(srcObj, personId, placeId, geoId, destId, decision) 
   }
 
   } catch (e) {
-    logError('TransactionService', 'upsertFactDelivery ล้มเหลว: ' + e.message);
+    // [FIX R13-05 REVIEW15] Rule 13: ส่ง e เพื่อรักษา stack trace ของ error จริง
+    logError('TransactionService', 'upsertFactDelivery ล้มเหลว: ' + e.message, e);
     return null;
   }
 }

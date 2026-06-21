@@ -305,7 +305,8 @@ function getAllSourceRows() {
   return result;
 
   } catch (e) {
-    logError('04_SourceRepository', 'getAllSourceRows ล้มเหลว: ' + e.message);
+    // [FIX R13-07 REVIEW15] Rule 13 + Rule 8: ส่ง e เพื่อ stack trace และแก้ module name ให้สอดคล้องกับที่อื่นในไฟล์ ('SourceRepo')
+    logError('SourceRepo', 'getAllSourceRows ล้มเหลว: ' + e.message, e);
     return _SOURCE_ROWS_RAM_CACHE || [];
   }
 }

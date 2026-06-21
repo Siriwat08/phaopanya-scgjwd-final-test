@@ -149,12 +149,12 @@
  *     - 16_GeoDictionaryBuilder (loadCachedGeoRows_)
  *     - 14_Utils (diceCoefficient)
  *     - 07_PlaceService (invalidatePlaceCache_) [V5.5.008 P2 #12]
- *     - 16_GeoDictionaryBuilder (invalidateGeoDictCache_) [V5.5.008 P2 #12]
+ *     - 16_GeoDictionaryBuilder (invalidateGeoDictCache) [V5.5.008 P2 #12]
  *     - 03_SetupSheets (flushLogBuffer_) [V5.5.008 P2 #11]
  *   CALLS (Invokes):
  *     - normalizeForCompare() → 05_NormalizeService
  *     - loadCachedGeoRows_() → 16_GeoDictionaryBuilder
- *     - invalidateGeoDictCache_() → 16_GeoDictionaryBuilder (replaces manual
+ *     - invalidateGeoDictCache() → 16_GeoDictionaryBuilder (replaces manual
  *       nulling of _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX in populateGeoMetadata) [V5.5.008 P2 #12]
  *     - invalidatePlaceCache_() → 07_PlaceService (replaces 3 redundant manual
  *       cache nullings in populateGeoMetadata) [V5.5.008 P2 #12]
@@ -185,7 +185,7 @@
  *   │       │                                             │
  *   │       │   [V5.5.008 P2 #12] uses invalidate*Cache_*│
  *   │       │     instead of 3 manual cache nullings     │
- *   │       │     (invalidateGeoDictCache_ +             │
+ *   │       │     (invalidateGeoDictCache +                │
  *   │       │      invalidatePlaceCache_)                │
  *   │       │   [V5.5.008 P2 #11] flushLogBuffer_() in   │
  *   │       │     finally block                          │

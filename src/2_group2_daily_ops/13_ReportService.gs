@@ -202,7 +202,10 @@ function buildFullQualityReport() {
     const ss       = SpreadsheetApp.getActiveSpreadsheet();
     const rptSheet = ss.getSheetByName(SHEET.RPT_QUALITY);
     if (!rptSheet) {
-      logError('ReportService', 'ไม่พบชีต ' + SHEET.RPT_QUALITY);
+      // [FIX R13-06 REVIEW15] Rule 13: ส่ง Error object เพื่อ stack trace ชี้ตำแหน่งที่เกิด
+      logError('ReportService',
+        'ไม่พบชีต ' + SHEET.RPT_QUALITY,
+        new Error('SHEET_NOT_FOUND'));
       return;
     }
 

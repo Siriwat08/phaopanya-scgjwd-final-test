@@ -891,7 +891,10 @@ function loadAllPlaces_() {
 
   // [FIX v5.5.010] บังคับใช้ loadChunkedCache_ — ไม่มี fallback แล้ว
   if (typeof loadChunkedCache_ !== 'function') {
-    logError('PlaceService', 'loadChunkedCache_ ไม่พร้อม — กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
+    // [FIX R13-01 REVIEW15] Rule 13: ส่ง Error object เพื่อให้มี stack trace ใน SYS_LOG.DETAILS
+    logError('PlaceService',
+      'loadChunkedCache_ ไม่พร้อม — กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว',
+      new Error('CHUNKED_CACHE_UNAVAILABLE_PLACE'));
     // Fallback: อ่านจาก sheet ตรง (ไม่ผ่าน cache) เพื่อให้ function ยังทำงานได้
   } else {
     const cached = loadChunkedCache_(cache, cacheKey);
@@ -932,8 +935,11 @@ function loadAllPlaces_() {
     saveChunkedCache_(cache, cacheKey, result);
     logDebug('PlaceService', 'loadAllPlaces_: cached via saveChunkedCache_ (' + result.length + ' places)');
   } else {
-    logError('PlaceService', 'saveChunkedCache_ ไม่พร้อม — skip cache write for M_PLACE_ALL (' +
-             result.length + ' places). กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
+    // [FIX R13-01b REVIEW15] Rule 13: ส่ง Error object เพื่อ stack trace บอกตำแหน่งที่เกิด
+    logError('PlaceService',
+      'saveChunkedCache_ ไม่พร้อม — skip cache write for M_PLACE_ALL (' +
+      result.length + ' places). กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว',
+      new Error('SAVE_CHUNKED_CACHE_UNAVAILABLE_PLACE_ALL'));
   }
   return result;
 }
@@ -948,7 +954,10 @@ function loadAllPlaceAliases_() {
 
   // [FIX v5.5.010] บังคับใช้ loadChunkedCache_ — ไม่มี fallback แล้ว
   if (typeof loadChunkedCache_ !== 'function') {
-    logError('PlaceService', 'loadChunkedCache_ ไม่พร้อม — กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
+    // [FIX R13-02 REVIEW15] Rule 13: ส่ง Error object เพื่อ stack trace
+    logError('PlaceService',
+      'loadChunkedCache_ ไม่พร้อม — กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว',
+      new Error('CHUNKED_CACHE_UNAVAILABLE_PLACE_ALIAS'));
   } else {
     const cached = loadChunkedCache_(cache, cacheKey);
     if (cached) {
@@ -971,8 +980,11 @@ function loadAllPlaceAliases_() {
     saveChunkedCache_(cache, cacheKey, rows);
     logDebug('PlaceService', 'loadAllPlaceAliases_: cached via saveChunkedCache_ (' + rows.length + ' aliases)');
   } else {
-    logError('PlaceService', 'saveChunkedCache_ ไม่พร้อม — skip cache write for M_PLACE_ALIAS_ALL (' +
-             rows.length + ' aliases). กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว');
+    // [FIX R13-02b REVIEW15] Rule 13: ส่ง Error object เพื่อ stack trace
+    logError('PlaceService',
+      'saveChunkedCache_ ไม่พร้อม — skip cache write for M_PLACE_ALIAS_ALL (' +
+      rows.length + ' aliases). กรุณาตรวจสอบว่า 14_Utils.gs ถูก load แล้ว',
+      new Error('SAVE_CHUNKED_CACHE_UNAVAILABLE_PLACE_ALIAS_ALL'));
   }
   // [PERF-009] Build inverted index ครั้งเดียวหลัง sheet read
   _buildPlaceAliasInvertedIndex_(rows);

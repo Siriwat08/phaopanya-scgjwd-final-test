@@ -196,7 +196,7 @@
  */
 
 // [PERF-007] Checkpoint key for generatePersonAliasesFromHistory Resume mechanism
-var HARDENING_ALIAS_CHECKPOINT_KEY = 'HARDENING_ALIAS_CHECKPOINT';
+const HARDENING_ALIAS_CHECKPOINT_KEY = 'HARDENING_ALIAS_CHECKPOINT';
 
 // ============================================================
 // SECTION 1: runPreflightAudit

@@ -210,7 +210,7 @@
 // ============================================================
 
 // [PERF-001] Checkpoint key for reprocessReviewQueue Resume mechanism
-var REPROCESS_REVIEW_CHECKPOINT_KEY = 'REPROCESS_REVIEW_CHECKPOINT';
+const REPROCESS_REVIEW_CHECKPOINT_KEY = 'REPROCESS_REVIEW_CHECKPOINT';
 
 // ============================================================
 // SECTION 1: enqueueReview
@@ -221,7 +221,10 @@ function enqueueReview(srcObj, decision, personResult, placeResult, geoResult) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(SHEET.Q_REVIEW);
     if (!sheet) {
-      logError('ReviewService', 'ไม่พบชีต ' + SHEET.Q_REVIEW);
+      // [FIX R13-03 REVIEW15] Rule 13: ส่ง Error object เพื่อ stack trace ชี้ตำแหน่งที่เกิด
+      logError('ReviewService',
+        'ไม่พบชีต ' + SHEET.Q_REVIEW,
+        new Error('SHEET_NOT_FOUND'));
       return null;
     }
 
@@ -292,7 +295,8 @@ function enqueueReview(srcObj, decision, personResult, placeResult, geoResult) {
     return { reviewId: newId, rowData: newRow };
 
   } catch (e) {
-    logError('ReviewService', 'enqueueReview ล้มเหลว: ' + e.message);
+    // [FIX R13-04 REVIEW15] Rule 13: ส่ง e เพื่อรักษา stack trace ของ error จริง
+    logError('ReviewService', 'enqueueReview ล้มเหลว: ' + e.message, e);
     return null;
   }
 }
@@ -976,6 +980,8 @@ function safeExtractArr_(arr, idx) {
 
 /**
  * reprocessReviewQueue — [V5.5.010] ลด Q_REVIEW โดย auto-resolve รายการที่ปลอดภัย
+ *   [REF-R2-01 REVIEW15] Rule 2 (SRP): แยก orchestrator + 6 helpers (จาก 432 → ~80 บรรทัด)
+ *   รักษาพฤติกรรม 100% — เพียงแยก logic ออกเป็น testable units
  *
  * รันหลัง runMatchEngine() เสร็จ จะอ่าน Q_REVIEW ที่ Pending
  * แล้วจัดการ 3 กลุ่ม:
@@ -1004,43 +1010,73 @@ function reprocessReviewQueue() {
   var timeLimit = AI_CONFIG.TIME_LIMIT_MS || (5 * 60 * 1000);
 
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
-    var factSheet = ss.getSheetByName(SHEET.FACT_DELIVERY);
+    // PHASE 1+2: Prepare context (read sheets + checkpoint + build RI/FI maps + factLookup)
+    var ctx = reprocPrepareContext_(startTime, timeLimit);
+    if (!ctx) return;  // empty Q_REVIEW or sheet missing
 
-    if (!reviewSheet || reviewSheet.getLastRow() < 2) {
-      safeUiAlert_('Q_REVIEW ว่าง — ไม่มีข้อมูลจัดการ');
-      return;
-    }
-    if (!factSheet) {
-      safeUiAlert_('ไม่พบชีต FACT_DELIVERY');
-      return;
-    }
+    // PHASE 3: Loop through review rows, dispatch to group handlers
+    var stats = reprocProcessAllRows_(ctx, startTime, timeLimit);
 
-    // ═══════════════════════════════════════
-    // PHASE 1: อ่านข้อมูลทั้งหมดเข้า Memory (ครั้งเดียว — resume ใช้ต่อ)
-    // ═══════════════════════════════════════
+    // PHASE 4+5: Batch write + report message + log summary
+    reprocBatchWriteAndReport_(ctx, stats, startTime);
 
-    var reviewLastRow = reviewSheet.getLastRow();
-    var reviewCols = reviewSheet.getLastColumn();
-    var reviewData = reviewSheet.getRange(2, 1, reviewLastRow - 1, reviewCols).getValues();
+  } catch (err) {
+    logError('ReviewService', 'reprocessReviewQueue: ' + err.message, err);
+    safeUiAlert_('❌ เกิดข้อผิดพลาด: ' + err.message);
+  } finally {
+    // ─── STEP 1: ปล่อย Lock เสมอ แม้เกิด error ───
+    lock.releaseLock();
+    // ─── STEP 4: Flush log buffer ก่อน execution จบ ───
+    //   ป้องกัน log entries ที่สะสมใน _LOG_BUFFER หายเมื่อ Timeout (P2 #11 V5.5.008)
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
+  }
+}
 
-    var factLastRow = factSheet.getLastRow();
-    var factCols = factSheet.getLastColumn();
-    var factData = factLastRow > 1
-      ? factSheet.getRange(2, 1, factLastRow - 1, factCols).getValues()
-      : [];
+/**
+ * reprocPrepareContext_ — [REF-R2-01 REVIEW15] Phase 1+2: Read sheets, load checkpoint, build RI/FI maps
+ *   ย้ายมาจากบรรทัด 1010-1102 (เดิม) — รักษา logic 100%
+ * @param {number} startTime - timestamp เริ่มต้น (สำหรับ toast/log)
+ * @param {number} timeLimit - ms limit (unused ณ นี้ แต่เก็บไว้เพื่อ compatibility)
+ * @return {Object|null} ctx — {reviewSheet, factSheet, reviewData, factData, factLookup, RI, FI, startIdx, reviewCols, factCols, reviewLastRow}
+ *                           คืน null ถ้า Q_REVIEW ว่าง หรือ FACT_DELIVERY ไม่พบ
+ */
+function reprocPrepareContext_(startTime, timeLimit) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
+  var factSheet = ss.getSheetByName(SHEET.FACT_DELIVERY);
 
-    // ─── STEP 3: โหลด Checkpoint ───
-    //   ถ้ามี checkpoint (จากการ Time Guard หยุดกลางคันรอบก่อน) → เริ่มจาก idx นั้น
-    //   ถ้าไม่มี → เริ่มจาก 0
-    var checkpoint = loadReprocessCheckpoint_();
-    var startIdx = checkpoint.startIdx || 0;
+  if (!reviewSheet || reviewSheet.getLastRow() < 2) {
+    safeUiAlert_('Q_REVIEW ว่าง — ไม่มีข้อมูลจัดการ');
+    return null;
+  }
+  if (!factSheet) {
+    safeUiAlert_('ไม่พบชีต FACT_DELIVERY');
+    return null;
+  }
 
-    if (startIdx > 0) {
-      ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
-      logInfo('ReviewService', 'reprocessReviewQueue: resume จาก idx ' + startIdx);
-    }
+  // ═══════════════════════════════════════
+  // PHASE 1: อ่านข้อมูลทั้งหมดเข้า Memory (ครั้งเดียว — resume ใช้ต่อ)
+  // ═══════════════════════════════════════
+  var reviewLastRow = reviewSheet.getLastRow();
+  var reviewCols = reviewSheet.getLastColumn();
+  var reviewData = reviewSheet.getRange(2, 1, reviewLastRow - 1, reviewCols).getValues();
+
+  var factLastRow = factSheet.getLastRow();
+  var factCols = factSheet.getLastColumn();
+  var factData = factLastRow > 1
+    ? factSheet.getRange(2, 1, factLastRow - 1, factCols).getValues()
+    : [];
+
+  // ─── STEP 3: โหลด Checkpoint ───
+  //   ถ้ามี checkpoint (จากการ Time Guard หยุดกลางคันรอบก่อน) → เริ่มจาก idx นั้น
+  //   ถ้าไม่มี → เริ่มจาก 0
+  var checkpoint = loadReprocessCheckpoint_();
+  var startIdx = checkpoint.startIdx || 0;
+
+  if (startIdx > 0) {
+    ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
+    logInfo('ReviewService', 'reprocessReviewQueue: resume จาก idx ' + startIdx);
+  }
 
   // ═══════════════════════════════════════
   // PHASE 2: สร้าง Column Index Map (จาก Single Source of Truth)
@@ -1097,10 +1133,35 @@ function reprocessReviewQueue() {
     if (sid) factLookup[sid] = fi;
   }
 
+  return {
+    ss: ss,
+    reviewSheet: reviewSheet,
+    factSheet: factSheet,
+    reviewData: reviewData,
+    factData: factData,
+    factLookup: factLookup,
+    RI: RI,
+    FI: FI,
+    startIdx: startIdx,
+    reviewCols: reviewCols,
+    factCols: factCols,
+    reviewLastRow: reviewLastRow
+  };
+}
+
+/**
+ * reprocProcessAllRows_ — [REF-R2-01 REVIEW15] Phase 3: Loop และ dispatch ไปกลุ่มต่างๆ
+ *   ย้ายมาจากบรรทัด 1104-1336 (เดิม) — รักษา Time Guard + skip logic + dispatch 100%
+ *   Mutate ctx.reviewData[i] และ ctx.factData[factIdx] ผ่านการส่ง reference ให้ group helpers
+ * @param {Object} ctx - context จาก reprocPrepareContext_
+ * @param {number} startTime
+ * @param {number} timeLimit
+ * @return {Object} stats - {groupA, groupB, groupC, destCreated, skipped, notFound, errors, errorList, timedOut, lastIdx}
+ */
+function reprocProcessAllRows_(ctx, startTime, timeLimit) {
   // ═══════════════════════════════════════
   // PHASE 3: ประมวลผลทีละรายการ
   // ═══════════════════════════════════════
-
   var stats = {
     groupA: 0,       // GEO_NEARBY_YELLOW + name → AUTO_MATCH
     groupB: 0,       // NEW_RECORD_PENDING + geo → CREATE_NEW
@@ -1109,14 +1170,23 @@ function reprocessReviewQueue() {
     skipped: 0,
     notFound: 0,
     errors: 0,
-    errorList: []
+    errorList: [],
+    timedOut: false,
+    lastIdx: 0
   };
 
   var now = new Date();
-  var timedOut = false;
+  var RI = ctx.RI;
+  var FI = ctx.FI;
+  var reviewData = ctx.reviewData;
+  var factData = ctx.factData;
+  var factLookup = ctx.factLookup;
+  var startIdx = ctx.startIdx;
 
   // [PERF-001] เริ่มลูปจาก startIdx (จาก checkpoint) แทน 0
-  for (var i = startIdx; i < reviewData.length; i++) {
+  // NOTE: ประกาศ `var i` นอกลูปเพื่อให้ reference ใช้ใน finally/report ได้ (preserves var-scope semantics)
+  var i;
+  for (i = startIdx; i < reviewData.length; i++) {
     var r = reviewData[i];
 
     // ─── STEP 2: Time Guard ทุก 20 แถว (เหมือน applyAllPendingDecisions) ───
@@ -1125,7 +1195,8 @@ function reprocessReviewQueue() {
     if (i > startIdx && (i - startIdx) % 20 === 0 && hasTimePassed_(startTime, timeLimit)) {
       logWarn('ReviewService', 'reprocessReviewQueue: Time Guard หยุดที่แถว ' + i + '/' + reviewData.length);
       saveReprocessCheckpoint_(i);  // STEP 3: save checkpoint ก่อน break
-      timedOut = true;
+      stats.timedOut = true;
+      stats.lastIdx = i;
       break;
     }
 
@@ -1151,54 +1222,26 @@ function reprocessReviewQueue() {
       continue;
     }
 
+    // Package rowData เพื่อส่งให้ group helpers
+    var rowData = {
+      issueType: issueType,
+      score: score,
+      srcRecId: srcRecId,
+      rawPerson: rawPerson,
+      rawPlace: rawPlace,
+      rawAddr: rawAddr,
+      rawLat: rawLat,
+      rawLng: rawLng,
+      candPerson: candPerson,
+      candPlace: candPlace,
+      candGeo: candGeo
+    };
+
     // ─────────────────────────────────────────
     // GROUP A: GEO_NEARBY_YELLOW + ชื่อตรง → AUTO_MATCH
     // ─────────────────────────────────────────
     if (issueType === 'GEO_NEARBY_YELLOW' && (candPerson !== '[]' || candPlace !== '[]')) {
-      try {
-        var personId = extractFirstId_(candPerson);
-        var placeId  = extractFirstId_(candPlace);
-        var geoId    = extractFirstId_(candGeo);
-
-        if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
-        if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
-        if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
-        if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
-        if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 82;
-        if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_AUTO';
-        if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
-        if (FI.matchEvidence >= 0) {
-          var ev = 'geo_nearby_50_200m';
-          if (personId) ev += '|person_match';
-          if (placeId) ev += '|place_match';
-          ev += '|post_process_v55';
-          factData[factIdx][FI.matchEvidence] = ev;
-        }
-        if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
-
-        if ((personId || placeId) && geoId) {
-          try {
-            var newDestId = createDestination(personId, placeId, geoId, rawLat, rawLng, '');
-            if (newDestId) {
-              if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
-              stats.destCreated++;
-            }
-          } catch (e) {
-            stats.errorList.push('Dest-A: ' + srcRecId + ' - ' + e.message);
-          }
-        }
-
-        if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
-        if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
-        if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
-        if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
-        if (RI.note >= 0)       r[RI.note] = 'GEO_NEARBY_YELLOW + name match → auto-resolved by v5.5.010';
-
-        stats.groupA++;
-      } catch (e) {
-        stats.errors++;
-        stats.errorList.push('GroupA: ' + srcRecId + ' - ' + e.message);
-      }
+      reprocGroupA_YellowWithName_(r, factData, factIdx, rowData, RI, FI, now, stats);
       continue;
     }
 
@@ -1206,75 +1249,7 @@ function reprocessReviewQueue() {
     // GROUP B: NEW_RECORD_PENDING + มี Geo → CREATE_NEW
     // ─────────────────────────────────────────
     if (issueType === 'NEW_RECORD_PENDING' && candGeo !== '[]') {
-      try {
-        var geoId = extractFirstId_(candGeo);
-        var personId = null;
-        var placeId = null;
-        var destId = null;
-
-        if (rawPerson) {
-          try {
-            var pRes = resolvePerson(rawPerson);
-            if (pRes && pRes.status === 'FOUND' && pRes.personId) {
-              personId = pRes.personId;
-            } else if (pRes && pRes.normResult) {
-              personId = createPerson(pRes.normResult);
-            }
-          } catch (e2) {
-            stats.errorList.push('Person-B: ' + srcRecId + ' - ' + e2.message);
-          }
-        }
-
-        var placeInput = rawPlace || rawAddr || '';
-        if (placeInput) {
-          try {
-            var plRes = resolvePlace(placeInput, '');
-            if (plRes && plRes.status === 'FOUND' && plRes.placeId) {
-              placeId = plRes.placeId;
-            } else if (plRes && plRes.normResult) {
-              placeId = createPlace(plRes.normResult, '', '', '', '');
-            }
-          } catch (e2) {
-            stats.errorList.push('Place-B: ' + srcRecId + ' - ' + e2.message);
-          }
-        }
-
-        if ((personId || placeId) && geoId) {
-          try {
-            destId = createDestination(personId, placeId, geoId, rawLat, rawLng, '');
-            stats.destCreated++;
-          } catch (e2) {
-            stats.errorList.push('Dest-B: ' + srcRecId + ' - ' + e2.message);
-          }
-        }
-
-        if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
-        if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
-        if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
-        if (destId && FI.destId >= 0)    factData[factIdx][FI.destId] = destId;
-        if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'CREATED';
-        if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 75;
-        if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_NEW';
-        if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'CREATE_NEW';
-        if (FI.matchEvidence >= 0) {
-          factData[factIdx][FI.matchEvidence] = 'geo_existing' +
-            (personId ? '|person_new' : '|person_na') +
-            (placeId ? '|place_new' : '|place_na') +
-            '|post_process_v55';
-        }
-        if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
-
-        if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
-        if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
-        if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
-        if (RI.decision >= 0)   r[RI.decision] = 'CREATE_NEW';
-        if (RI.note >= 0)       r[RI.note] = 'NEW_RECORD_PENDING + Geo match → auto-create by v5.5.010';
-
-        stats.groupB++;
-      } catch (e) {
-        stats.errors++;
-        stats.errorList.push('GroupB: ' + srcRecId + ' - ' + e.message);
-      }
+      reprocGroupB_NewRecordWithGeo_(r, factData, factIdx, rowData, RI, FI, now, stats);
       continue;
     }
 
@@ -1282,59 +1257,228 @@ function reprocessReviewQueue() {
     // GROUP C: FUZZY_MATCH score >= 85 → AUTO_MATCH
     // ─────────────────────────────────────────
     if (issueType === 'FUZZY_MATCH' && score >= 85) {
-      try {
-        var personId = extractFirstId_(candPerson);
-        var placeId  = extractFirstId_(candPlace);
-        var geoId    = extractFirstId_(candGeo);
-
-        if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
-        if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
-        if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
-        if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
-        if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = score;
-        if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'FUZZY_HIGH_SCORE_AUTO';
-        if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
-        if (FI.matchEvidence >= 0) {
-          var ev = 'fuzzy_score_' + score;
-          if (geoId) ev += '|geo_confirm';
-          ev += '|post_process_v55';
-          factData[factIdx][FI.matchEvidence] = ev;
-        }
-        if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
-
-        if ((personId || placeId) && geoId) {
-          try {
-            var newDestId = createDestination(personId, placeId, geoId, rawLat, rawLng, '');
-            if (newDestId) {
-              if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
-              stats.destCreated++;
-            }
-          } catch (e2) {
-            stats.errorList.push('Dest-C: ' + srcRecId + ' - ' + e2.message);
-          }
-        }
-
-        if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
-        if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
-        if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
-        if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
-        if (RI.note >= 0)       r[RI.note] = 'FUZZY_MATCH score ' + score + ' → auto-resolved by v5.5.010';
-
-        stats.groupC++;
-      } catch (e) {
-        stats.errors++;
-        stats.errorList.push('GroupC: ' + srcRecId + ' - ' + e.message);
-      }
+      reprocGroupC_FuzzyHighScore_(r, factData, factIdx, rowData, RI, FI, now, stats);
       continue;
     }
 
     stats.skipped++;
   }
 
+  // กรณีไม่ timeout (ลูปจบปกติ) → lastIdx = reviewData.length เพื่อใช้ใน report
+  if (!stats.timedOut) {
+    stats.lastIdx = reviewData.length;
+  }
+
+  return stats;
+}
+
+/**
+ * reprocGroupA_YellowWithName_ — [REF-R2-01 REVIEW15] Group A: GEO_NEARBY_YELLOW + name → AUTO_MATCH
+ *   ย้ายมาจากบรรทัด 1158-1207 (เดิม) — รักษา try-catch + mutation pattern 100%
+ *   แก้ r (Q_REVIEW row) + factData[factIdx] (FACT row) ผ่าน pass-by-reference
+ * @param {Array} r - reference ของ reviewData[i] (mutate โดยตรง)
+ * @param {Array} factData - reference ของ ctx.factData (mutate โดยตรง)
+ * @param {number} factIdx - index ใน factData
+ * @param {Object} rowData - {issueType, score, srcRecId, rawPerson, rawPlace, rawAddr, rawLat, rawLng, candPerson, candPlace, candGeo}
+ * @param {Object} RI - REVIEW_IDX map
+ * @param {Object} FI - FACT_IDX map
+ * @param {Date} now - timestamp ปัจจุบัน (ส่งจาก caller เพื่อรักษา一致性)
+ * @param {Object} stats - stats object ที่จะ mutate (groupA++, destCreated++, errors++, errorList.push)
+ */
+function reprocGroupA_YellowWithName_(r, factData, factIdx, rowData, RI, FI, now, stats) {
+  try {
+    var personId = extractFirstId_(rowData.candPerson);
+    var placeId  = extractFirstId_(rowData.candPlace);
+    var geoId    = extractFirstId_(rowData.candGeo);
+
+    if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
+    if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
+    if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
+    if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
+    if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 82;
+    if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_AUTO';
+    if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
+    if (FI.matchEvidence >= 0) {
+      var ev = 'geo_nearby_50_200m';
+      if (personId) ev += '|person_match';
+      if (placeId) ev += '|place_match';
+      ev += '|post_process_v55';
+      factData[factIdx][FI.matchEvidence] = ev;
+    }
+    if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+
+    if ((personId || placeId) && geoId) {
+      try {
+        var newDestId = createDestination(personId, placeId, geoId, rowData.rawLat, rowData.rawLng, '');
+        if (newDestId) {
+          if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
+          stats.destCreated++;
+        }
+      } catch (e) {
+        stats.errorList.push('Dest-A: ' + rowData.srcRecId + ' - ' + e.message);
+      }
+    }
+
+    if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
+    if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
+    if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
+    if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
+    if (RI.note >= 0)       r[RI.note] = 'GEO_NEARBY_YELLOW + name match → auto-resolved by v5.5.010';
+
+    stats.groupA++;
+  } catch (e) {
+    stats.errors++;
+    stats.errorList.push('GroupA: ' + rowData.srcRecId + ' - ' + e.message);
+  }
+}
+
+/**
+ * reprocGroupB_NewRecordWithGeo_ — [REF-R2-01 REVIEW15] Group B: NEW_RECORD_PENDING + Geo → CREATE_NEW
+ *   ย้ายมาจากบรรทัด 1209-1283 (เดิม) — รักษา try-catch nested + resolvePerson/resolvePlace/createPlace pattern 100%
+ *   อ้างอิง constants จาก parameter (ไม่ใช้ global state — Rule 9)
+ */
+function reprocGroupB_NewRecordWithGeo_(r, factData, factIdx, rowData, RI, FI, now, stats) {
+  try {
+    var geoId = extractFirstId_(rowData.candGeo);
+    var personId = null;
+    var placeId = null;
+    var destId = null;
+
+    if (rowData.rawPerson) {
+      try {
+        var pRes = resolvePerson(rowData.rawPerson);
+        if (pRes && pRes.status === 'FOUND' && pRes.personId) {
+          personId = pRes.personId;
+        } else if (pRes && pRes.normResult) {
+          personId = createPerson(pRes.normResult);
+        }
+      } catch (e2) {
+        stats.errorList.push('Person-B: ' + rowData.srcRecId + ' - ' + e2.message);
+      }
+    }
+
+    var placeInput = rowData.rawPlace || rowData.rawAddr || '';
+    if (placeInput) {
+      try {
+        var plRes = resolvePlace(placeInput, '');
+        if (plRes && plRes.status === 'FOUND' && plRes.placeId) {
+          placeId = plRes.placeId;
+        } else if (plRes && plRes.normResult) {
+          placeId = createPlace(plRes.normResult, '', '', '', '');
+        }
+      } catch (e2) {
+        stats.errorList.push('Place-B: ' + rowData.srcRecId + ' - ' + e2.message);
+      }
+    }
+
+    if ((personId || placeId) && geoId) {
+      try {
+        destId = createDestination(personId, placeId, geoId, rowData.rawLat, rowData.rawLng, '');
+        stats.destCreated++;
+      } catch (e2) {
+        stats.errorList.push('Dest-B: ' + rowData.srcRecId + ' - ' + e2.message);
+      }
+    }
+
+    if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
+    if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
+    if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
+    if (destId && FI.destId >= 0)    factData[factIdx][FI.destId] = destId;
+    if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'CREATED';
+    if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 75;
+    if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_NEW';
+    if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'CREATE_NEW';
+    if (FI.matchEvidence >= 0) {
+      factData[factIdx][FI.matchEvidence] = 'geo_existing' +
+        (personId ? '|person_new' : '|person_na') +
+        (placeId ? '|place_new' : '|place_na') +
+        '|post_process_v55';
+    }
+    if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+
+    if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
+    if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
+    if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
+    if (RI.decision >= 0)   r[RI.decision] = 'CREATE_NEW';
+    if (RI.note >= 0)       r[RI.note] = 'NEW_RECORD_PENDING + Geo match → auto-create by v5.5.010';
+
+    stats.groupB++;
+  } catch (e) {
+    stats.errors++;
+    stats.errorList.push('GroupB: ' + rowData.srcRecId + ' - ' + e.message);
+  }
+}
+
+/**
+ * reprocGroupC_FuzzyHighScore_ — [REF-R2-01 REVIEW15] Group C: FUZZY_MATCH 85+ → AUTO_MATCH
+ *   ย้ายมาจากบรรทัด 1285-1333 (เดิม) — รักษา confidence=score pattern 100%
+ */
+function reprocGroupC_FuzzyHighScore_(r, factData, factIdx, rowData, RI, FI, now, stats) {
+  try {
+    var personId = extractFirstId_(rowData.candPerson);
+    var placeId  = extractFirstId_(rowData.candPlace);
+    var geoId    = extractFirstId_(rowData.candGeo);
+
+    if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
+    if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
+    if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
+    if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
+    if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = rowData.score;
+    if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'FUZZY_HIGH_SCORE_AUTO';
+    if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
+    if (FI.matchEvidence >= 0) {
+      var ev = 'fuzzy_score_' + rowData.score;
+      if (geoId) ev += '|geo_confirm';
+      ev += '|post_process_v55';
+      factData[factIdx][FI.matchEvidence] = ev;
+    }
+    if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+
+    if ((personId || placeId) && geoId) {
+      try {
+        var newDestId = createDestination(personId, placeId, geoId, rowData.rawLat, rowData.rawLng, '');
+        if (newDestId) {
+          if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
+          stats.destCreated++;
+        }
+      } catch (e2) {
+        stats.errorList.push('Dest-C: ' + rowData.srcRecId + ' - ' + e2.message);
+      }
+    }
+
+    if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
+    if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
+    if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
+    if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
+    if (RI.note >= 0)       r[RI.note] = 'FUZZY_MATCH score ' + rowData.score + ' → auto-resolved by v5.5.010';
+
+    stats.groupC++;
+  } catch (e) {
+    stats.errors++;
+    stats.errorList.push('GroupC: ' + rowData.srcRecId + ' - ' + e.message);
+  }
+}
+
+/**
+ * reprocBatchWriteAndReport_ — [REF-R2-01 REVIEW15] Phase 4+5: Batch write + Report
+ *   ย้ายมาจากบรรทัด 1338-1400 (เดิม) — รักษา batch write + clear checkpoint + report message 100%
+ * @param {Object} ctx - context จาก reprocPrepareContext_
+ * @param {Object} stats - stats จาก reprocProcessAllRows_
+ * @param {number} startTime - timestamp เริ่มต้น (สำหรับ elapsed calculation)
+ */
+function reprocBatchWriteAndReport_(ctx, stats, startTime) {
+  var reviewSheet = ctx.reviewSheet;
+  var factSheet = ctx.factSheet;
+  var reviewData = ctx.reviewData;
+  var factData = ctx.factData;
+  var reviewCols = ctx.reviewCols;
+  var factCols = ctx.factCols;
+  var reviewLastRow = ctx.reviewLastRow;
+  var startIdx = ctx.startIdx;
+
   // ═══════════════════════════════════════
   // PHASE 4: เขียนข้อมูลกลับ (Batch Write)
   // ═══════════════════════════════════════
-
   try {
     if (factData.length > 0) {
       factSheet.getRange(2, 1, factData.length, factCols).setValues(factData);
@@ -1349,20 +1493,19 @@ function reprocessReviewQueue() {
   // ─── STEP 3: ล้าง Checkpoint เมื่อเสร็จสมบูรณ์ ───
   //   ถ้าไม่ Timeout → ประมวลผลครบแล้ว → ล้าง checkpoint
   //   ถ้า Timeout → เก็บ checkpoint ไว้ให้ resume รอบถัดไป
-  if (!timedOut) {
+  if (!stats.timedOut) {
     clearReprocessCheckpoint_();
   }
 
   // ═══════════════════════════════════════
   // PHASE 5: รายงานผล
   // ═══════════════════════════════════════
-
   var totalResolved = stats.groupA + stats.groupB + stats.groupC;
   var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   var remaining = (reviewLastRow - 1) - totalResolved - startIdx;
 
   var msg =
-    '✅ Post-Processor ' + (timedOut ? 'หยุดกลางคัน (Time Guard)' : 'เสร็จสมบูรณ์') + ' (' + elapsed + ' วินาที)\n\n' +
+    '✅ Post-Processor ' + (stats.timedOut ? 'หยุดกลางคัน (Time Guard)' : 'เสร็จสมบูรณ์') + ' (' + elapsed + ' วินาที)\n\n' +
     (startIdx > 0 ? '🔄 Resume จากแถว ' + (startIdx + 1) + '\n\n' : '') +
     '━━━ ผลลัพธ์ ━━━\n' +
     '🟢 GEO_NEARBY_YELLOW + name → AUTO_MATCH: ' + stats.groupA + ' รายการ\n' +
@@ -1375,8 +1518,8 @@ function reprocessReviewQueue() {
     '━━━ สรุป ━━━\n' +
     'ลด Q_REVIEW: ' + totalResolved + ' → คงเหลือ: ~' + Math.max(0, remaining) + ' รายการ\n';
 
-  if (timedOut) {
-    msg += '\n💾 บันทึกตำแหน่งไว้แล้ว กด Run อีกครั้งจะทำต่อจากแถวที่ ' + (i + 1);
+  if (stats.timedOut) {
+    msg += '\n💾 บันทึกตำแหน่งไว้แล้ว กด Run อีกครั้งจะทำต่อจากแถวที่ ' + (stats.lastIdx + 1);
   }
 
   if (stats.errorList.length > 0) {
@@ -1389,22 +1532,11 @@ function reprocessReviewQueue() {
 
   safeUiAlert_(msg);
   logInfo('ReviewService',
-    'reprocessReviewQueue ' + (timedOut ? 'หยุดกลางคัน' : 'เสร็จ') + ' ' + elapsed + 's | A=' + stats.groupA + ' B=' + stats.groupB +
+    'reprocessReviewQueue ' + (stats.timedOut ? 'หยุดกลางคัน' : 'เสร็จ') + ' ' + elapsed + 's | A=' + stats.groupA + ' B=' + stats.groupB +
     ' C=' + stats.groupC + ' Skip=' + stats.skipped +
     ' Err=' + stats.errors + ' Dest=' + stats.destCreated +
-    (timedOut ? ' (checkpoint@' + i + ')' : '')
+    (stats.timedOut ? ' (checkpoint@' + stats.lastIdx + ')' : '')
   );
-
-  } catch (err) {
-    logError('ReviewService', 'reprocessReviewQueue: ' + err.message, err);
-    safeUiAlert_('❌ เกิดข้อผิดพลาด: ' + err.message);
-  } finally {
-    // ─── STEP 1: ปล่อย Lock เสมอ แม้เกิด error ───
-    lock.releaseLock();
-    // ─── STEP 4: Flush log buffer ก่อน execution จบ ───
-    //   ป้องกัน log entries ที่สะสมใน _LOG_BUFFER หายเมื่อ Timeout (P2 #11 V5.5.008)
-    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
-  }
 }
 
 // ============================================================
