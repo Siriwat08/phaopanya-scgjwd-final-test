@@ -75,81 +75,12 @@
  *     - [FIX #4] reprocessReviewQueue ใช้ REVIEW_IDX/FACT_IDX constants แทน headers.indexOf()
  *       ปฏิบัติตาม Single Source of Truth rule
  *     - [FIX #5] validateConfig เรียก validateSchemaConsistency เพิ่ม — onOpen จับ SCHEMA drift ได้
- *     - [FIX #2] CHANGELOG sync — เพิ่ม v5.5.011 entry ในไฟล์ที่ยังไม่มี (20 ไฟล์)
- *     - [DOC] แก้ broken cross-references ใน README (ลบ reports/* และ LMDS_V5.5_COMPLETE_Audit_Report.md)
- *     - [DOC] Standardize function count = 313 ในเอกสาร .md
- *     - [DOC] อัปเดต DEPENDENCIES/ARCHITECTURE section ในไฟล์ที่แก้ (00, 01, 06, 12, 17)
- *   v5.5.011 (2026-06-19) — DATA CONSISTENCY + SHIPTONAME CLEAN + Q_REVIEW NAV FIX:
- *     - [FIX] 02_Schema.gs เพิ่ม SCHEMA['SCGนครหลวงJWDภูมิภาค'] (37 cols) ที่ขาดหายไป
- *     - [FIX] 17_SearchService findBestGeoByPersonPlace ผ่าน normalizePersonNameFull ก่อนค้นหา
- *     - [ADD] 12_ReviewService buildRecommendedAction_ สร้าง ID สำหรับ Smart Navigation
- *     - [ADD] 00_App handleRecommendClick_ + navigateFromRecommend_ สำหรับ Q_REVIEW Nav
- *   v5.5.010 (2026-06-18) — CACHE HOTFIX + Q_REVIEW Post-Processor:
- *     - [FIX HOTFIX #1] saveChunkedCache_ แบ่ง putAll เป็น batch 5 chunks + ลด chunk size 90KB→80KB
- *       Root cause: GAS putAll limit total payload ~1MB → 48 chunks × 90KB = 4.3MB → "อาร์กิวเมนต์มากเกินไป"
- *     - [FIX HOTFIX #2] loadAllPlaces_ ลบ fallback path ที่ใช้ cache.put ตรง — บังคับใช้ saveChunkedCache_
- *       Root cause: เมื่อ saveChunkedCache_ ไม่พร้อม → fallback → 825KB > 100KB → "M_PLACE Cache เต็ม"
- *     - [FIX HOTFIX #3] loadAllPlaceAliases_ ลบ fallback path เดียวกัน — บังคับใช้ saveChunkedCache_
- *       Root cause: 312KB > 100KB → "M_PLACE_ALIAS Cache write error: อาร์กิวเมนต์มากเกินไป"
- *     - [ADD] รวม reprocessReviewQueue + analyzeReviewPatterns จาก 22_AccuracyPatch.gs เข้า 12_ReviewService.gs
- *       Auto-resolve Q_REVIEW 3 กลุ่ม: GEO_NEARBY_YELLOW+name, NEW_RECORD+Geo, FUZZY_MATCH 85+
- *   v5.5.009 (2026-06-18) — DOC SYNC:
- *     - [DOC] อัปเดต DEPENDENCIES section ใน 12 ไฟล์ให้สะท้อน V5.5.007/V5.5.008 cache changes
- *     - [DOC] อัปเดต ARCHITECTURE section ใน 12 ไฟล์ให้สะท้อน cache architecture ใหม่
- *     - [DOC] อัปเดตเอกสาร .md ทั้ง 23 ไฟล์ให้เป็น V5.5.008 (post-CACHE-CLEANUP)
- *     - [DOC] เพิ่ม audit cycle 6-8 ใน README/BLUEPRINT history tables
- *     - [DOC] เพิ่ม section "V5.5.007 + V5.5.008 — CACHE FIX & CLEANUP (15 issues)" ใน README
- *     - [SYNC] Canonical values: 8 audit cycles, 68 issues fixed, 196 helper functions
- *   v5.5.008 (2026-06-18) — CACHE CLEANUP (P2):
- *     - [FIX P2 #10] clearMapsCache flush _MAPS_SHEET_HIT_DIRTY ก่อนล้าง (รักษา analytics)
- *     - [FIX P2 #11] เพิ่ม flushLogBuffer_() ใน finally ของ 5 entry points
- *       (runLoadSource, buildGeoDictionary, MIGRATION_HybridAliasSystem, populateGeoMetadata, runPreflightAudit)
- *     - [FIX P2 #12] ลบ redundant manual cache nulling ใน populateGeoMetadata ใช้ invalidate*Cache_* แทน
- *     - [FIX P2 #13] saveChunkedCache_ ล้าง orphaned chunks เมื่อขนาดข้อมูลลดลง (large→small)
- *     - [FIX P2 #14] getCachedDistricts_ write-back to cache on miss (consistent with getCachedProvinces_)
- *     - [CONFIRM P2 #15] TH_GEO_POSTCODE chunk size byte-based ใน primary path (V5.5.007 แก้แล้ว)
- *   v5.5.007 (2026-06-18) — CACHE FIX (P0 + P1):
- *     - [FIX P0 #1] invalidateAllGlobalCaches() ล้าง RAM cache ครบ 11 ตัว (เดิม 6/11)
- *     - [FIX P0 #2] invalidateGeoDictCache() ล้าง _GLOBAL_GEO_DICT_SEARCH_KEY_INDEX
- *     - [FIX P0 #3] applyAllPendingDecisions เพิ่ม invalidateSameDayDestCache_ + autoEnrichAliases
- *     - [FIX P0 #4] migrateStep1_AssignUuid_ ใช้ invalidateChunkedCache_ แทน raw removeAll
- *     - [ADD P1 #5] invalidateGeoLatLngCache_ ใน TransactionService + เรียกจาก GeoService
- *     - [FIX P1 #6] M_PLACE_ALL/M_PLACE_ALIAS_ALL แปลงเป็น chunked cache (saveChunkedCache_)
- *     - [FIX P1 #7] 4 chunked writers ใช้ centralized saveChunkedCache_ (putAll 5-10× เร็วขึ้น)
- *     - [ADD P1 #8] CACHE_KEY ขยายจาก 2 → 13 keys (Single Source of Truth)
- *     - [ADD P1 #9] safeCacheGet_/safeCachePut_/safeCacheRemoveAll_ helpers ใน 14_Utils
- *   v5.5.006 (2026-06-18) — Consistency Sync:
- *     - [SYNC] All 22 files version bump 5.5.004 → 5.5.006 (12_ReviewService from 5.5.005)
- *     - [SYNC] Documentation consistency: line count 13,831, function count 310
- *     - [SYNC] Standardized all metadata claims across .gs and .md files (53 issues fixed)
- *   v5.5.004 (2026-06-15) — full sync cycle:
- *     - [SYNC] All 22 files version bump 5.5.003 → 5.5.004
- *     - [SYNC] Documentation audit: 28 inconsistencies fixed
- *   v5.5.003 (2026-06-12) — post-REFACTOR sync:
- *     - [SYNC] Version header V5.4 → V5.5, VERSION → 5.5.003
- *     - [SYNC] CHANGELOG entries added for 5 Audit Cycles
- *   v5.5.002 (2026-06-11) — CRITICAL Fix Cycle (8 issues):
- *     - [FIX] CRIT-001 through CRIT-008 — see CRITICAL audit report
- *     - [FIX] RAM Cache, Safe Batching, Checkpoint+Resume enhancements
- *   v5.5.001 (2026-06-04) — 22-file bug fix + RAM Cache:
- *     - [FIX] 22 files updated — bug fixes per CRITICAL/PERFORMANCE audits
- *     - [ADD] RAM Cache layer (_SOURCE_ROWS_RAM_CACHE, _MAPS_SHEET_CACHE)
- *     - [ADD] SearchKey, safeUiAlert_, JSON.parse guard
- *   v5.4.003 (2026-05-24) — Refactor-06: RAM cache for source rows:
- *     - [REFACTOR] Add _SOURCE_ROWS_RAM_CACHE for in-execution caching
- *     - [REFACTOR] getAllSourceRows() checks RAM cache → CacheService → Sheet
- *     - [REFACTOR] invalidateSourceCache() clears RAM cache first
- *   v5.4.001 (2026-05-24) — Single Writer Pattern:
- *     - [ADD] Comprehensive header documentation
- *   v5.4.000 (2026-05-24):
- *     - [UPGRADE] Version bump to 5.4.000
- *     - [ADD] Comprehensive header documentation
- *     - [ADD] DEPENDENCIES section with module relationships
- *     - [ENHANCE] Detailed module interconnection mapping
- *   v5.2.001 (PH2 Hardening):
- *     - [REFACTOR] Separate Load from Match Engine (No Double Processing)
- *     - [UPGRADE] updateSyncStatus_ supports SUCCESS/ERROR
- *     - [FIX] buildSourceObj_ mapping (Text Priority ready)
+ * ===================================================
+ * CHANGELOG: See /docs/CHANGELOG.md for full history.
+ *   Latest 3 versions:
+ *     v5.5.019 (2026-06-22) — REFACTOR_CYCLE6 (12 issues — REF-001 to REF-012)
+ *     v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (14 issues)
+ *     v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues)
  * ===================================================
  * DEPENDENCIES:
  *   REQUIRES (Load Order):
