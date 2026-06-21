@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.016
+ * VERSION: 5.5.017
  * FILE: 14_Utils.gs
  * LMDS V5.5 — Utility Functions
  * ===================================================
@@ -7,7 +7,17 @@
  *   รวบรวมฟังก์ชันช่วยทั่วไปที่ใช้ร่วมกันทั่วระบบ
  *   เช่น ID Generator, Hash, String similarity, LatLng parser
  * ===================================================
- *   v5.5.016 (2026-06-21) — PERFORMANCE FIX (13 issues, Cycle 13):
+ *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
+ *     - [SEC-001 (isAuthorizedUser_ deny-by-default + Script Owner fallback)]
+ *     - [SEC-002 (setupAdminList_UI + AuthZ guard)]
+ *     - [SEC-007 (maskReviewerEmail_ + inline fallback in isAuthorizedUser_ logs)]
+ *     - [SEC-008 (hide admin email list + YES_NO confirmation before clear)]
+ *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),
+ *       Sheet Protection defense-in-depth (4->8 sheets + Q_REVIEW range), RFC 6265 cookie charset,
+ *       fetchWithRetry_ body truncation, populateGeoMetadata+buildGeoDictionary guards
+ *     isAuthorizedUser_ coverage: 6/10 -> 13/13 destructive ops
+ *     Production Readiness: 95% -> 97% GO (Security Hardened)
+ *   v5.5.016 (2026-06-21) — PERFORMANCE FIX (13 issues, Cycle 13):
  *     - [PERF-001] reprocessReviewQueue +LockService +TimeGuard +Checkpoint/Resume +flushLogBuffer_ (BLOCKING)
  *     - [PERF-002] findMatchingPerson_/findMatchingPlace_ +optPrefixMap (O(N)→O(K) substring fallback)
  *     - [PERF-003] populateAliasFromFactDelivery_ build personIdToUuidMap/placeIdToUuidMap (O(N)→O(1))

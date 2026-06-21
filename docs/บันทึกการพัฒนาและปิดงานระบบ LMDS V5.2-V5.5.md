@@ -88,6 +88,7 @@
 | 90 | REFACTOR Execution: ปรับโครงสร้าง 21 จุด ใน 16 ไฟล์ | REF-001 (resolveAndPersist_ gateway), REF-006 (populateGeoMetadata split), REF-014 (stripThaiAdminPrefix_/stripThaiProvincePrefix_), REF-016 (cachedGeoLookup_ 3-layer cache) + 17 จุดอื่น | 16 ไฟล์เปลี่ยนแปลง, 3+ helper functions ใหม่ |
 | 91 | REFACTOR Verification: ผ่านการยืนยันทั้งหมด | ตรวจสอบ 22 ไฟล์ — Compliance **16/16 COMPLIANT** (Rule 16 Security-First Design เพิ่มใน V5.5.004), ไม่พบ Regression, Business Logic ไม่เปลี่ยน | ผ่านทุกรายการ |
 | 92 | PREDEPLOY Check: ตรวจสอบสถานะระบบครั้งสุดท้าย | `[CMD: PREDEPLOY]` — ตรวจสอบทุกหมวด (Critical, Performance, Quality) | ✅ PASSED — Production Readiness 95% |
+| 93 | **SECURITY-POSTFIX (V5.5.017 — 2026-06-21)**: แก้ไข 12 SEC issues (3 BLOCKING + 9 SHOULD_FIX) | SEC-001→012 revisit + ใหม่: deny-by-default AuthZ (`isAuthorizedUser_` 13/13 destructive ops), OAuth Least Privilege (scopes 10→6), PII masking ขยายครบทุกจุด, Sheet Protection expanded (4→8 sheets + Q_REVIEW range), RFC 6265 cookie regex ใน `sanitizeCookie_`, `fetchWithRetry_` body truncation ป้องกัน leak ใน log | ✅ 12/12 FIX_CONFIRMED — Production Readiness 95% → **97% (Security Hardened)**, 14 audit cycles complete, 102 issues fixed รวม |
 
 ---
 

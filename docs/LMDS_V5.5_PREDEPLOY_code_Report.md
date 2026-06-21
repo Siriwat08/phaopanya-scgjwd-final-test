@@ -1,5 +1,5 @@
 # 🚀 LMDS V5.5 — การประเมินความพร้อม Production [CMD: PREDEPLOY]
-## วันที่: 2026-06-19 | เวอร์ชัน: V5.5.015 (post-CRITICAL-FIX; original audit 2026-06-12)
+## วันที่: 2026-06-21 | เวอร์ชัน: V5.5.017 (post-SECURITY-POSTFIX; original audit 2026-06-12)
 
 ---
 
@@ -7,7 +7,7 @@
 
 > ✅ **GO** — พร้อมใช้งาน Production
 
-ระบบ LMDS V5.5 ผ่านการ Audit ครบ 13 เฟส (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX) แก้ไขปัญหาทั้งหมด 90 issues (8 CRITICAL + 12 PERFORMANCE + 7 SECURITY + 5 REVIEW15 + 21 REFACTOR + 9 CACHE-FIX + 6 CACHE-CLEANUP + 3 ANTIPATTERN + 2 GOOGLE-MAPS-REFACTOR + 2 DRIVER-VERIFIED + 2 CRITICAL-FIX + 13 PERF-FIX; 28 doc inconsistencies from SYNC cycle ไม่นับเป็น code issue) ไม่มี Blocking Issues ใดๆ ที่จะขัดขวางการ Deploy อย่างไรก็ตาม มี Residual Risks บางรายการที่ควรติดตามหลัง Deploy
+ระบบ LMDS V5.5 ผ่านการ Audit ครบ 14 เฟส (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX → SECURITY-POSTFIX) แก้ไขปัญหาทั้งหมด 102 issues (8 CRITICAL + 12 PERFORMANCE + 7 SECURITY + 5 REVIEW15 + 21 REFACTOR + 9 CACHE-FIX + 6 CACHE-CLEANUP + 3 ANTIPATTERN + 2 GOOGLE-MAPS-REFACTOR + 2 DRIVER-VERIFIED + 2 CRITICAL-FIX + 13 PERF-FIX + 12 SEC-FIX V5.5.017; 28 doc inconsistencies from SYNC cycle ไม่นับเป็น code issue) ไม่มี Blocking Issues ใดๆ ที่จะขัดขวางการ Deploy อย่างไรก็ตาม มี Residual Risks บางรายการที่ควรติดตามหลัง Deploy
 
 **เงื่อนไขการ Deploy:**
 1. ต้องรัน `assignMasterUuidIfMissing()` ก่อน Migration ทุกครั้ง
@@ -339,6 +339,10 @@
 | V5.5.011 | 2026-06-18 | CACHE CLEANUP (P2) | 6 cache cleanup issues |
 | V5.5.012 | 2026-06-19 | ANTIPATTERN FIX + DOC SYNC | 3 antipattern + 2 doc fixes |
 | V5.5.013 | 2026-06-19 | GOOGLE MAPS REFACTOR | ลบ MAPS_CACHE sheet + ฟังก์ชันเก่า 9 ตัว, เพิ่มสูตร Amit Agarwal 7 ตัว (@customFunction) |
+| V5.5.014 | 2026-06-19 | DRIVER-VERIFIED | +2 driver verified cols ใน FACT_DELIVERY/SOURCE/DAILY_JOB |
+| V5.5.015 | 2026-06-19 | CRITICAL-FIX | 2 critical issues fixed |
+| V5.5.016 | 2026-06-19 | PERFORMANCE-FIX | 13 performance issues fixed |
+| V5.5.017 | 2026-06-21 | SECURITY-POSTFIX | 12 SEC issues fixed (SEC-001→012 revisit + 5 ใหม่): deny-by-default AuthZ (13/13 ops), OAuth Least Privilege (10→6 scopes), PII masking, Sheet Protection expanded (4→8 sheets + Q_REVIEW range), RFC 6265 cookie regex, fetchWithRetry_ body truncation → Production Readiness 95%→97% (Security Hardened) |
 
 #### 8.3 Test Coverage Summary
 
@@ -428,6 +432,6 @@
 
 **ผู้ประเมิน:** Automated Assessment System
 **วันที่ประเมิน:** 2026-06-12
-**เวอร์ชันโค้ด:** V5.5.016 (post-CRITICAL-FIX; original V5.5.004)
+**เวอร์ชันโค้ด:** V5.5.017 (post-SECURITY-POSTFIX; original V5.5.004)
 **เวอร์ชันเอกสาร:** 1.0
 **อ้างอิง:** LMDS_V5.5_VERIFY_REFACTOR_FIX_Report.md

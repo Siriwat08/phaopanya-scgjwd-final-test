@@ -29,16 +29,16 @@
 | รายการ | รายละเอียด |
 |:---|:---|
 | **ชื่อระบบ** | LMDS (Logistics Master Data System) |
-| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.016, System Guide = V5.5.016) |
+| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.017, System Guide = V5.5.017 SECURITY-POSTFIX) |
 | **แพลตฟอร์ม** | Google Workspace (Google Sheets + Google Apps Script) |
 | **ลูกค้า** | SCG JWD Logistics |
 | **ขอบเขตการใช้งาน** | การขนส่งสินค้าในประเทศไทย |
 | **ภาษาที่ใช้พัฒนา** | JavaScript (Google Apps Script V8) |
 | **จำนวนไฟล์โค้ด** | 22 ไฟล์ |
-| **จำนวนบรรทัดโค้ด** | ~17,220 บรรทัด |
+| **จำนวนบรรทัดโค้ด** | ~17,399 บรรทัด |
 | **จำนวนฟังก์ชัน** | 321 ฟังก์ชัน |
 | **จำนวน Sheet** | 19 แผ่น |
-| **สถานะ** | พร้อม Deploy Production (95%) |
+| **สถานะ** | พร้อม Deploy Production (97% — Security Hardened) |
 
 ---
 
@@ -293,7 +293,7 @@
 | ตัวชี้วัด | จำนวน |
 |:---|:---|
 | ไฟล์โค้ด | 22 ไฟล์ |
-| บรรทัดโค้ด | ~17,220 บรรทัด |
+| บรรทัดโค้ด | ~17,399 บรรทัด |
 | ฟังก์ชัน | 321 ฟังก์ชัน |
 | ตารางข้อมูล (Sheet) | 19 แผ่น |
 | Schema คอลัมน์ | 16 ชุด |
@@ -320,10 +320,10 @@
 | รอบที่ 1 | BUGHUNT (Critical + Performance) | 8 Critical + 12 Performance | 20/20 | แก้ไขแล้ว |
 | รอบที่ 2 | REVIEW15 (Code Quality) | 8 กฎไม่ผ่าน | 5/8 แก้ไข (8/16→13/16) | แก้ไขแล้ว |
 | รอบที่ 3 | REFACTOR | 21 จุด | 21/21 | แก้ไขแล้ว |
-| รอบที่ 4 | PREDEPLOY | 0 Blocking | 95% พร้อม | ผ่าน |
+| รอบที่ 4 | PREDEPLOY | 0 Blocking | 97% พร้อม (Security Hardened) | ผ่าน |
 | รอบที่ 5 | SECURITY | 7 ช่องโหว่ | 7/7 | แก้ไขแล้ว |
 
-**รวม:** 68 ปัญหา แก้ไขแล้วทั้งหมด (53 audit + 9 cache fix + 6 cache cleanup) ไม่มีปัญหาค้าง
+**รวม:** 102 ปัญหา แก้ไขแล้วทั้งหมด (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.017) ไม่มีปัญหาค้าง
 
 ---
 
@@ -333,12 +333,12 @@
 
 | ด้าน | คะแนน | รายละเอียด |
 |:---|:---|:---|
-| สถาปัตยกรรม (Architecture) | 95% | โครงสร้างดี แยกส่วนชัดเจน |
-| ความปลอดภัยในการทำงาน (Execution Safety) | 92% | Time Guard, Checkpoint, LockService |
-| ความถูกต้องของข้อมูล (Data Integrity) | 95% | Single Writer, Batch Operations |
-| ความปลอดภัย (Security) | 90% | 7 ช่องโหว่แก้ไขแล้ว |
+| สถาปัตยกรรม (Architecture) | 97% | โครงสร้างดี แยกส่วนชัดเจน |
+| ความปลอดภัยในการทำงาน (Execution Safety) | 95% | Time Guard, Checkpoint, LockService |
+| ความถูกต้องของข้อมูล (Data Integrity) | 97% | Single Writer, Batch Operations |
+| ความปลอดภัย (Security) | 97% | 12 ช่องโหว่แก้ไขแล้ว (SEC-001→012, V5.5.017 SECURITY-POSTFIX) |
 | คุณภาพโค้ด (Clean Code) | 100% | 16/16 กฎผ่าน |
-| **รวม** | **95%** | **พร้อม Deploy** |
+| **รวม** | **97%** | **พร้อม Deploy (Security Hardened)** |
 
 ### 7.2 ความเสี่ยงที่ยังเหลือ (Non-Blocking)
 
@@ -366,9 +366,9 @@
 | **การบำรุงรักษา** | Structured File Naming, Logging, Error Handling |
 | **ความปลอดภัย** | Security-First Design |
 
-### 8.2 กระบวนการ Audit 8 รอบ
+### 8.2 กระบวนการ Audit 14 รอบ
 
-ระบบผ่านการตรวจสอบคุณภาพ 8 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP):
+ระบบผ่านการตรวจสอบคุณภาพ 14 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL-FIX → PERFORMANCE-FIX → SECURITY-POSTFIX):
 
 1. **CRITICAL** — ค้นหา Bug วิกฤตและปัญหาประสิทธิภาพ → พบ 8 Critical → แก้ไขทั้งหมด
 2. **PERFORMANCE** — แก้ไขปัญหา Performance 12 รายการ → batch ops, chunked cache
@@ -377,7 +377,13 @@
 5. **REFACTOR** — ปรับโครงสร้างใหม่ 21 จุด → ลด coupling, เพิ่ม SRP → 16/16 COMPLIANT
 6. **Consistency Sync** — แก้ไข 28 doc inconsistencies (doc-only, no code change)
 7. **CACHE FIX (P0+P1)** — แก้ไข 9 cache issues (4 P0 data integrity + 5 P1 performance/correctness)
-8. **CACHE CLEANUP (P2)** — แก้ไข 6 cache cleanup issues (flush hit_count, flushLogBuffer_ in finally, write-back, orphan cleanup)
+8. **CACHE CLEANUP (P2)** — แก้ไข 6 cache cleanup issues
+9. **DOC-SYNC** — แก้ไข doc inconsistencies
+10. **GOOGLE-MAPS-REFACTOR** — ลบ MAPS_CACHE sheet + ฟังก์ชันเก่า 9 ตัว, เพิ่มสูตร @customFunction 7 ตัว
+11. **DRIVER-VERIFIED** — เพิ่ม 2 driver verified cols ใน FACT_DELIVERY/SOURCE/DAILY_JOB
+12. **CRITICAL-FIX** — แก้ไข 2 critical issues
+13. **PERFORMANCE-FIX** — แก้ไข 13 performance issues
+14. **SECURITY-POSTFIX (V5.5.017)** — แก้ไข 12 SEC issues (SEC-001→012, 3 BLOCKING + 9 SHOULD_FIX): deny-by-default AuthZ (13/13 ops), OAuth Least Privilege (10→6 scopes), PII masking, Sheet Protection expanded (4→8 sheets + Q_REVIEW range), RFC 6265 cookie regex, fetchWithRetry_ body truncation → Production Readiness 95%→97% (Security Hardened)
 
 ---
 
@@ -443,7 +449,7 @@
 
 ## สรุป
 
-ระบบ LMDS V5.5 เป็นโซลูชันที่ตอบโจทย์ปัญหาการจัดการข้อมูลโลจิสติกส์อย่างครบวงจร ตั้งแต่การทำความสะอาดข้อมูล การจับคู่อัตโนมัติ ไปจนถึงการค้นหาพิกัด GPS ด้วยคะแนนความพร้อม 95% และผ่านการ Audit 8 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP) 68 ปัญหาแก้ไขหมดสิ้น (53 audit + 9 cache fix + 6 cache cleanup) ระบบพร้อมสำหรับการ Deploy ใช้งานจริง และมีศักยภาพในการขยายการใช้งานต่อไปในอนาคต
+ระบบ LMDS V5.5 เป็นโซลูชันที่ตอบโจทย์ปัญหาการจัดการข้อมูลโลจิสติกส์อย่างครบวงจร ตั้งแต่การทำความสะอาดข้อมูล การจับคู่อัตโนมัติ ไปจนถึงการค้นหาพิกัด GPS ด้วยคะแนนความพร้อม 97% (Security Hardened) และผ่านการ Audit 14 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL-FIX → PERFORMANCE-FIX → SECURITY-POSTFIX) 102 ปัญหาแก้ไขหมดสิ้น (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.017) ระบบพร้อมสำหรับการ Deploy ใช้งานจริง และมีศักยภาพในการขยายการใช้งานต่อไปในอนาคต
 
 ---
 

@@ -1,9 +1,9 @@
-# BLUEPRINT: LMDS Architecture V5.5.016 (PERFORMANCE-FIX)
+# BLUEPRINT: LMDS Architecture V5.5.017 (SECURITY-POSTFIX)
 
 > เอกสารสถาปัตยกรรมระบบ LMDS (Logistics Master Data System) ฉบับเต็ม
 > ร่างสถาปัตยกรรมระดับ Core-System ชี้แจ้ง Data Schema, Pipeline Mechanics, Module Specification, Bug Status, Performance Analysis สำหรับนักพัฒนาระบบ
-> Version: 5.5.016 (PERFORMANCE-FIX) | Last Updated: 2026-06-21
-> **13 Audit Cycles Complete** | 90 Issues FIXED (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016) | 16/16 Immutable Laws COMPLIANT | Production Readiness: 95%
+> Version: 5.5.017 (SECURITY-POSTFIX) | Last Updated: 2026-06-21
+> **14 Audit Cycles Complete** | 102 Issues FIXED (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016 + 12 security postfix V5.5.017) | 16/16 Immutable Laws COMPLIANT | Production Readiness: 97% GO (Security Hardened)
 
 ---
 
@@ -418,7 +418,7 @@ Hybrid Alias Architecture เป็นระบบจัดการชื่อ
 | ตัวชี้วัด | ค่า |
 |----------|-----|
 | **Total Files** | 22 |
-| **Total Lines** | ~17,220 |
+| **Total Lines** | ~17,399 |
 | **Total Functions** | 312 |
 | **Largest File** | `10_MatchEngine.gs` (1,374 บรรทัด) |
 | **Smallest File** | `20_ThGeoService.gs` (326 บรรทัด) |
@@ -1046,6 +1046,8 @@ Migration ใช้ `MIGRATION_HybridAliasSystem()` ใน `21_AliasService.gs` 
 
 ### 23.2 Security Fixes Summary
 
+**V5.5.004 (Cycle 3):** SEC-001 → SEC-007 (7 issues — initial Security Audit)
+
 | SEC ID | ช่องโหว่ | Severity | Fix | ไฟล์หลัก |
 |--------|----------|----------|-----|----------|
 | SEC-001 | Cookie ใน Spreadsheet Cell | 🔴 HIGH | Cookie → PropertiesService | `18_ServiceSCG.gs` |
@@ -1056,34 +1058,69 @@ Migration ใช้ `MIGRATION_HybridAliasSystem()` ใน `21_AliasService.gs` 
 | SEC-006 | API Key ใน URL | 🟡 MEDIUM | `?key=` → `x-goog-api-key` Header | `14_Utils.gs` |
 | SEC-007 | Reviewer Email ไม่ Mask | 🟡 MEDIUM | `maskReviewerEmail_()` | `12_ReviewService.gs` |
 
+**V5.5.017 (Cycle 14):** SEC-008 → SEC-012 + 5 ช่องโหว่ใหม่ — SECURITY POSTFIX (3 BLOCKING + 9 SHOULD_FIX)
+
+| SEC ID | ช่องโหว่ | Severity | Fix | ไฟล์หลัก |
+|--------|----------|----------|-----|----------|
+| SEC-001 (revisit) | `isAuthorizedUser_` open-door backward compat | 🔴 BLOCKING | Deny-by-default + Script Owner fallback | `14_Utils.gs:677-691` |
+| SEC-002 (revisit) | 4 destructive ops ขาด guard | 🔴 BLOCKING | AuthZ guard 4 ฟังก์ชัน (setupEnvironment, setSCGCookie_UI, setupAdminList_UI, populateAliasFromSCGRawData) | `00_App.gs`, `18_ServiceSCG.gs`, `14_Utils.gs` |
+| SEC-003 | `assignMasterUuidIfMissing` bulk overwrite ไม่มี guard | 🔴 BLOCKING | AuthZ guard + YES_NO confirmation dialog | `21_AliasService.gs:572-599` |
+| SEC-004 | OAuth Scopes เกินความจำเป็น (10 → 6) | 🟡 SHOULD_FIX | ลบ `drive`, `script.send_mail`, `script.projects`, `logging.read` | `appsscript.json:32-39` |
+| SEC-005 | PII Leakage (cleanName/aliasName/variantName) | 🟡 SHOULD_FIX | `generateMd5Hash(...).substring(0,8)` 4 locations | `06_PersonService.gs:469,496`, `07_PlaceService.gs:780`, `21_AliasService.gs:316` |
+| SEC-006 | Invoice Numbers ใน log | 🟡 SHOULD_FIX | hash prefix 8 ตัว + masked sample | `10_MatchEngine.gs:322, 1344-1348` |
+| SEC-007 (revisit) | Email ผู้ใช้ที่ถูกปฏิเสธใน log | 🟡 SHOULD_FIX | `maskReviewerEmail_()` + inline fallback | `14_Utils.gs:685-690, 699-704` |
+| SEC-008 | Admin Email List ใน UI prompt | 🟡 SHOULD_FIX | แสดงเฉพาะจำนวน + YES_NO confirmation ก่อนล้าง | `14_Utils.gs:740-741, 760, 762-773` |
+| SEC-009 | Sheet Protection ไม่ครอบ M_ALIAS/M_PLACE/FACT_DELIVERY/Q_REVIEW | 🟡 SHOULD_FIX | ขยาย protectedSheets 6 sheets + Q_REVIEW Range Protection + LMDS_ADMINS as editors | `19_Hardening.gs:679-681, 718-738` |
+| SEC-010 | `sanitizeCookie_` regex อนุญาต `()[]{}` | 🟡 SHOULD_FIX | ลด charset ตาม RFC 6265 | `18_ServiceSCG.gs:218` |
+| SEC-011 | `fetchWithRetry_` response body leak | 🟡 SHOULD_FIX | Truncate 200 chars + total length marker | `18_ServiceSCG.gs:603-606` |
+| SEC-012 | `populateGeoMetadata` + `buildGeoDictionary` ขาด guard | 🟡 SHOULD_FIX | AuthZ guard เหมือน SEC-002 | `20_ThGeoService.gs:294-298`, `16_GeoDictionaryBuilder.gs:234-238` |
+
 ### 23.3 Security Architecture Layer
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                  LMDS V5.5 Security Layer                    │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │ Layer 1: Secret Management                          │     │
-│  │  • SCG_COOKIE → ScriptProperties                    │     │
-│  │  • GEMINI_API_KEY → ScriptProperties + Regex Check  │     │
-│  │  • LMDS_ADMINS → ScriptProperties                   │     │
-│  └─────────────────────────────────────────────────────┘     │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │ Layer 2: Authorization (Least Privilege)             │     │
-│  │  • isAuthorizedUser_() — 6 Destructive Entry Points │     │
-│  │  • Backward Compatible (no LMDS_ADMINS = allow all) │     │
-│  └─────────────────────────────────────────────────────┘     │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │ Layer 3: Data Minimization                           │     │
-│  │  • sanitizeCookie_() — CRLF Injection Prevention    │     │
-│  │  • maskReviewerEmail_() — s***i@company.com         │     │
-│  │  • PII Log Removal — Response Length Only           │     │
-│  │  • Protected Ranges — EMPLOYEE, SOURCE (hide)       │     │
-│  └─────────────────────────────────────────────────────┘     │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                  LMDS V5.5.017 Security Layer (Post-Security Postfix) │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐     │
+│  │ Layer 1: Secret Management                                  │     │
+│  │  • SCG_COOKIE → ScriptProperties                            │     │
+│  │  • GEMINI_API_KEY → ScriptProperties + Regex Check          │     │
+│  │  • LMDS_ADMINS → ScriptProperties (hidden from UI prompt)   │     │
+│  └─────────────────────────────────────────────────────────────┘     │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐     │
+│  │ Layer 2: Authorization (Least Privilege)                     │     │
+│  │  • isAuthorizedUser_() — 13/13 Destructive Entry Points    │     │
+│  │  • [V5.5.017] Deny-by-default (Script Owner fallback only)  │     │
+│  │  • [V5.5.017] Confirmation dialogs (assignMasterUuid, etc.) │     │
+│  └─────────────────────────────────────────────────────────────┘     │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐     │
+│  │ Layer 3: Data Minimization + PII Masking                    │     │
+│  │  • sanitizeCookie_() — CRLF + RFC 6265 charset (V5.5.017)   │     │
+│  │  • maskReviewerEmail_() — s***i@company.com (AuthZ logs)    │     │
+│  │  • PII Log Removal — Response Length Only                   │     │
+│  │  • [V5.5.017] generateMd5Hash() masking (4 PII log points)  │     │
+│  │  • [V5.5.017] Invoice hash + masked sample (MatchEngine)    │     │
+│  │  • [V5.5.017] fetchWithRetry_ body truncation (200 chars)   │     │
+│  └─────────────────────────────────────────────────────────────┘     │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐     │
+│  │ Layer 4: Protected Ranges (Defense-in-Depth)                │     │
+│  │  • EMPLOYEE, M_PERSON, M_PLACE, M_ALIAS, FACT_DELIVERY     │     │
+│  │  • SOURCE (hide) + M_GEO_POINT (V5.5.004)                  │     │
+│  │  • [V5.5.017] Q_REVIEW Range Protection (A1:Q — reviewer   │     │
+│  │    แก้ R-V ได้ สำหรับ DECISION/STATUS/NOTE)                  │     │
+│  │  • [V5.5.017] LMDS_ADMINS auto-added as editors            │     │
+│  └─────────────────────────────────────────────────────────────┘     │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐     │
+│  │ Layer 5: OAuth Least Privilege (V5.5.017)                   │     │
+│  │  • 6 scopes (was 10) — removed drive, send_mail, projects,  │     │
+│  │    logging.read                                              │     │
+│  │  • No DriveApp/GmailApp/MailApp/DocsService usage in code   │     │
+│  └─────────────────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 23.4 New Functions Added

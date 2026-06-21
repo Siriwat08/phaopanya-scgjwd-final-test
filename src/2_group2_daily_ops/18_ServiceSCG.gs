@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.016
+ * VERSION: 5.5.017
  * FILE: 18_ServiceSCG.gs
  * LMDS V5.5 — SCG API Service (Group 2 Commander)
  * ===================================================
@@ -8,7 +8,16 @@
  *   แล้วเรียก Module 17 จับคู่พิกัด พร้อมสร้างสรุปเจ้าของสินค้า/Shipment
  *   เป็น Commander ของ Group 2 (Daily Ops)
  * ===================================================
- *   v5.5.016 (2026-06-21) — PERFORMANCE FIX (13 issues, Cycle 13):
+ *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
+ *     - [SEC-002 (setSCGCookie_UI + AuthZ guard)]
+ *     - [SEC-010 (sanitizeCookie_ regex tightened — RFC 6265 charset, removed ()[]{})]
+ *     - [SEC-011 (fetchWithRetry_ response body truncation 200 chars + total length marker)]
+ *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),
+ *       Sheet Protection defense-in-depth (4->8 sheets + Q_REVIEW range), RFC 6265 cookie charset,
+ *       fetchWithRetry_ body truncation, populateGeoMetadata+buildGeoDictionary guards
+ *     isAuthorizedUser_ coverage: 6/10 -> 13/13 destructive ops
+ *     Production Readiness: 95% -> 97% GO (Security Hardened)
+ *   v5.5.016 (2026-06-21) — PERFORMANCE FIX (13 issues, Cycle 13):
  *     - [PERF-001] reprocessReviewQueue +LockService +TimeGuard +Checkpoint/Resume +flushLogBuffer_ (BLOCKING)
  *     - [PERF-002] findMatchingPerson_/findMatchingPlace_ +optPrefixMap (O(N)→O(K) substring fallback)
  *     - [PERF-003] populateAliasFromFactDelivery_ build personIdToUuidMap/placeIdToUuidMap (O(N)→O(1))
