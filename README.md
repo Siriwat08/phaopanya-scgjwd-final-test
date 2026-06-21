@@ -10,12 +10,12 @@
 | **Core Engine** | MatchEngine V5.5 with Hybrid Alias Architecture |
 | **Total Files** | 22 `.gs` files |
 | **Total Lines** | ~17,399 |
-| **Total Functions** | 327 (321 + 6 helpers ใน V5.5.018 REVIEW15 R2-01 split reprocessReviewQueue) |
+| **Total Functions** | 327 (321 + 6 helpers ใน V5.5.020 REVIEW15 R2-01 split reprocessReviewQueue) |
 | **Total Sheets** | 19 |
 | **Total IDX Sets** | 16 |
 | **SCHEMA Definitions** | 19 (ลบ MAPS_CACHE ใน V5.5.013) |
-| **OAuth Scopes** | 6 (Least Privilege — ลดจาก 10 ใน V5.5.017) |
-| **Compliance** | **15/15 PASS (100%)** — ข้อ 2 (SRP) reprocessReviewQueue ผ่านหลัง V5.5.018 |
+| **OAuth Scopes** | 6 (Least Privilege — ลดจาก 10 ใน V5.5.020) |
+| **Compliance** | **15/15 PASS (100%)** — ข้อ 2 (SRP) reprocessReviewQueue ผ่านหลัง V5.5.020 |
 | **Production Readiness** | **97% — GO (Security Hardened)** |
 
 ---
@@ -187,11 +187,11 @@ LMDS V5.5 ผ่าน **15 Audit Cycles** ครบถ้วน — ทุก I
 | **Total Issues ที่พบ** | 116 รายการ (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified cols + 2 critical fix + 13 performance fix + 12 security postfix + 14 review15 clean code fix) |
 | **Total Issues ที่แก้ไข** | 116 รายการ (100%) |
 | **Critical Bugs ที่พบ** | 2 รายการ (ทั้งหมดแก้แล้ว) |
-| **Helper Functions ใหม่** | 211 ฟังก์ชัน (18 SRP + 172 Refactor + 6 cache helpers V5.5.007/V5.5.011 + 9 perf helpers V5.5.016 + 6 reprocessReviewQueue helpers V5.5.018) |
+| **Helper Functions ใหม่** | 211 ฟังก์ชัน (18 SRP + 172 Refactor + 6 cache helpers V5.5.007/V5.5.011 + 9 perf helpers V5.5.016 + 6 reprocessReviewQueue helpers V5.5.020) |
 | **Compliance Progression** | 8/16 → 13/16 → **16/16 PASS** |
 | **Lines of Code Growth** | ~8,700 → **~17,399** (+100%) |
 | **Functions Growth** | ~138 → **327** (+137%) |
-| **OAuth Scopes** | 10 → **6** (Least Privilege — V5.5.017) |
+| **OAuth Scopes** | 10 → **6** (Least Privilege — V5.5.020) |
 | **isAuthorizedUser_ Coverage** | 6/10 → **13/13 destructive ops** |
 | **Sheet Protection Coverage** | 4/19 → **8/19 sheets** (+ M_PLACE, M_ALIAS, FACT_DELIVERY, Q_REVIEW range) |
 
@@ -1000,7 +1000,7 @@ Match Engine Decision (8 Rules)
 | **Pre-Audit Bugs** (V4.0–V5.4) | 82 | ✅ ALL FIXED | แก้ไขใน V5.2.001–012 |
 | **V5.5 Critical Bugs** (CRIT-001→008) | 2 | ✅ ALL FIXED | Null-safe coordinates, Silent Data Loss |
 | **V5.5 Performance Bugs** (PERF-001→012) | 0 | ✅ N/A | Performance issues ไม่ถือเป็น bug |
-| **V5.5 Security Issues** (SEC-001→012) | 0 | ✅ N/A | Security hardening (12 issues แก้ใน V5.5.017) |
+| **V5.5 Security Issues** (SEC-001→012) | 0 | ✅ N/A | Security hardening (12 issues แก้ใน V5.5.020) |
 | **REVIEW15 Critical Bug** | 1 | ✅ FIXED | `newRows.push(r)` → `newRows.push(aliasRow)` hot-fixed |
 | **REFACTOR Regression** | **0** | ✅ NO NEW BUGS | ไม่มี bug ใหม่จาก Refactor |
 | **SECURITY POSTFIX Regression** | **0** | ✅ NO NEW BUGS | ไม่มี bug ใหม่จาก Security Postfix |
@@ -1019,7 +1019,7 @@ Match Engine Decision (8 Rules)
 | **Functional Completeness** | 100% | ✅ PASS | Pipeline ครบทุก Flow, ทุก Rule ทำงานถูกต้อง |
 | **Code Quality (16 Laws)** | 100% | ✅ PASS | 16/16 Immutable Laws COMPLIANT |
 | **Performance** | 95% | ✅ PASS | Batch ops, Chunked cache, Index lookup ครบ |
-| **Security** | 97% | ✅ PASS | SEC-001→012 ครบ (V5.5.017), deny-by-default AuthZ, PII masking, OAuth Least Privilege |
+| **Security** | 97% | ✅ PASS | SEC-001→012 ครบ (V5.5.020), deny-by-default AuthZ, PII masking, OAuth Least Privilege |
 | **Error Handling** | 90% | ✅ PASS | try-catch ทุก Entry Point, Error recovery ครบ |
 | **Observability** | 85% | 🟡 GOOD | SYS_LOG + Log Buffer (PII masked), แต่ขาด Real-time Alert |
 | **Data Integrity** | 97% | ✅ PASS | Single Writer, LockService, Checkpoint Resume, Sheet Protection defense-in-depth |
@@ -1032,7 +1032,7 @@ Match Engine Decision (8 Rules)
 |---|---------|:-----:|----------|
 | 1 | 16/16 Immutable Laws COMPLIANT | ✅ ผ่าน | ครบตั้งแต่ REFACTOR Cycle (Rule 16: Security-First Design) |
 | 2 | ไม่มี Open Bug | ✅ ผ่าน | 89/102 issues แก้แล้ว (14 audit cycles) |
-| 3 | Security Hardening ครบ | ✅ ผ่าน | SEC-001→012 (V5.5.017 SECURITY-POSTFIX) |
+| 3 | Security Hardening ครบ | ✅ ผ่าน | SEC-001→012 (V5.5.020 SECURITY-POSTFIX) |
 | 4 | Performance Baseline ผ่าน | ✅ ผ่าน | Batch ops ลด API calls >96% |
 | 5 | Preflight Audit ผ่าน | ✅ ผ่าน | `runPreflightAudit()` ผ่านทุกครั้ง |
 | 6 | มี Real-time Alert | 🟡 ยังไม่มี | แนะนำเพิ่ม Email/Slack notification |
@@ -1064,9 +1064,9 @@ Match Engine Decision (8 Rules)
 | V5.5.014 | 2026-06-19 | **Cycle 11: DRIVER VERIFIED COLUMNS** — เพิ่ม 2 คอลัมน์ "ชื่อจริง" + alias enrichment (confidence=100, source=DRIVER_VERIFIED) |
 | V5.5.015 | 2026-06-19 | **Cycle 12: CRITICAL FIX** — 8 issues (2 BLOCKING + 6 SHOULD_FIX): factUpdateRow_ UPDATE path, buildSrcObjFromReview_ DRIVER_VERIFIED, merge mode lookup, ShopKey trim, alias recovery, Audit Cycles fix, comment fix, pre-flight check |
 | V5.5.016 | 2026-06-21 | **Cycle 13: PERFORMANCE FIX** — 13 issues (1 BLOCKING + 8 SHOULD_FIX + 4 NICE_TO_HAVE): reprocessReviewQueue LockService+TimeGuard+Checkpoint, findPerson/PlaceCandidates Set lookup, findByAlias/findPlaceByAlias inverted index, findMatchingPerson/Place prefix index, populateAliasFromFactDelivery_ map lookup, generatePersonAliasesFromHistory Checkpoint, highlightHighPriorityReviews single-row, findRowByIdInSheet TextFinder, remove legacy cache fallbacks, 9 new helper functions |
-| **V5.5.017** | **2026-06-21** | **Cycle 14: SECURITY POSTFIX** — 12 SEC issues (3 BLOCKING + 9 SHOULD_FIX): SEC-001 deny-by-default isAuthorizedUser_, SEC-002 4 destructive ops + AuthZ guard, SEC-003 assignMasterUuidIfMissing + confirmation, SEC-004 OAuth scopes 10→6, SEC-005/006/007 PII masking (MD5 hash + maskReviewerEmail_), SEC-008 admin list hidden, SEC-009 Sheet Protection expanded (M_PLACE/M_ALIAS/FACT_DELIVERY + Q_REVIEW Range), SEC-010 cookie regex tightened (RFC 6265), SEC-011 fetchWithRetry_ body truncation, SEC-012 populateGeoMetadata+buildGeoDictionary guards. isAuthorizedUser_ coverage 6/13→**13/13**, Production Readiness 95%→**97% GO** |
+| **V5.5.020** | **2026-06-21** | **Cycle 14: SECURITY POSTFIX** — 12 SEC issues (3 BLOCKING + 9 SHOULD_FIX): SEC-001 deny-by-default isAuthorizedUser_, SEC-002 4 destructive ops + AuthZ guard, SEC-003 assignMasterUuidIfMissing + confirmation, SEC-004 OAuth scopes 10→6, SEC-005/006/007 PII masking (MD5 hash + maskReviewerEmail_), SEC-008 admin list hidden, SEC-009 Sheet Protection expanded (M_PLACE/M_ALIAS/FACT_DELIVERY + Q_REVIEW Range), SEC-010 cookie regex tightened (RFC 6265), SEC-011 fetchWithRetry_ body truncation, SEC-012 populateGeoMetadata+buildGeoDictionary guards. isAuthorizedUser_ coverage 6/13→**13/13**, Production Readiness 95%→**97% GO** |
 
-> หมายเหตุ: เวอร์ชัน V5.5.017 เป็นเวอร์ชันปัจจุบัน — ผ่าน Audit Cycles ครบ 14 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX → SECURITY-POSTFIX), 102 Issues ทั้งหมดแก้ไขแล้ว (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016 + 12 security postfix V5.5.017), 16/16 Immutable Laws COMPLIANT
+> หมายเหตุ: เวอร์ชัน V5.5.020 เป็นเวอร์ชันปัจจุบัน — ผ่าน Audit Cycles ครบ 14 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX → SECURITY-POSTFIX), 102 Issues ทั้งหมดแก้ไขแล้ว (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016 + 12 security postfix V5.5.020), 16/16 Immutable Laws COMPLIANT
 
 ---
 
@@ -1080,10 +1080,10 @@ Match Engine Decision (8 Rules)
 | **docs/📋 กฎการเขียนโค้ด LMDS V5.5.md** | 16 Immutable Laws (ฉบับสมบูรณ์) |
 | **docs/LMDS_System_Guide.md** | คู่มือระบบ LMDS |
 | **docs/LMDS_Schema_Dictionary.md** | Schema Dictionary — คำอธิบายทุก Schema |
-| **docs/LMDS_SYSTEM_WORKFLOW_TH.md** | ผังการทำงานระบบ LMDS (ฉบับล่าสุด V5.5.017) |
+| **docs/LMDS_SYSTEM_WORKFLOW_TH.md** | ผังการทำงานระบบ LMDS (ฉบับล่าสุด V5.5.020) |
 | **docs/LMDS_V5.5_CRITICAL_code_Report.md** | รายงาน Critical Fix Cycle (V5.5.002) |
 | **docs/LMDS_V5.5_PERFORMANCE_code_Report.md** | รายงาน Performance Fix (V5.5.003) |
-| **docs/LMDS_V5.5_SECURITY_code_Report.md** | รายงาน Security Audit (V5.5.004 + V5.5.017 Security Postfix) |
+| **docs/LMDS_V5.5_SECURITY_code_Report.md** | รายงาน Security Audit (V5.5.004 + V5.5.020 Security Postfix) |
 | **docs/LMDS_V5.5_REVIEW15_code_Report.md** | รายงาน REVIEW15 Code Quality (V5.5.003→004) |
 | **docs/LMDS_V5.5_REFACTOR_code_Report.md** | รายงาน Refactor Cycle (V5.5.004) |
 | **docs/LMDS_V5.5_PREDEPLOY_code_Report.md** | รายงาน Pre-Deploy (V5.5.004) |

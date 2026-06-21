@@ -244,7 +244,7 @@ autoEnrichAliasesFromFactBatch_() → M_ALIAS + M_PERSON_ALIAS + M_PLACE_ALIAS
 |:---|:---|:---|
 | LAST_PIPELINE_RUN | 2025-01-15T10:30:00 | เวลา Pipeline ล่าสุด |
 | GEO_DICT_BUILT | true | สถานะการสร้าง Geo Dictionary |
-| SCHEMA_VERSION | 5.5.017 | เวอร์ชัน Schema ปัจจุบัน |
+| SCHEMA_VERSION | 5.5.020 | เวอร์ชัน Schema ปัจจุบัน |
 
 ---
 
@@ -483,25 +483,25 @@ function cleanAllAutoResumeTriggers() {
 | Editor | แก้ไขข้อมูล + ใช้เมนู | ADMIN |
 | Viewer | ดูข้อมูลอย่างเดียว | ผู้บริหาร |
 
-### 9.2 การป้องกัน Sheet (Protected Ranges — V5.5.017 expanded to 8 sheets + Q_REVIEW range)
+### 9.2 การป้องกัน Sheet (Protected Ranges — V5.5.020 expanded to 8 sheets + Q_REVIEW range)
 
-ฟังก์ชัน `applySheetProtection_UI()` จะ (V5.5.017 SECURITY-POSTFIX: ขยายจาก 4 → 8 sheets):
+ฟังก์ชัน `applySheetProtection_UI()` จะ (V5.5.020 SECURITY-POSTFIX: ขยายจาก 4 → 8 sheets):
 - ล็อก Sheet (8 sheets): ข้อมูลพนักงาน, M_PERSON, SCGนครหลวงJWDภูมิภาค, M_GEO_POINT, M_PLACE, M_DESTINATION, M_ALIAS, FACT_DELIVERY
 - ล็อก Q_REVIEW range (reviewer email + decision columns) — ป้องกัน tamper
 - ซ่อน Sheet ที่มีข้อมูลสำคัญ (Input, SYS_CONFIG) — *MAPS_CACHE ถูกลบใน V5.5.013; FACT_DELIVERY +2 cols ใน V5.5.014 DRIVER-VERIFIED*
 - ตั้งค่าให้เฉพาะ Admin เท่านั้นที่แก้ไขได้ (Sheet Protection Coverage: 8/19 sheets + Q_REVIEW range)
 
-### 9.3 การ Audit ด้านความปลอดภัย (12 จุดที่แก้ไขแล้ว — SEC-001→012, V5.5.017 SECURITY-POSTFIX)
+### 9.3 การ Audit ด้านความปลอดภัย (12 จุดที่แก้ไขแล้ว — SEC-001→012, V5.5.020 SECURITY-POSTFIX)
 
 | SEC ID | ช่องโหว่ | การแก้ไข | วิธีตรวจสอบ |
 |:---|:---|:---|:---|
-| SEC-001 | Cookie อยู่ในเซลล์ Spreadsheet | ย้ายไป ScriptProperties (revisit V5.5.017) | ตรวจ Sheet Input ต้องไม่มี Cookie |
-| SEC-002 | ไม่มี Authorization Guard (deny-by-default) | เพิ่ม `isAuthorizedUser_()` ครอบ 13/13 destructive ops (revisit V5.5.017) | ทดสอบกับอีเมลที่ไม่ใช่ Admin |
+| SEC-001 | Cookie อยู่ในเซลล์ Spreadsheet | ย้ายไป ScriptProperties (revisit V5.5.020) | ตรวจ Sheet Input ต้องไม่มี Cookie |
+| SEC-002 | ไม่มี Authorization Guard (deny-by-default) | เพิ่ม `isAuthorizedUser_()` ครอบ 13/13 destructive ops (revisit V5.5.020) | ทดสอบกับอีเมลที่ไม่ใช่ Admin |
 | SEC-003 | Cookie ไม่ถูก Sanitize | เพิ่ม `sanitizeCookie_()` ป้องกัน CRLF | ทดสอบใส่ Cookie ที่มี \r\n |
-| SEC-004 | PII ปรากฏใน Log | ลบ response preview จาก SYS_LOG + ขยาย masking (revisit V5.5.017) | ตรวจ SYS_LOG ต้องไม่มีข้อมูลส่วนบุคคล |
+| SEC-004 | PII ปรากฏใน Log | ลบ response preview จาก SYS_LOG + ขยาย masking (revisit V5.5.020) | ตรวจ SYS_LOG ต้องไม่มีข้อมูลส่วนบุคคล |
 | SEC-005 | ไม่มี Protected Ranges | เพิ่ม `applySheetProtection_UI()` | รันแล้วลองแก้ไข Sheet ที่ล็อก |
 | SEC-006 | API Key อยู่ใน URL | เปลี่ยนเป็น x-goog-api-key header | ตรวจ Network Request |
-| SEC-007 | Reviewer Email ไม่ถูก Mask | เพิ่ม `maskReviewerEmail_()` (revisit V5.5.017) | ตรวจ Q_REVIEW ต้องแสดง s***i@company.com |
+| SEC-007 | Reviewer Email ไม่ถูก Mask | เพิ่ม `maskReviewerEmail_()` (revisit V5.5.020) | ตรวจ Q_REVIEW ต้องแสดง s***i@company.com |
 | SEC-008 | OAuth scopes กว้างเกินไป (Least Privilege) | ลด OAuth scopes จาก 10 → 6 ตามที่ใช้จริง | ตรวจ appsscript.json manifest |
 | SEC-009 | Cookie regex ไม่ RFC 6265 compliant | `sanitizeCookie_()` ใช้ RFC 6265 compliant regex | ทดสอบ Cookie format หลากหลาย |
 | SEC-010 | PII Masking ไม่ครบ | ขยาย PII masking ใน log + audit trail ทุกจุด | ตรวจ log ต้องไม่มี PII |
@@ -911,11 +911,11 @@ APP_CONST = {
 
 > **เอกสารฉบับนี้จัดทำสำหรับทีม IT ที่ดูแลระบบ LMDS V5.5**
 >
-> **เวอร์ชันเอกสาร:** 1.3 (ปรับปรุงตามโค้ดจริง V5.5.017 SECURITY-POSTFIX) | **วันที่:** มิถุนายน 2569
+> **เวอร์ชันเอกสาร:** 1.3 (ปรับปรุงตามโค้ดจริง V5.5.020 SECURITY-POSTFIX) | **วันที่:** มิถุนายน 2569
 >
 > **✅ หมายเหตุ — เวอร์ชันซิงค์แล้ว:**
 >
-> 1. **APP_VERSION ในโค้ด = `5.5.017`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.014 ได้รับการแก้ไขแล้ว; V5.5.017 SECURITY-POSTFIX เพิ่ม SEC-008→012, OAuth scopes 10→6, isAuthorizedUser_ 13/13, Sheet Protection 8/19 + Q_REVIEW range, Production Readiness 95%→97%)
+> 1. **APP_VERSION ในโค้ด = `5.5.020`** — ตรงกันกับ System Guide แล้ว (ความแตกต่างเดิมระหว่าง 5.5.001 และ V5.5.014 ได้รับการแก้ไขแล้ว; V5.5.020 SECURITY-POSTFIX เพิ่ม SEC-008→012, OAuth scopes 10→6, isAuthorizedUser_ 13/13, Sheet Protection 8/19 + Q_REVIEW range, Production Readiness 95%→97%)
 > 2. **Search Service ในโค้ดใช้ 2 Tier เท่านั้น** (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — นี่คือการใช้งานจริง (System Guide ฉบับเก่าอธิบาย 6 Tier ซึ่งเป็นแบบเก่าที่ถูกลบออกไปแล้ว)
 > 3. **ID Format ในโค้ด** ใช้ prefix + 12 hex chars (เช่น Person = `PA3F7B2C9D0E1`) แต่ System Guide แสดงแบบสั้น 6 chars (เช่น `PS3k7x`)
 > 4. **SYS_LOG auto-clean** ในโค้ด trigger เมื่อเกิน 5,001 แถว และเก็บไว้ 1,000 แถวล่าสุด (ไม่ใช่ 5,000 ตามที่ System Guide เขียน)

@@ -29,7 +29,7 @@
 | รายการ | รายละเอียด |
 |:---|:---|
 | **ชื่อระบบ** | LMDS (Logistics Master Data System) |
-| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.017, System Guide = V5.5.017 SECURITY-POSTFIX) |
+| **เวอร์ชัน** | V5.5 (โค้ดจริง = 5.5.020, System Guide = V5.5.020 SECURITY-POSTFIX) |
 | **แพลตฟอร์ม** | Google Workspace (Google Sheets + Google Apps Script) |
 | **ลูกค้า** | SCG JWD Logistics |
 | **ขอบเขตการใช้งาน** | การขนส่งสินค้าในประเทศไทย |
@@ -323,7 +323,7 @@
 | รอบที่ 4 | PREDEPLOY | 0 Blocking | 97% พร้อม (Security Hardened) | ผ่าน |
 | รอบที่ 5 | SECURITY | 7 ช่องโหว่ | 7/7 | แก้ไขแล้ว |
 
-**รวม:** 102 ปัญหา แก้ไขแล้วทั้งหมด (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.017) ไม่มีปัญหาค้าง
+**รวม:** 102 ปัญหา แก้ไขแล้วทั้งหมด (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.020) ไม่มีปัญหาค้าง
 
 ---
 
@@ -336,7 +336,7 @@
 | สถาปัตยกรรม (Architecture) | 97% | โครงสร้างดี แยกส่วนชัดเจน |
 | ความปลอดภัยในการทำงาน (Execution Safety) | 95% | Time Guard, Checkpoint, LockService |
 | ความถูกต้องของข้อมูล (Data Integrity) | 97% | Single Writer, Batch Operations |
-| ความปลอดภัย (Security) | 97% | 12 ช่องโหว่แก้ไขแล้ว (SEC-001→012, V5.5.017 SECURITY-POSTFIX) |
+| ความปลอดภัย (Security) | 97% | 12 ช่องโหว่แก้ไขแล้ว (SEC-001→012, V5.5.020 SECURITY-POSTFIX) |
 | คุณภาพโค้ด (Clean Code) | 100% | 16/16 กฎผ่าน |
 | **รวม** | **97%** | **พร้อม Deploy (Security Hardened)** |
 
@@ -383,7 +383,7 @@
 11. **DRIVER-VERIFIED** — เพิ่ม 2 driver verified cols ใน FACT_DELIVERY/SOURCE/DAILY_JOB
 12. **CRITICAL-FIX** — แก้ไข 2 critical issues
 13. **PERFORMANCE-FIX** — แก้ไข 13 performance issues
-14. **SECURITY-POSTFIX (V5.5.017)** — แก้ไข 12 SEC issues (SEC-001→012, 3 BLOCKING + 9 SHOULD_FIX): deny-by-default AuthZ (13/13 ops), OAuth Least Privilege (10→6 scopes), PII masking, Sheet Protection expanded (4→8 sheets + Q_REVIEW range), RFC 6265 cookie regex, fetchWithRetry_ body truncation → Production Readiness 95%→97% (Security Hardened)
+14. **SECURITY-POSTFIX (V5.5.020)** — แก้ไข 12 SEC issues (SEC-001→012, 3 BLOCKING + 9 SHOULD_FIX): deny-by-default AuthZ (13/13 ops), OAuth Least Privilege (10→6 scopes), PII masking, Sheet Protection expanded (4→8 sheets + Q_REVIEW range), RFC 6265 cookie regex, fetchWithRetry_ body truncation → Production Readiness 95%→97% (Security Hardened)
 
 ---
 
@@ -449,7 +449,7 @@
 
 ## สรุป
 
-ระบบ LMDS V5.5 เป็นโซลูชันที่ตอบโจทย์ปัญหาการจัดการข้อมูลโลจิสติกส์อย่างครบวงจร ตั้งแต่การทำความสะอาดข้อมูล การจับคู่อัตโนมัติ ไปจนถึงการค้นหาพิกัด GPS ด้วยคะแนนความพร้อม 97% (Security Hardened) และผ่านการ Audit 14 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL-FIX → PERFORMANCE-FIX → SECURITY-POSTFIX) 102 ปัญหาแก้ไขหมดสิ้น (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.017) ระบบพร้อมสำหรับการ Deploy ใช้งานจริง และมีศักยภาพในการขยายการใช้งานต่อไปในอนาคต
+ระบบ LMDS V5.5 เป็นโซลูชันที่ตอบโจทย์ปัญหาการจัดการข้อมูลโลจิสติกส์อย่างครบวงจร ตั้งแต่การทำความสะอาดข้อมูล การจับคู่อัตโนมัติ ไปจนถึงการค้นหาพิกัด GPS ด้วยคะแนนความพร้อม 97% (Security Hardened) และผ่านการ Audit 14 รอบ (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL-FIX → PERFORMANCE-FIX → SECURITY-POSTFIX) 102 ปัญหาแก้ไขหมดสิ้น (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.020) ระบบพร้อมสำหรับการ Deploy ใช้งานจริง และมีศักยภาพในการขยายการใช้งานต่อไปในอนาคต
 
 ---
 

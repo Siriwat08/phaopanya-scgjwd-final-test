@@ -1,5 +1,5 @@
 /**
- * VERSION: 5.5.017
+ * VERSION: 5.5.020
  * FILE: 01_Config.gs
  * LMDS V5.5 — System Configuration & Constants
  * ===================================================
@@ -10,9 +10,9 @@
  * ===================================================
  * CHANGELOG: See /docs/CHANGELOG.md for full history.
  *   Latest 3 versions:
+ *     v5.5.020 (2026-06-22) — REFACTOR_CYCLE6_RESIDUAL (REF-005 cleanup + REF-011 pilot)
  *     v5.5.019 (2026-06-22) — REFACTOR_CYCLE6 (12 issues — REF-001 to REF-012)
  *     v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (14 issues)
- *     v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues)
  * ===================================================
  * DEPENDENCIES:
  *   DEFINES:
@@ -63,8 +63,8 @@
  * ===================================================
  */
 
-const APP_VERSION = '5.5.017';
-const SCHEMA_VERSION = '5.5.017';
+const APP_VERSION = '5.5.020';
+const SCHEMA_VERSION = '5.5.020';
 const APP_NAME    = 'LMDS V5.5';
 
 // [NEW v5.2.001] Global RAM Caches for batch runs

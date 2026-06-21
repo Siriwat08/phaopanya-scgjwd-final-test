@@ -76,13 +76,13 @@
 
 | SEC | Feature | Status | Evidence |
 |:---:|---------|:------:|----------|
-| SEC-001 | Cookie → PropertiesService (ไม่เก็บในเซลล์) | ✅ | `getSCGCookie_()` อ่านจาก Script Properties (revisit V5.5.017) |
-| SEC-002 | Authorization Guard (deny-by-default) | ✅ | `isAuthorizedUser_()` ครอบ 13/13 destructive operations (revisit V5.5.017) |
+| SEC-001 | Cookie → PropertiesService (ไม่เก็บในเซลล์) | ✅ | `getSCGCookie_()` อ่านจาก Script Properties (revisit V5.5.020) |
+| SEC-002 | Authorization Guard (deny-by-default) | ✅ | `isAuthorizedUser_()` ครอบ 13/13 destructive operations (revisit V5.5.020) |
 | SEC-003 | API Key validation (`^AIza[0-9A-Za-z\-_]{35}$`) | ✅ | `setupEnvironment()` validate format ก่อน save |
-| SEC-004 | PII Log Removal + Masking | ✅ | `logError` ไม่ log ข้อมูลส่วนบุคคล + ขยาย masking (revisit V5.5.017) |
+| SEC-004 | PII Log Removal + Masking | ✅ | `logError` ไม่ log ข้อมูลส่วนบุคคล + ขยาย masking (revisit V5.5.020) |
 | SEC-005 | CRLF Sanitization | ✅ | Input sanitization ป้องกัน formula injection |
-| SEC-006 | Protected Ranges (expanded) | ✅ | `sheet.protect()` 8/19 sheets + Q_REVIEW range (revisit V5.5.017) |
-| SEC-007 | Email Masking | ✅ | `maskReviewerEmail_()` ใช้ใน ReviewService audit trail (revisit V5.5.017) |
+| SEC-006 | Protected Ranges (expanded) | ✅ | `sheet.protect()` 8/19 sheets + Q_REVIEW range (revisit V5.5.020) |
+| SEC-007 | Email Masking | ✅ | `maskReviewerEmail_()` ใช้ใน ReviewService audit trail (revisit V5.5.020) |
 | SEC-008 | OAuth Least Privilege | ✅ | OAuth scopes ลดจาก 10 → 6 (สิทธิ์ตามที่ใช้จริงเท่านั้น) |
 | SEC-009 | RFC 6265 Cookie Regex | ✅ | `sanitizeCookie_()` ใช้ RFC 6265 compliant regex |
 | SEC-010 | PII Masking (extended) | ✅ | ขยาย PII masking ใน log และ audit trail ครบทุกจุด |
@@ -254,7 +254,7 @@
 
 ก่อนเริ่ม ผมเห็นว่ามี skill เฉพาะของ LMDS อยู่ในระบบ เลยโหลดมาช่วยเช็คให้ละเอียดขึ้นครับ
 
-โอเค ผมเข้าใจภาพรวมแล้วครับ! นี่คือโปรเจกต์ **LMDS V5.5.017** — Logistics Master Data System ที่ผ่าน 14 audit cycles (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX → SECURITY-POSTFIX), 102 issues แก้ไขครบ (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified cols + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.017), compliance 16/16 (100%) และ production readiness 97% (Security Hardened) เคลมว่า GO
+โอเค ผมเข้าใจภาพรวมแล้วครับ! นี่คือโปรเจกต์ **LMDS V5.5.017** — Logistics Master Data System ที่ผ่าน 14 audit cycles (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX → SECURITY-POSTFIX), 102 issues แก้ไขครบ (53 audit + 9 cache fix + 6 cache cleanup + 3 antipattern + 2 google maps refactor + 2 driver verified cols + 2 critical fix + 13 perf fix + 12 SEC fix V5.5.020), compliance 16/16 (100%) และ production readiness 97% (Security Hardened) เคลมว่า GO
 
 ก่อนจะบอกว่าพร้อม ผมต้อง **เช็คเองด้วยตา** ครับ ไม่ใช่เชื่อ README อย่างเดียว ขอตรวจให้เต็มรูปแบบ
 

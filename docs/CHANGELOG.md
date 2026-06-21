@@ -7,6 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 | Version | Date | Cycle | Issues |
 |---------|------|-------|--------|
+| 5.5.020 | 2026-06-22 | REFACTOR_CYCLE6_RESIDUAL | REF-005 cleanup + REF-011 pilot |
 | 5.5.019 | 2026-06-22 | REFACTOR_CYCLE6 | 12 (REF-001 to REF-012) |
 | 5.5.018 | 2026-06-21 | REVIEW15 CLEAN CODE FIX | 14 |
 | 5.5.017 | 2026-06-21 | SECURITY POSTFIX | 12 SEC |
@@ -23,6 +24,41 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 | 5.5.006 | 2026-06-18 | CONSISTENCY SYNC | 28 doc inconsistencies |
 | 5.5.005 | 2026-06-16 | REVIEW SERVICE FIX | (intermediate) |
 | 5.5.004 | 2026-06-15 | INITIAL AUDIT CYCLES | 53 audit issues |
+
+---
+
+## [5.5.020] — 2026-06-22 — REFACTOR_CYCLE6_RESIDUAL (REF-005 cleanup + REF-011 pilot)
+
+### REF-005 Residual Cleanup (FIX_CONFIRMED)
+- ลบ stale CHANGELOG entries 1,326 บรรทัดใน 20 ไฟล์ (entries เก่า v5.5.012-016 ที่ค้างอยู่)
+- หลัง V5.5.019 REF-005 PARTIAL_FIX — script trim ตัด entries หลัง SECURITY POSTFIX แต่ไม่ได้ตัด entries ก่อนหน้า
+- V5.5.020 แก้ด้วย Python script ที่ตรวจหา purpose_divider และ compact_divider แล้วตัดทุกอย่างระหว่างนั้น
+- ผล: 0 stale entries คงเหลือ, total lines ลดจาก 17,344 → 16,018 (-1,326 บรรทัด)
+- 22/22 ไฟล์ผ่าน syntax check
+
+### REF-011 Pilot Implementation (FIX_CONFIRMED)
+- Apply `withEntryPointGuard_` ใน 3 entry points:
+  1. `populateGeoMetadata()` (20_ThGeoService.gs) — error handling + flushLogBuffer_ via guard
+  2. `buildGeoDictionary()` (16_GeoDictionaryBuilder.gs) — error handling + flushLogBuffer_ via guard
+  3. `fetchDataFromSCGJWD()` (18_ServiceSCG.gs) — error handling + lock release + flushLogBuffer_ via guard
+- Preserve Behavior 100%:
+  - errorPrefix='เกิดข้อผิดพลาด: ' (same as original alert message)
+  - lock release handled by guard via `options.lock`
+  - flushLogBuffer_ handled by guard in finally
+- ลด boilerplate ~30 บรรทัด across 3 entry points
+
+### Bump Version + Documentation Sync
+- APP_VERSION: 5.5.019 → 5.5.020
+- SCHEMA_VERSION: 5.5.019 → 5.5.020
+- 21/22 .gs files: bump VERSION header + update Latest 3 versions block
+- showVersionInfo(): แสดง v5.5.020 + Audit Cycles 14 → 17
+- CHANGELOG.md: เพิ่ม V5.5.020 entry
+
+### Cumulative Impact
+- Total lines: 17,344 → 16,018 (-1,326, -7.6%)
+- Functions >100 lines: 4 (unchanged from V5.5.019)
+- Module Boundary violations: 0 (maintained)
+- Production Readiness: 97% GO (preserved from V5.5.020)
 
 ---
 
@@ -237,7 +273,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - **16 Immutable Laws**: Clean Code, SRP, No Hardcode Index, Batch Ops, Checkpoint/Resume, etc.
 - **Module Boundary**: Group 1 (Master DB) ↔ Group 2 (Daily Ops) — Pure Consumer
 - **3-Layer Cache**: RAM → CacheService (chunked) → Sheet
-- **6 OAuth Scopes** (Least Privilege since V5.5.017)
+- **6 OAuth Scopes** (Least Privilege since V5.5.020)
 
 ---
 

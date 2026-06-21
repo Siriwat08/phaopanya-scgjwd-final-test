@@ -681,16 +681,16 @@ function oldFunction() {
 
 ---
 
-### กฎข้อ 16: Security-First Design (เพิ่มใน V5.5.004 — ขยาย SEC-001→012 ใน V5.5.017 SECURITY-POSTFIX)
+### กฎข้อ 16: Security-First Design (เพิ่มใน V5.5.004 — ขยาย SEC-001→012 ใน V5.5.020 SECURITY-POSTFIX)
 
 1. **Secret Management (SEC-001)** — ห้ามเก็บ Secret (Cookie, API Key, Password) ใน Spreadsheet Cell ต้องใช้ `PropertiesService.getScriptProperties()` เท่านั้น
-2. **Authorization Guard (SEC-002, deny-by-default)** — Destructive Operation ทุกจุดต้องมี `isAuthorizedUser_()` Guard ก่อนดำเนินการ (V5.5.017: ครอบ 13/13 destructive ops)
+2. **Authorization Guard (SEC-002, deny-by-default)** — Destructive Operation ทุกจุดต้องมี `isAuthorizedUser_()` Guard ก่อนดำเนินการ (V5.5.020: ครอบ 13/13 destructive ops)
 3. **Input Sanitization (SEC-003, SEC-009)** — ข้อมูลจากผู้ใช้ทุกชนิดที่จะส่งผ่าน HTTP Header ต้องผ่าน Sanitization ก่อน (เช่น `sanitizeCookie_()` ใช้ RFC 6265 compliant regex)
 4. **Data Minimization (SEC-004, SEC-010)** — ห้ามบันทึก PII (อีเมลเต็ม, เบอร์โทร, ที่อยู่เต็ม) ลง SYS_LOG — ใช้ Masking (เช่น `maskReviewerEmail_()`)
 5. **API Key in Header (SEC-005)** — ส่ง API Key ผ่าน HTTP Header (`x-goog-api-key`) ไม่ใช่ URL Query Parameter (`?key=`)
-6. **Protected Ranges (SEC-006, SEC-011)** — ชีตที่มีข้อมูล PII ต้องตั้ง Protected Ranges + Hide Sheet จากผู้ใช้ทั่วไป (V5.5.017: 8/19 sheets + Q_REVIEW range)
+6. **Protected Ranges (SEC-006, SEC-011)** — ชีตที่มีข้อมูล PII ต้องตั้ง Protected Ranges + Hide Sheet จากผู้ใช้ทั่วไป (V5.5.020: 8/19 sheets + Q_REVIEW range)
 7. **Email Masking (SEC-007)** — Reviewer Email ใน Q_REVIEW ต้อง mask ด้วย `maskReviewerEmail_()`
-8. **OAuth Least Privilege (SEC-008)** — OAuth scopes ต้องจำกัดตามที่ใช้จริงเท่านั้น (V5.5.017: ลดจาก 10 → 6 scopes)
+8. **OAuth Least Privilege (SEC-008)** — OAuth scopes ต้องจำกัดตามที่ใช้จริงเท่านั้น (V5.5.020: ลดจาก 10 → 6 scopes)
 9. **fetchWithRetry_ Body Truncation (SEC-012)** — Truncate response body ใน `fetchWithRetry_` ก่อน log เพื่อป้องกัน leak ข้อมูลส่วนตัว
 
 ---
@@ -699,7 +699,7 @@ function oldFunction() {
 
 ให้ AI ตรวจสอบก่อนส่งโค้ดทุกครั้ง:
 
-> ✅ **FIRST_AUDIT_REVIEW15 + REFACTOR (2026-06-12) ได้ดำเนินการเสร็จสิ้นแล้ว** — กฎข้อ 1, 2, 3, 5, 7, 9, 13 ที่เคยมีการละเมิด ได้รับการแก้ไขครบถ้วนแล้ว (SHOULD_FIX/NICE_TO_HAVE → PASS) ผล Compliance: 8/16 PASS → **16/16 COMPLIANT** (+8). REFACTOR cycle: 21 REF issues, 16 files changed. APP_VERSION = '5.5.017', SCHEMA_VERSION = '5.5.017' (post-SECURITY-POSTFIX, 14 audit cycles, 102 issues fixed, 97% production readiness).
+> ✅ **FIRST_AUDIT_REVIEW15 + REFACTOR (2026-06-12) ได้ดำเนินการเสร็จสิ้นแล้ว** — กฎข้อ 1, 2, 3, 5, 7, 9, 13 ที่เคยมีการละเมิด ได้รับการแก้ไขครบถ้วนแล้ว (SHOULD_FIX/NICE_TO_HAVE → PASS) ผล Compliance: 8/16 PASS → **16/16 COMPLIANT** (+8). REFACTOR cycle: 21 REF issues, 16 files changed. APP_VERSION = '5.5.020', SCHEMA_VERSION = '5.5.017' (post-SECURITY-POSTFIX, 14 audit cycles, 102 issues fixed, 97% production readiness).
 
 ### Syntax & Naming
 - [ ] ใช้ `camelCase` สำหรับชื่อทั้งหมด
@@ -778,6 +778,6 @@ function oldFunction() {
 ---
 
 > **เวอร์ชัน:** 5.5.017 (post-SECURITY-POSTFIX) — รวมจาก 2 ไฟล์เดิม + ปรับปรูงข้อ 1.1 + อัปเดตล่าสุด V5.5.017 (SEC-001→012 ครบ, 14 audit cycles, 97% readiness)
-> **APP_VERSION:** '5.5.017' | **SCHEMA_VERSION:** '5.5.017'
+> **APP_VERSION:** '5.5.020' | **SCHEMA_VERSION:** '5.5.020'
 > **อัปเดตล่าสุด:** 2026-06-21
 > **ตัวอย่างโค้ดทั้งหมด:** Google Apps Script (JavaScript)

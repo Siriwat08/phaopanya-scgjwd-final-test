@@ -134,7 +134,7 @@ ADMIN มีบทบาทหลักในการ:
 | ลำดับ | การดำเนินการ | หมายเหตุ |
 |:---:|:---|:---|
 | 1 | เปิด LMDS Spreadsheet | |
-| 2 | ไปที่เมนู **🚚 LMDS V5.5 → 🔧 ระบบ & ตั้งค่า → 🔐 ตั้งค่า SCG Cookie** | ใส่ Cookie ที่ดึงจากเบราว์เซอร์ SCG e-POD — ระบบเก็บใน ScriptProperties อย่างปลอดภัย (SEC-001→012, Security Hardened ใน V5.5.017) |
+| 2 | ไปที่เมนู **🚚 LMDS V5.5 → 🔧 ระบบ & ตั้งค่า → 🔐 ตั้งค่า SCG Cookie** | ใส่ Cookie ที่ดึงจากเบราว์เซอร์ SCG e-POD — ระบบเก็บใน ScriptProperties อย่างปลอดภัย (SEC-001→012, Security Hardened ใน V5.5.020) |
 | 3 | ไปที่ Sheet **Input** → วาง ShipmentNos ที่เซลล์ **B3** | คั่นด้วยเครื่องหมายจุลภาค (,) หรือบรรทัดใหม่ |
 | 4 | ไปที่เมนู **🚚 LMDS V5.5 → 🟦 กลุ่ม 2 → 📥 ดึงข้อมูล SCG API** | |
 | 5 | รอจนกระทั่งข้อความแจ้งเตือน "ดึงข้อมูลสำเร็จ" ปรากฏ | ใช้เวลา 30 วินาที - 3 นาที ขึ้นกับจำนวนข้อมูล |
@@ -478,8 +478,8 @@ ADMIN มีบทบาทหลักในการ:
 
 > **เอกสารฉบับนี้จัดทำสำหรับ ADMIN ของระบบ LMDS V5.5**
 >
-> **เวอร์ชันเอกสาร:** 1.3 (ปรับปรุงตามโค้ดจริง V5.5.017) | **วันที่:** มิถุนายน 2569
+> **เวอร์ชันเอกสาร:** 1.3 (ปรับปรุงตามโค้ดจริง V5.5.020) | **วันที่:** มิถุนายน 2569
 >
-> **หมายเหตุ:** ข้อมูลในเอกสารนี้อ้างอิงจากโค้ดจริงใน Repository (APP_VERSION = 5.5.017) ซึ่งตรงกันกับ LMDS_System_Guide.md แล้ว ระบบ Search Service ใช้ 2 Tier เท่านั้น (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — ไม่ใช่ 6 Tier ตาม Guide ฉบับเก่าที่ถูกลบออกไปแล้ว
+> **หมายเหตุ:** ข้อมูลในเอกสารนี้อ้างอิงจากโค้ดจริงใน Repository (APP_VERSION = 5.5.020) ซึ่งตรงกันกับ LMDS_System_Guide.md แล้ว ระบบ Search Service ใช้ 2 Tier เท่านั้น (Tier 0: M_ALIAS Fast Track + Tier 1: resolvePerson → getDestsByPersonId + NOT_FOUND) ตามนโยบาย ShipToName-Only v5.4.003 — ไม่ใช่ 6 Tier ตาม Guide ฉบับเก่าที่ถูกลบออกไปแล้ว
 >
 > **สถิติระบบ:** ฟังก์ชัน 321 | บรรทัดโค้ด ~17,399 | IDX sets 16 | Compliance 16/16 COMPLIANT (Rule 16: Security-First Design, SEC-001→012, 14 audit cycles, 97% readiness)

@@ -3,7 +3,7 @@
 > เอกสารสถาปัตยกรรมระบบ LMDS (Logistics Master Data System) ฉบับเต็ม
 > ร่างสถาปัตยกรรมระดับ Core-System ชี้แจ้ง Data Schema, Pipeline Mechanics, Module Specification, Bug Status, Performance Analysis สำหรับนักพัฒนาระบบ
 > Version: 5.5.018 (REVIEW15-CLEAN-CODE-FIX) | Last Updated: 2026-06-21
-> **15 Audit Cycles Complete** | 116 Issues FIXED (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016 + 12 security postfix V5.5.017 + 14 review15 clean code fix V5.5.018) | 15/15 Immutable Laws COMPLIANT (Phase 1-3,6 of REVIEW15; Phases 4-5 deferred to next iteration) | Production Readiness: 97% GO (Security Hardened)
+> **15 Audit Cycles Complete** | 116 Issues FIXED (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016 + 12 security postfix V5.5.020 + 14 review15 clean code fix V5.5.020) | 15/15 Immutable Laws COMPLIANT (Phase 1-3,6 of REVIEW15; Phases 4-5 deferred to next iteration) | Production Readiness: 97% GO (Security Hardened)
 
 ---
 
@@ -1079,7 +1079,7 @@ Migration ใช้ `MIGRATION_HybridAliasSystem()` ใน `21_AliasService.gs` 
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                  LMDS V5.5.017 Security Layer (Post-Security Postfix) │
+│                  LMDS V5.5.020 Security Layer (Post-Security Postfix) │
 │                                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐     │
 │  │ Layer 1: Secret Management                                  │     │
@@ -1091,31 +1091,31 @@ Migration ใช้ `MIGRATION_HybridAliasSystem()` ใน `21_AliasService.gs` 
 │  ┌─────────────────────────────────────────────────────────────┐     │
 │  │ Layer 2: Authorization (Least Privilege)                     │     │
 │  │  • isAuthorizedUser_() — 13/13 Destructive Entry Points    │     │
-│  │  • [V5.5.017] Deny-by-default (Script Owner fallback only)  │     │
-│  │  • [V5.5.017] Confirmation dialogs (assignMasterUuid, etc.) │     │
+│  │  • [V5.5.020] Deny-by-default (Script Owner fallback only)  │     │
+│  │  • [V5.5.020] Confirmation dialogs (assignMasterUuid, etc.) │     │
 │  └─────────────────────────────────────────────────────────────┘     │
 │                                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐     │
 │  │ Layer 3: Data Minimization + PII Masking                    │     │
-│  │  • sanitizeCookie_() — CRLF + RFC 6265 charset (V5.5.017)   │     │
+│  │  • sanitizeCookie_() — CRLF + RFC 6265 charset (V5.5.020)   │     │
 │  │  • maskReviewerEmail_() — s***i@company.com (AuthZ logs)    │     │
 │  │  • PII Log Removal — Response Length Only                   │     │
-│  │  • [V5.5.017] generateMd5Hash() masking (4 PII log points)  │     │
-│  │  • [V5.5.017] Invoice hash + masked sample (MatchEngine)    │     │
-│  │  • [V5.5.017] fetchWithRetry_ body truncation (200 chars)   │     │
+│  │  • [V5.5.020] generateMd5Hash() masking (4 PII log points)  │     │
+│  │  • [V5.5.020] Invoice hash + masked sample (MatchEngine)    │     │
+│  │  • [V5.5.020] fetchWithRetry_ body truncation (200 chars)   │     │
 │  └─────────────────────────────────────────────────────────────┘     │
 │                                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐     │
 │  │ Layer 4: Protected Ranges (Defense-in-Depth)                │     │
 │  │  • EMPLOYEE, M_PERSON, M_PLACE, M_ALIAS, FACT_DELIVERY     │     │
 │  │  • SOURCE (hide) + M_GEO_POINT (V5.5.004)                  │     │
-│  │  • [V5.5.017] Q_REVIEW Range Protection (A1:Q — reviewer   │     │
+│  │  • [V5.5.020] Q_REVIEW Range Protection (A1:Q — reviewer   │     │
 │  │    แก้ R-V ได้ สำหรับ DECISION/STATUS/NOTE)                  │     │
-│  │  • [V5.5.017] LMDS_ADMINS auto-added as editors            │     │
+│  │  • [V5.5.020] LMDS_ADMINS auto-added as editors            │     │
 │  └─────────────────────────────────────────────────────────────┘     │
 │                                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐     │
-│  │ Layer 5: OAuth Least Privilege (V5.5.017)                   │     │
+│  │ Layer 5: OAuth Least Privilege (V5.5.020)                   │     │
 │  │  • 6 scopes (was 10) — removed drive, send_mail, projects,  │     │
 │  │    logging.read                                              │     │
 │  │  • No DriveApp/GmailApp/MailApp/DocsService usage in code   │     │
