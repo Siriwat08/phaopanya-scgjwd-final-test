@@ -647,6 +647,9 @@ function flushGlobalAliasRows_(ss, rows) {
  * applySheetProtection_UI — [SEC-005] ตั้งค่า Protected Ranges และ Hidden Sheets
  * สำหรับชีตที่มีข้อมูล Sensitive (PII)
  * เฉพาะ Script Owner / Admin เท่านั้นที่สามารถแก้ไขชีตเหล่านี้ได้
+ * [SEC-009 FIX] ขยาย protection ครอบ M_PLACE, M_ALIAS, FACT_DELIVERY, Q_REVIEW
+ *               + เพิ่ม LMDS_ADMINS ทั้งหมดเป็น editor
+ *               + Q_REVIEW ใช้ Range Protection (ปกป้อง A1:Q — ปล่อย R-V ให้ reviewer แก้ DECISION/STATUS/NOTE)
  */
 function applySheetProtection_UI() {
   // [SEC-002] Authorization Guard — เฉพาะ Admin เท่านั้น
@@ -660,11 +663,23 @@ function applySheetProtection_UI() {
     const me = Session.getEffectiveUser().getEmail();
     const results = [];
 
+    // [SEC-009 FIX] ดึงรายชื่อ Admin ทั้งหมดเพื่อเพิ่มเป็น editor
+    const adminsStr = String(
+      PropertiesService.getScriptProperties().getProperty('LMDS_ADMINS') || ''
+    ).trim();
+    const adminEmails = adminsStr
+      ? adminsStr.split(',').map(function(e) { return e.trim(); }).filter(Boolean)
+      : [];
+
     // === 1. Protected Ranges: ชีตที่มี PII ===
+    // [SEC-009 FIX] ขยาย protectedSheets ครอบทุกชีตที่มี PII/Single Writer
     const protectedSheets = [
-      { name: SHEET.EMPLOYEE, reason: 'ข้อมูลพนักงาน (เลขบัตร, เบอร์โทร)', hide: true },
-      { name: SHEET.M_PERSON, reason: 'ข้อมูลบุคคล (เบอร์โทร)', hide: false },
-      { name: SHEET.SOURCE,   reason: 'ข้อมูลต้นทาง (ที่อยู่, Email, ชื่อลูกค้า)', hide: true },
+      { name: SHEET.EMPLOYEE,       reason: 'ข้อมูลพนักงาน (เลขบัตร, เบอร์โทร)', hide: true },
+      { name: SHEET.M_PERSON,       reason: 'ข้อมูลบุคคล (เบอร์โทร)', hide: false },
+      { name: SHEET.M_PLACE,        reason: 'ที่อยู่ลูกค้า + master_uuid (PII)', hide: false },
+      { name: SHEET.M_ALIAS,        reason: 'Global Alias Ledger (Single Writer Pattern)', hide: false },
+      { name: SHEET.FACT_DELIVERY,  reason: 'ประวัติการขนส่ง (Invoice + ชื่อ + ที่อยู่ PII)', hide: false },
+      { name: SHEET.SOURCE,         reason: 'ข้อมูลต้นทาง (ที่อยู่, Email, ชื่อลูกค้า)', hide: true },
     ];
 
     protectedSheets.forEach(config => {
@@ -677,15 +692,20 @@ function applySheetProtection_UI() {
       // Protected Range: ทั้งชีต
       const protection = sheet.protect();
       protection.setDescription(`[SEC-005] ${config.reason} — เฉพาะ Admin เท่านั้น`);
-      
-      // ลบ Editor เดิมทั้งหมด แล้วเพิ่มเฉพาะ Script Owner
+
+      // ลบ Editor เดิมทั้งหมด
       const editors = protection.getEditors();
       editors.forEach(editor => {
         try { protection.removeEditor(editor.getEmail()); } catch (e) {}
       });
+      // [SEC-009 FIX] เพิ่ม Script Owner
       if (me) {
         try { protection.addEditor(me); } catch (e) {}
       }
+      // [SEC-009 FIX] เพิ่ม Admin ทั้งหมดจาก LMDS_ADMINS
+      adminEmails.forEach(email => {
+        try { protection.addEditor(email); } catch (e) {}
+      });
 
       // Hidden Sheet (ถ้ากำหนด)
       if (config.hide) {
@@ -694,6 +714,29 @@ function applySheetProtection_UI() {
 
       results.push(`✅ ${config.name}: Protected${config.hide ? ' + Hidden' : ''}`);
     });
+
+    // [SEC-009 FIX] === 1b. Q_REVIEW ใช้ Range Protection ===
+    // ปกป้อง cols A-Q (REVIEW_ID ถึง RECOMMEND) — ปล่อย cols R-V (STATUS, REVIEWER, REVIEWED_AT, DECISION, NOTE)
+    // เพื่อให้ reviewer สามารถแก้ DECISION ผ่าน onEdit ได้
+    const reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
+    if (reviewSheet) {
+      const reviewMaxRows = Math.max(reviewSheet.getMaxRows(), 100);
+      const protectedRange = reviewSheet.getRange(1, 1, reviewMaxRows, 17); // cols A-Q (1-17)
+      const rangeProtection = protectedRange.protect();
+      rangeProtection.setDescription('[SEC-005] Q_REVIEW candidate/system columns — ป้องกันการแก้ไขตรง (reviewer แก้ได้เฉพาะ cols R-V)');
+
+      const reviewEditors = rangeProtection.getEditors();
+      reviewEditors.forEach(editor => {
+        try { rangeProtection.removeEditor(editor.getEmail()); } catch (e) {}
+      });
+      if (me) {
+        try { rangeProtection.addEditor(me); } catch (e) {}
+      }
+      adminEmails.forEach(email => {
+        try { rangeProtection.addEditor(email); } catch (e) {}
+      });
+      results.push('✅ Q_REVIEW: Range Protected (A1:Q — reviewer แก้ R-V ได้)');
+    }
 
     // === 2. ป้องกันชีต M_GEO_POINT จากการแก้ไขโดยผู้ใช้ทั่วไป ===
     const geoSheet = ss.getSheetByName(SHEET.M_GEO_POINT);
@@ -707,10 +750,14 @@ function applySheetProtection_UI() {
       if (me) {
         try { geoProtection.addEditor(me); } catch (e) {}
       }
+      // [SEC-009 FIX] เพิ่ม admin สำหรับ M_GEO_POINT ด้วย
+      adminEmails.forEach(email => {
+        try { geoProtection.addEditor(email); } catch (e) {}
+      });
       results.push('✅ M_GEO_POINT: Protected');
     }
 
-    logInfo('Hardening', '[SEC-005] ตั้งค่า Sheet Protection สำเร็จ');
+    logInfo('Hardening', '[SEC-005] ตั้งค่า Sheet Protection สำเร็จ (7 sheets + M_GEO_POINT, Q_REVIEW Range Protection)');
     safeUiAlert_('🛡️ ตั้งค่าการป้องกันข้อมูล Sensitive สำเร็จ!\n\n' + results.join('\n'));
 
   } catch (err) {

@@ -291,6 +291,11 @@ function extractGeoFromAddress(rawText) {
  * [REF-006] Refactored: extracted transformGeoMetadataRow_ + flushGeoMetadataBatch_
  */
 function populateGeoMetadata() {
+  // [SEC-012 FIX] Authorization Guard — bulk write SYS_TH_GEO ต้องเป็น Admin เท่านั้น
+  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
+    safeUiAlert_('🔒 คุณไม่มีสิทธิ์รัน Populate Geo Metadata\nกรุณาติดต่อ Admin');
+    return;
+  }
   try {
   // [G-2] Load checkpoint for resume support
   const props = PropertiesService.getScriptProperties();

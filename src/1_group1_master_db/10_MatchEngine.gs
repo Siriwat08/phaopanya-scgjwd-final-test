@@ -319,7 +319,7 @@ function runMatchEngine() {
       } catch (rowErr) {
         errorCount++;
         failedRows.push(srcObj);
-        logError('MatchEngine', `แถว ${srcObj.sourceRow} (Invoice: ${srcObj.invoiceNo}): ${rowErr.message}`, rowErr);
+        logError('MatchEngine', `แถว ${srcObj.sourceRow} (Invoice hash: ${generateMd5Hash(String(srcObj.invoiceNo || '')).substring(0, 8)}): ${rowErr.message}`, rowErr);
       }
 
       // Batch Write & Sync Status every BATCH_SIZE
@@ -1339,9 +1339,13 @@ function persistResult_(factData, reviewData) {
     try {
       autoEnrichAliasesFromFactBatch_(factData);
     } catch (aliasErr) {
-      // [FIX CRIT-014] เพิ่ม invoice list ใน error message เพื่อให้สามารถตรวจสอบได้
+      // [SEC-006 FIX] Mask invoice numbers — log เฉพาะจำนวน + ตัวอย่างแรก (3 ตัวแรก + ***)
       var failedInvoices = factData.map(function(r) { return normalizeInvoiceNo(r[FACT_IDX.INVOICE_NO]); }).filter(Boolean);
-      logError('MatchEngine', 'autoEnrichAliases ล้มเหลว — M_ALIAS ขาดสำหรับ Invoice: ' + failedInvoices.join(', ') + '. กรุณารัน generatePersonAliasesFromHistory เพื่อซ่อมแซม: ' + aliasErr.message, aliasErr);
+      var sampleMasked = failedInvoices[0] ? (String(failedInvoices[0]).substring(0, 3) + '***') : 'n/a';
+      logError('MatchEngine',
+        'autoEnrichAliases ล้มเหลว — M_ALIAS ขาดสำหรับ ' + failedInvoices.length + ' invoices ' +
+        '(ตัวอย่างแรก: ' + sampleMasked + '). ' +
+        'กรุณารัน generatePersonAliasesFromHistory เพื่อซ่อมแซม: ' + aliasErr.message, aliasErr);
     }
   }
 

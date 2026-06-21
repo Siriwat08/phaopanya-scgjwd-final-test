@@ -777,7 +777,7 @@ function createPlaceAlias(placeId, aliasName, matchScore) {
 
   // [REMOVED v5.4.001] ไม่เรียก createGlobalAlias() — M_ALIAS เขียนที่ autoEnrich เท่านั้น (Single Writer)
 
-  logDebug('PlaceService', `createPlaceAlias: ${aliasName} → ${placeId}`);
+  logDebug('PlaceService', `createPlaceAlias: ${placeId} (alias hash: ${generateMd5Hash(String(aliasName || '')).substring(0, 8)})`);
   } catch (err) {
     // [FIX B3 v5.5.002] เพิ่ม try-catch ตาม Rule 12
     logError('PlaceService', `createPlaceAlias ล้มเหลว: ${err.message}`, err);

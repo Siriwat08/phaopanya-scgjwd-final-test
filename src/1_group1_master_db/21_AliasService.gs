@@ -313,7 +313,7 @@ function createGlobalAlias(masterUuid, variantName, entityType, confidence, sour
   // [FIX CRIT-002] Use CACHE_KEY constants instead of hardcoded strings — Single Source of Truth
   CacheService.getScriptCache().removeAll([CACHE_KEY.GLOBAL_ALIAS_ALL, CACHE_KEY.GLOBAL_ALIAS_REVERSE]);
 
-  logDebug('AliasService', `createGlobalAlias: ${aliasId} [${entityType}] "${variantName}" → ${masterUuid.substring(0, 8)}... (${source})`);
+  logDebug('AliasService', `createGlobalAlias: ${aliasId} [${entityType}] (variant hash: ${generateMd5Hash(String(variantName || '')).substring(0, 8)}) → ${masterUuid.substring(0, 8)}... (${source})`);
   return aliasId;
   } catch (err) {
     // [FIX B3 v5.5.002] เพิ่ม try-catch ตาม Rule 12
@@ -567,8 +567,37 @@ function fastLookupByShipToName(shipToName) {
  * assignMasterUuidIfMissing — ตรวจสอบว่าทุกแถวใน M_PERSON และ M_PLACE มี master_uuid แล้ว
  * ถ้ายังไม่มี → สร้าง UUID v4 ให้อัตโนมัติ
  * ควรรันหลังจาก setup sheets หรือก่อน migration
+ * [SEC-003 FIX] Authorization Guard + Confirmation dialog — ป้องกัน bulk overwrite โดยไม่ตั้งใจ
  */
 function assignMasterUuidIfMissing() {
+  // [SEC-003 FIX] Authorization Guard
+  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
+    safeUiAlert_('🔒 คุณไม่มีสิทธิ์ Assign Master UUID\nกรุณาติดต่อ Admin');
+    return 0;
+  }
+
+  // [SEC-003 FIX] Confirmation dialog — ป้องกันการรันโดยไม่ตั้งใจ
+  try {
+    const ui = SpreadsheetApp.getUi();
+    const confirm = ui.alert(
+      '⚠️ ยืนยันการ Assign Master UUID',
+      'ฟังก์ชันนี้จะสร้าง master_uuid ใหม่ให้แถวที่ยังไม่มี UUID ใน:\n' +
+      '  • M_PERSON\n' +
+      '  • M_PLACE\n\n' +
+      'หาก M_ALIAS มีข้อมูลอ้างอิง UUID เดิมอยู่ จะใช้งานไม่ได้หลังจากนี้\n\n' +
+      'แนะนำให้รัน Hybrid Alias Migration ครบถ้วนก่อน\n\n' +
+      'ดำเนินการต่อ?',
+      ui.ButtonSet.YES_NO
+    );
+    if (confirm !== ui.Button.YES) {
+      logInfo('AliasService', 'assignMasterUuidIfMissing: ผู้ใช้ยกเลิก');
+      return 0;
+    }
+  } catch (e) {
+    // Trigger context ไม่มี UI — ข้าม confirmation แต่ยังอยู่ใน guard
+    logWarn('AliasService', 'assignMasterUuidIfMissing: ข้าม confirmation (no UI context)');
+  }
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var fixedTotal = 0;
 

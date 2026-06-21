@@ -658,6 +658,8 @@ function convertPlaceIdToUuid(placeId) {
 /**
  * isAuthorizedUser_ — [SEC-002] ตรวจสอบว่าผู้ใช้ปัจจุบันเป็น Admin หรือไม่
  * อ่านรายชื่อ Admin จาก Script Property 'LMDS_ADMINS' (คั่นด้วยจุลภาค)
+ * [SEC-001 FIX] Deny-by-default: ถ้า LMDS_ADMINS ยังไม่ได้ตั้ง ปล่อยผ่านเฉพาะ Script Owner
+ * [SEC-007 FIX] Mask email ก่อน log เพื่อป้องกัน PII leakage ลง SYS_LOG
  * @return {boolean}
  */
 function isAuthorizedUser_() {
@@ -673,17 +675,33 @@ function isAuthorizedUser_() {
     ).trim();
 
     if (!adminsStr) {
-      // ถ้ายังไม่ได้ตั้ง Admin list → ปล่อยผ่าน (Backward Compatibility)
-      // แต่ log เตือน
-      logWarn('Security', '[SEC-002] LMDS_ADMINS ยังไม่ได้ตั้งค่า — ควรตั้งผ่านเมนูเพื่อความปลอดภัย');
-      return true;
+      // [SEC-001 FIX] Deny-by-default: ปล่อยผ่านเฉพาะ Script Owner เท่านั้น
+      const ownerEmail = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+      if (email === ownerEmail) {
+        logWarn('Security', '[SEC-001] LMDS_ADMINS ยังไม่ได้ตั้ง — Script Owner ผ่าน (ควรตั้ง Admin List โดยเร็ว)');
+        return true;
+      }
+      // [SEC-007 FIX] Mask email ก่อน log
+      const maskedNoAdmin = (typeof maskReviewerEmail_ === 'function')
+        ? maskReviewerEmail_(email)
+        : (email.length > 2
+            ? email[0] + '***' + email[email.length - 1] + '@' + (email.split('@')[1] || 'unknown')
+            : email[0] + '***@' + (email.split('@')[1] || 'unknown'));
+      logWarn('Security', `[SEC-001] LMDS_ADMINS ยังไม่ได้ตั้ง — ปฏิเสธ: ${maskedNoAdmin}`);
+      return false;
     }
 
     const admins = adminsStr.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
     const isAuthorized = admins.includes(email);
 
     if (!isAuthorized) {
-      logWarn('Security', `[SEC-002] ปฏิเสธการเข้าถึง: ${email} ไม่อยู่ในรายชื่อ Admin`);
+      // [SEC-007 FIX] Mask email ก่อน log
+      const masked = (typeof maskReviewerEmail_ === 'function')
+        ? maskReviewerEmail_(email)
+        : (email.length > 2
+            ? email[0] + '***' + email[email.length - 1] + '@' + (email.split('@')[1] || 'unknown')
+            : email[0] + '***@' + (email.split('@')[1] || 'unknown'));
+      logWarn('Security', `[SEC-002] ปฏิเสธการเข้าถึง: ${masked} ไม่อยู่ในรายชื่อ Admin`);
     }
 
     return isAuthorized;
@@ -696,21 +714,32 @@ function isAuthorizedUser_() {
 /**
  * setupAdminList_UI — [SEC-002] ตั้งค่ารายชื่อ Admin
  * เก็บใน Script Property 'LMDS_ADMINS' (คั่นด้วยจุลภาค)
+ * [SEC-002 FIX] Authorization Guard — เฉพาะ Admin เท่านั้นที่ตั้งค่าได้
+ * [SEC-008 FIX] ไม่แสดงรายชื่อ Admin ใน prompt/alert — เพื่อป้องกัน spear-phishing
  */
 function setupAdminList_UI() {
+  // [SEC-002 FIX] Authorization Guard
+  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
+    safeUiAlert_('🔒 คุณไม่มีสิทธิ์ตั้งค่า Admin List\nกรุณาติดต่อ Admin');
+    return;
+  }
   try {
     const ui = SpreadsheetApp.getUi();
     const currentAdmins = String(
       PropertiesService.getScriptProperties().getProperty('LMDS_ADMINS') || ''
     ).trim();
 
+    // [SEC-008 FIX] แสดงเฉพาะจำนวน admin ไม่แสดงรายชื่อ email เต็ม
+    const currentCount = currentAdmins ? currentAdmins.split(',').filter(Boolean).length : 0;
     const result = ui.prompt(
       '👥 ตั้งค่ารายชื่อ Admin',
       'ใส่ Email ของ Admin คั่นด้วยจุลภาค (,):\n\n' +
       'ตัวอย่าง: admin@company.com, manager@company.com\n\n' +
       'Admin เท่านั้นที่สามารถรัน Operation ขั้นสูง\n' +
       '(Migration, Hardening, Clear Data, Reset Sync)\n\n' +
-      (currentAdmins ? 'ค่าปัจจุบัน: ' + currentAdmins : '⚠️ ยังไม่ได้ตั้งค่า'),
+      (currentCount > 0
+        ? `ค่าปัจจุบัน: ${currentCount} admin(s) ตั้งอยู่ (ไม่แสดงรายชื่อเพื่อความปลอดภัย)`
+        : '⚠️ ยังไม่ได้ตั้งค่า'),
       ui.ButtonSet.OK_CANCEL
     );
 
@@ -727,12 +756,24 @@ function setupAdminList_UI() {
       }
       PropertiesService.getScriptProperties().setProperty('LMDS_ADMINS', emails.join(','));
       logInfo('Security', '[SEC-002] ตั้งค่า Admin List สำเร็จ: ' + emails.length + ' คน');
-      safeUiAlert_('✅ ตั้งค่ารายชื่อ Admin สำเร็จ!\n\nAdmin: ' + emails.join('\n'));
+      // [SEC-008 FIX] แสดงเฉพาะจำนวน ไม่แสดง email list
+      safeUiAlert_(`✅ ตั้งค่ารายชื่อ Admin สำเร็จ! (${emails.length} admins)`);
     } else {
-      // ล้างค่า → กลับไป Backward Compatibility mode
+      // [SEC-008 FIX] ยืนยันก่อนล้าง admin list — ป้องกัน SEC-001 backdoor
+      const confirm = ui.alert(
+        '⚠️ ยืนยันการล้าง Admin List',
+        'การล้าง Admin List จะทำให้ระบบอนุญาตเฉพาะ Script Owner เท่านั้น (ตาม SEC-001)\n' +
+        'ผู้ใช้ทั่วไปที่ไม่ใช่ Script Owner จะถูกปฏิเสธ\n\n' +
+        'ดำเนินการต่อ?',
+        ui.ButtonSet.YES_NO
+      );
+      if (confirm !== ui.Button.YES) {
+        safeUiAlert_('ℹ️ ยกเลิกการล้าง Admin List');
+        return;
+      }
       PropertiesService.getScriptProperties().deleteProperty('LMDS_ADMINS');
-      logInfo('Security', '[SEC-002] ล้างรายชื่อ Admin → Backward Compatibility mode');
-      safeUiAlert_('ℹ️ ล้างรายชื่อ Admin แล้ว\nระบบจะปล่อยผ่านทุกคนชั่วคราวจนกว่าจะตั้งค่าใหม่');
+      logInfo('Security', '[SEC-002] ล้างรายชื่อ Admin → เฉพาะ Script Owner ผ่าน (SEC-001)');
+      safeUiAlert_('ℹ️ ล้างรายชื่อ Admin แล้ว\nระบบจะอนุญาตเฉพาะ Script Owner เท่านั้น');
     }
   } catch (e) {
     logError('Security', 'setupAdminList_UI ล้มเหลว: ' + e.message, e);

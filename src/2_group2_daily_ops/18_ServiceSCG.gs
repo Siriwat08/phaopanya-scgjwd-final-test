@@ -214,10 +214,12 @@ function sanitizeCookie_(raw) {
 
   // ตรวจรูปแบบคร่าวๆ: Cookie ควรประกอบด้วย alphanumeric, =, ;, space, /, %, comma, dot, hyphen, underscore
   // รองรับ Cookie หลายคู่ เช่น "session=abc123; path=/; domain=.scgjwd.com"
-  if (!/^[a-zA-Z0-9_\-\.\=; \/,%~\+\(\)\[\]\{\}:]+$/.test(clean)) {
+  // [SEC-010 FIX] ลด charset ให้แคบลง — ลบ ( ) [ ] { } ที่ไม่จำเป็น (RFC 6265 compliance)
+  if (!/^[a-zA-Z0-9_\-\.\=; \/,%~+:]+$/.test(clean)) {
     throw new Error(
       'Cookie ไม่อยู่ในรูปแบบที่ถูกต้อง\n' +
-      'กรุณาตรวจสอบว่าคัดลอก Cookie ทั้งหมดจาก Browser'
+      'กรุณาตรวจสอบว่าคัดลอก Cookie ทั้งหมดจาก Browser\n' +
+      'หาก Cookie มีอักขระพิเศษอื่น กรุณาติดต่อ Admin'
     );
   }
 
@@ -350,6 +352,11 @@ function readInputConfig_(ss) {
  * เก็บใน PropertiesService.getScriptProperties() แทน Spreadsheet Cell
  */
 function setSCGCookie_UI() {
+  // [SEC-002 FIX] Authorization Guard — เฉพาะ Admin เท่านั้นที่ตั้งค่า Cookie ได้
+  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
+    safeUiAlert_('🔒 คุณไม่มีสิทธิ์ตั้งค่า SCG Cookie\nกรุณาติดต่อ Admin');
+    return;
+  }
   try {
     const ui = SpreadsheetApp.getUi();
     const result = ui.prompt(
@@ -592,7 +599,12 @@ function fetchWithRetry_(url, options, maxRetries) {
     try {
       const response = UrlFetchApp.fetch(url, options);
       if (response.getResponseCode() === 200) return response.getContentText();
-      throw new Error("HTTP " + response.getResponseCode() + ": " + response.getContentText());
+      // [SEC-011 FIX] Truncate response body เพื่อป้องกัน PII leakage ไป Stackdriver/SYS_LOG
+      const body = response.getContentText();
+      const truncatedBody = body.length > 200
+        ? body.substring(0, 200) + '...(truncated, total ' + body.length + ' chars)'
+        : body;
+      throw new Error("HTTP " + response.getResponseCode() + ": " + truncatedBody);
     } catch (e) {
       if (i === maxRetries - 1) throw e;
       Utilities.sleep(1000 * Math.pow(2, i));

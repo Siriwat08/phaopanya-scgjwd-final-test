@@ -904,6 +904,11 @@ function checkSystemIntegrity() {
 }
 
 function setupEnvironment() {
+  // [SEC-002 FIX] Authorization Guard — เฉพาะ Admin เท่านั้นที่ตั้งค่า API Key ได้
+  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
+    safeUiAlert_('🔒 คุณไม่มีสิทธิ์ตั้งค่า API Key\nกรุณาติดต่อ Admin');
+    return;
+  }
   // [FIX S1 v5.5.002] เพิ่ม try-catch ครอบทั้งฟังก์ชัน — Rule 12
   try {
     const ui = SpreadsheetApp.getUi();
@@ -957,6 +962,11 @@ function setupEnvironment() {
  * จึงต้องมี public wrapper เพื่อให้ Menu เรียกได้
  */
 function populateAliasFromSCGRawData() {
+  // [SEC-002 FIX] Authorization Guard — bulk write M_ALIAS ต้องเป็น Admin เท่านั้น
+  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
+    safeUiAlert_('🔒 คุณไม่มีสิทธิ์รัน Alias Enrichment\nกรุณาติดต่อ Admin');
+    return 0;
+  }
   return populateAliasFromSCGRawData_();
 }
 

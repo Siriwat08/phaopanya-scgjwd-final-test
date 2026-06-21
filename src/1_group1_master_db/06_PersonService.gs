@@ -466,7 +466,7 @@ function createPerson(normResult) {
   const lastRow = sheet.getLastRow();
   sheet.getRange(lastRow + 1, 1, 1, newRow.length).setValues([newRow]);
   invalidatePersonCache_();
-  logDebug('PersonService', `createPerson: ${newId} — ${normResult.cleanName}`);
+  logDebug('PersonService', `createPerson: ${newId} (name hash: ${generateMd5Hash(String(normResult.cleanName || '')).substring(0, 8)})`);
 
   // [REMOVED v5.4.001] ไม่เรียก createGlobalAlias() — M_ALIAS เขียนที่ autoEnrich เท่านั้น (Single Writer)
   // autoEnrichAliasesFromFactBatch_() จะเขียน canonical+variant เข้า M_ALIAS เอง
@@ -493,7 +493,7 @@ function createPersonAlias(personId, aliasName, matchScore) {
   const aliasLastRow = sheet.getLastRow();
   sheet.getRange(aliasLastRow + 1, 1, 1, aliasRow.length).setValues([aliasRow]);
   invalidateAliasCache_();
-  logDebug('PersonService', `createPersonAlias: ${aliasName} → ${personId}`);
+  logDebug('PersonService', `createPersonAlias: ${personId} (alias hash: ${generateMd5Hash(String(aliasName || '')).substring(0, 8)})`);
 
   // [REMOVED v5.4.001] ไม่เรียก createGlobalAlias() — M_ALIAS เขียนที่ autoEnrich เท่านั้น (Single Writer)
   } catch (err) {
