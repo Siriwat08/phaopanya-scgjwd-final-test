@@ -185,44 +185,106 @@ function resolvePerson(rawName, preNormResult) {
  * [FIX v003] Phonetic fallback substring(0,2) → (0,3)
  */
 function findPersonCandidates(cleanName, phone) {
+  // [REF-007] V5.5.019: Refactored — 5 strategies extracted to private helpers
+  //   1. findCandidatesByAliasFastPath_  — M_ALIAS Fast Path (early return)
+  //   2. findCandidatesByPhone_          — Phone Match (early return if 1, accumulate if >1)
+  //   3. accumulateByAliasMatch_         — Alias Match (mutate results/existingIds)
+  //   4. accumulateByPhoneticMatch_      — Phonetic/Name Match (mutate results/existingIds)
+  //   5. accumulateByNoteSearch_         — Note Search (mutate results/existingIds — only if results empty)
+  //   Preserve Behavior 100% — same strategy order, same early returns, same mutation pattern
+
   const allPersons = loadAllPersons_();
   const results    = [];
   // [PERF-004] ใช้ Set<string> สำหรับ O(1) dedup lookup แทน results.some() O(K)
   //   ลดจาก 1M × O(K) → 1M × O(1) ใน Pipeline 1,000 source rows × M_PERSON 1,000
   const existingIds = new Set();
 
+  // Strategy 1: M_ALIAS Fast Path — early return
+  var fastPath = findCandidatesByAliasFastPath_(cleanName, allPersons);
+  if (fastPath) return fastPath;
+
+  // Strategy 2: Phone Match — early return if exactly 1, accumulate if >1
+  var phoneResult = findCandidatesByPhone_(phone, allPersons, results, existingIds);
+  if (phoneResult) return phoneResult;
+
+  // Strategy 3: Alias Match — accumulate
+  accumulateByAliasMatch_(cleanName, allPersons, results, existingIds);
+
+  // Strategy 4: Phonetic/Name Match — accumulate
+  accumulateByPhoneticMatch_(cleanName, allPersons, results, existingIds);
+
+  // Strategy 5: Note Search — only if results still empty
+  if (results.length === 0) {
+    accumulateByNoteSearch_(cleanName, allPersons, results, existingIds);
+  }
+
+  return results;
+}
+
+/**
+ * findCandidatesByAliasFastPath_ — [REF-007] Strategy 1: M_ALIAS Fast Path
+ *   รักษา behavior เดิม 100% — early return [perfect] ถ้า score >= 95
+ * @param {string} cleanName
+ * @param {Array} allPersons
+ * @return {Array|null} array of 1 candidate หรือ null ถ้าไม่ match
+ * @private
+ */
+function findCandidatesByAliasFastPath_(cleanName, allPersons) {
   const aliasResolve = typeof resolveMasterUuidViaGlobalAlias === 'function' ? resolveMasterUuidViaGlobalAlias(cleanName, 'PERSON') : null;
   if (aliasResolve && aliasResolve.masterUuid && aliasResolve.score >= 95) {
     const ownerId = convertUuidToPersonId(aliasResolve.masterUuid);
     const perfect = allPersons.find(p => p.personId === ownerId);
     if (perfect) return [perfect];
   }
+  return null;
+}
 
-  // --- 1. Phone Match ---
-  if (phone) {
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const byPhone    = allPersons.filter(p => {
-      const stored = String(p.phone || '').replace(/[^0-9]/g, '');
-      return stored === cleanPhone && stored.length >= 9;
-    });
+/**
+ * findCandidatesByPhone_ — [REF-007] Strategy 2: Phone Match
+ *   รักษา behavior เดิม 100% — return byPhone ถ้า length === 1, accumulate ถ้า > 1
+ *   Mutates results + existingIds ในกรณี > 1 match
+ * @param {string} phone
+ * @param {Array} allPersons
+ * @param {Array} results - mutate ในกรณี > 1 match
+ * @param {Set} existingIds - mutate ในกรณี > 1 match
+ * @return {Array|null} array ถ้า length === 1 (early return), null ถ้าไม่มีหรือ > 1
+ * @private
+ */
+function findCandidatesByPhone_(phone, allPersons, results, existingIds) {
+  if (!phone) return null;
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const byPhone    = allPersons.filter(p => {
+    const stored = String(p.phone || '').replace(/[^0-9]/g, '');
+    return stored === cleanPhone && stored.length >= 9;
+  });
 
-    if (byPhone.length === 1) {
-      // [FIX v003] เจอ 1 คน → return เลย (confident)
-      return byPhone;
-    }
-    if (byPhone.length > 1) {
-      // [FIX v003] เจอหลายคน → เพิ่มเข้า results แล้วไปต่อ scoring
-      byPhone.forEach(p => {
-        // [PERF-004] sync existingIds Set ด้วย (กัน Phone Match path ตกหล่น)
-        if (!existingIds.has(p.personId)) {
-          results.push(p);
-          existingIds.add(p.personId);
-        }
-      });
-    }
+  if (byPhone.length === 1) {
+    // [FIX v003] เจอ 1 คน → return เลย (confident)
+    return byPhone;
   }
+  if (byPhone.length > 1) {
+    // [FIX v003] เจอหลายคน → เพิ่มเข้า results แล้วไปต่อ scoring
+    byPhone.forEach(p => {
+      // [PERF-004] sync existingIds Set ด้วย (กัน Phone Match path ตกหล่น)
+      if (!existingIds.has(p.personId)) {
+        results.push(p);
+        existingIds.add(p.personId);
+      }
+    });
+  }
+  return null;
+}
 
-  // --- 2. Alias Match ---
+/**
+ * accumulateByAliasMatch_ — [REF-007] Strategy 3: Alias Match (mutate results/existingIds)
+ *   รักษา behavior เดิม 100%
+ * @param {string} cleanName
+ * @param {Array} allPersons
+ * @param {Array} results - mutate
+ * @param {Set} existingIds - mutate
+ * @private
+ */
+function accumulateByAliasMatch_(cleanName, allPersons, results, existingIds) {
   const aliasMatches = findByAlias_(cleanName);
   aliasMatches.forEach(personId => {
     const found = allPersons.find(p => p.personId === personId);
@@ -232,8 +294,18 @@ function findPersonCandidates(cleanName, phone) {
       existingIds.add(found.personId);
     }
   });
+}
 
-  // --- 3. Phonetic / Name Match ---
+/**
+ * accumulateByPhoneticMatch_ — [REF-007] Strategy 4: Phonetic/Name Match (mutate results/existingIds)
+ *   รักษา behavior เดิม 100% — same buildThaiPhoneticKey, same normAPrefix3 logic
+ * @param {string} cleanName
+ * @param {Array} allPersons
+ * @param {Array} results - mutate
+ * @param {Set} existingIds - mutate
+ * @private
+ */
+function accumulateByPhoneticMatch_(cleanName, allPersons, results, existingIds) {
   const searchKey = buildThaiPhoneticKey(cleanName);
   // [PERF-004] ดึง normA ออกนอกลูป (computed ครั้งเดียว ไม่ใช่ทุก iteration)
   //   เดิม: normalizeForCompare(cleanName) ถูกเรียก 1,000 ครั้ง (1 ต่อ person)
@@ -257,44 +329,50 @@ function findPersonCandidates(cleanName, phone) {
       }
     }
   });
+}
 
-  // --- 4. Note Search (Deep Match) — [PERF-010] ใช้ Inverted Index แทน O(N×M) scan ---
-  if (results.length === 0) {
-    var queryParts = cleanName.split(/\s+/).filter(function(p) { return p.length >= 2; });
-    // ใช้ _PERSON_NOTE_INVERTED_INDEX ถ้ามี — ลดจาก O(N×M) เหลือ O(M)
-    if (_PERSON_NOTE_INVERTED_INDEX && Object.keys(_PERSON_NOTE_INVERTED_INDEX).length > 0) {
-      var matchingPersonIds = new Set();
-      queryParts.forEach(function(part) {
-        var key = part.toLowerCase();
-        var personIdSet = _PERSON_NOTE_INVERTED_INDEX[key];
-        if (personIdSet) {
-          personIdSet.forEach(function(pid) { matchingPersonIds.add(pid); });
-        }
-      });
-      matchingPersonIds.forEach(function(pid) {
-        var found = allPersons.find(function(p) { return p.personId === pid; });
-        // [PERF-004] sync existingIds Set
-        if (found && !existingIds.has(found.personId)) {
-          results.push(found);
-          existingIds.add(found.personId);
-        }
-      });
-    } else {
-      // Fallback: ถ้ายังไม่มี index ใช้วิธีเดิม
-      allPersons.forEach(function(person) {
-        if (existingIds.has(person.personId)) return;
-        var noteStr = String(person.note || '');
-        if (!noteStr) return;
-        var isMatch = queryParts.some(function(part) { return noteStr.includes(part); });
-        if (isMatch) {
-          results.push(person);
-          existingIds.add(person.personId);
-        }
-      });
-    }
+/**
+ * accumulateByNoteSearch_ — [REF-007] Strategy 5: Note Search (mutate results/existingIds)
+ *   รักษา behavior เดิม 100% — uses _PERSON_NOTE_INVERTED_INDEX ถ้ามี, fallback to O(N×M) scan
+ * @param {string} cleanName
+ * @param {Array} allPersons
+ * @param {Array} results - mutate
+ * @param {Set} existingIds - mutate
+ * @private
+ */
+function accumulateByNoteSearch_(cleanName, allPersons, results, existingIds) {
+  var queryParts = cleanName.split(/\s+/).filter(function(p) { return p.length >= 2; });
+  // ใช้ _PERSON_NOTE_INVERTED_INDEX ถ้ามี — ลดจาก O(N×M) เหลือ O(M)
+  if (_PERSON_NOTE_INVERTED_INDEX && Object.keys(_PERSON_NOTE_INVERTED_INDEX).length > 0) {
+    var matchingPersonIds = new Set();
+    queryParts.forEach(function(part) {
+      var key = part.toLowerCase();
+      var personIdSet = _PERSON_NOTE_INVERTED_INDEX[key];
+      if (personIdSet) {
+        personIdSet.forEach(function(pid) { matchingPersonIds.add(pid); });
+      }
+    });
+    matchingPersonIds.forEach(function(pid) {
+      var found = allPersons.find(function(p) { return p.personId === pid; });
+      // [PERF-004] sync existingIds Set
+      if (found && !existingIds.has(found.personId)) {
+        results.push(found);
+        existingIds.add(found.personId);
+      }
+    });
+  } else {
+    // Fallback: ถ้ายังไม่มี index ใช้วิธีเดิม
+    allPersons.forEach(function(person) {
+      if (existingIds.has(person.personId)) return;
+      var noteStr = String(person.note || '');
+      if (!noteStr) return;
+      var isMatch = queryParts.some(function(part) { return noteStr.includes(part); });
+      if (isMatch) {
+        results.push(person);
+        existingIds.add(person.personId);
+      }
+    });
   }
-
-  return results;
 }
 
 /**

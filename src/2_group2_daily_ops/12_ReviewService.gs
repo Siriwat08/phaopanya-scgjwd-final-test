@@ -988,7 +988,63 @@ function reprocessReviewQueue() {
  *                           คืน null ถ้า Q_REVIEW ว่าง หรือ FACT_DELIVERY ไม่พบ
  */
 function reprocPrepareContext_(startTime, timeLimit) {
+  // [REF-008] V5.5.019: Refactored into helpers for Separation of Concerns
+  //   1. validateReprocSheets_       — Sheet validation + early return
+  //   2. loadReprocSheetData_        — Read Q_REVIEW + FACT_DELIVERY into memory
+  //   3. buildReprocColumnMaps_      — Build RI (REVIEW_IDX) + FI (FACT_IDX) maps
+  //   4. buildFactLookup_            — Build source_record_id → factIdx lookup
+  //   Preserve Behavior 100% — same validation, same data, same checkpoint, same maps
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // STEP 1: Validate sheets
+  var sheets = validateReprocSheets_(ss);
+  if (!sheets) return null;
+  var reviewSheet = sheets.reviewSheet;
+  var factSheet = sheets.factSheet;
+
+  // STEP 2: Read sheet data into memory
+  var sheetData = loadReprocSheetData_(reviewSheet, factSheet);
+
+  // STEP 3: Load checkpoint
+  var checkpoint = loadReprocessCheckpoint_();
+  var startIdx = checkpoint.startIdx || 0;
+
+  if (startIdx > 0) {
+    ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
+    logInfo('ReviewService', 'reprocessReviewQueue: resume จาก idx ' + startIdx);
+  }
+
+  // STEP 4: Build column index maps
+  var maps = buildReprocColumnMaps_();
+
+  // STEP 5: Build FACT_DELIVERY lookup
+  var factLookup = buildFactLookup_(sheetData.factData, maps.FI);
+
+  return {
+    ss: ss,
+    reviewSheet: reviewSheet,
+    factSheet: factSheet,
+    reviewData: sheetData.reviewData,
+    factData: sheetData.factData,
+    factLookup: factLookup,
+    RI: maps.RI,
+    FI: maps.FI,
+    startIdx: startIdx,
+    reviewCols: sheetData.reviewCols,
+    factCols: sheetData.factCols,
+    reviewLastRow: sheetData.reviewLastRow
+  };
+}
+
+/**
+ * validateReprocSheets_ — [REF-008] Validate Q_REVIEW + FACT_DELIVERY sheets exist
+ *   รักษา behavior เดิม 100% — same validation messages, same early return
+ * @param {object} ss
+ * @return {{reviewSheet: object, factSheet: object}|null} null ถ้า validation fail
+ * @private
+ */
+function validateReprocSheets_(ss) {
   var reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
   var factSheet = ss.getSheetByName(SHEET.FACT_DELIVERY);
 
@@ -1000,10 +1056,18 @@ function reprocPrepareContext_(startTime, timeLimit) {
     safeUiAlert_('ไม่พบชีต FACT_DELIVERY');
     return null;
   }
+  return { reviewSheet: reviewSheet, factSheet: factSheet };
+}
 
-  // ═══════════════════════════════════════
-  // PHASE 1: อ่านข้อมูลทั้งหมดเข้า Memory (ครั้งเดียว — resume ใช้ต่อ)
-  // ═══════════════════════════════════════
+/**
+ * loadReprocSheetData_ — [REF-008] Read Q_REVIEW + FACT_DELIVERY data into memory
+ *   รักษา behavior เดิม 100% — same getRange, same getLastRow/Column
+ * @param {object} reviewSheet
+ * @param {object} factSheet
+ * @return {{reviewData: Array, factData: Array, reviewCols: number, factCols: number, reviewLastRow: number}}
+ * @private
+ */
+function loadReprocSheetData_(reviewSheet, factSheet) {
   var reviewLastRow = reviewSheet.getLastRow();
   var reviewCols = reviewSheet.getLastColumn();
   var reviewData = reviewSheet.getRange(2, 1, reviewLastRow - 1, reviewCols).getValues();
@@ -1014,26 +1078,23 @@ function reprocPrepareContext_(startTime, timeLimit) {
     ? factSheet.getRange(2, 1, factLastRow - 1, factCols).getValues()
     : [];
 
-  // ─── STEP 3: โหลด Checkpoint ───
-  //   ถ้ามี checkpoint (จากการ Time Guard หยุดกลางคันรอบก่อน) → เริ่มจาก idx นั้น
-  //   ถ้าไม่มี → เริ่มจาก 0
-  var checkpoint = loadReprocessCheckpoint_();
-  var startIdx = checkpoint.startIdx || 0;
+  return {
+    reviewData: reviewData,
+    factData: factData,
+    reviewCols: reviewCols,
+    factCols: factCols,
+    reviewLastRow: reviewLastRow
+  };
+}
 
-  if (startIdx > 0) {
-    ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
-    logInfo('ReviewService', 'reprocessReviewQueue: resume จาก idx ' + startIdx);
-  }
-
-  // ═══════════════════════════════════════
-  // PHASE 2: สร้าง Column Index Map (จาก Single Source of Truth)
-  // [FIX v5.5.012 Anti-pattern #4] เปลี่ยนจาก headers.indexOf() → REVIEW_IDX.* / FACT_IDX.*
-  //   เดิมใช้ headers.indexOf() ทำให้ละเมิด Single Source of Truth rule และเสี่ยงต่อ typo
-  //   ตอนนี้อ้างอิงจาก REVIEW_IDX (01_Config.gs) และ FACT_IDX (01_Config.gs) โดยตรง
-  //   ยังคง fallback ด้วย indexOf ในกรณี sheet header ไม่ตรง SCHEMA (defensive)
-  // ═══════════════════════════════════════
-
-  // [FIX v5.5.012] ใช้ REVIEW_IDX.* เป็น primary แล้ว fallback ด้วย indexOf
+/**
+ * buildReprocColumnMaps_ — [REF-008] Build RI + FI column index maps from REVIEW_IDX/FACT_IDX
+ *   รักษา behavior เดิม 100% — same fields, same constants
+ *   [FIX v5.5.012 Anti-pattern #4] ใช้ REVIEW_IDX.* / FACT_IDX.* แทน headers.indexOf()
+ * @return {{RI: Object, FI: Object}}
+ * @private
+ */
+function buildReprocColumnMaps_() {
   var RI = {
     issueType:  REVIEW_IDX.ISSUE_TYPE,
     srcRecId:   REVIEW_IDX.SOURCE_REC_ID,
@@ -1055,7 +1116,6 @@ function reprocPrepareContext_(startTime, timeLimit) {
     note:       REVIEW_IDX.NOTE
   };
 
-  // [FIX v5.5.012] ใช้ FACT_IDX.* เป็น primary
   var FI = {
     srcRecId:        FACT_IDX.SOURCE_REC_ID,
     deliveryDate:    FACT_IDX.DELIVERY_DATE,
@@ -1073,27 +1133,24 @@ function reprocPrepareContext_(startTime, timeLimit) {
     rawLng:          FACT_IDX.RAW_LNG
   };
 
-  // Build FACT_DELIVERY lookup: source_record_id → ดัชนี array
+  return { RI: RI, FI: FI };
+}
+
+/**
+ * buildFactLookup_ — [REF-008] Build FACT_DELIVERY lookup: source_record_id → factIdx
+ *   รักษา behavior เดิม 100% — same loop, same safeExtractArr_ usage
+ * @param {Array} factData
+ * @param {Object} FI - FACT_IDX map
+ * @return {Object} factLookup map
+ * @private
+ */
+function buildFactLookup_(factData, FI) {
   var factLookup = {};
   for (var fi = 0; fi < factData.length; fi++) {
     var sid = String(safeExtractArr_(factData[fi], FI.srcRecId)).trim();
     if (sid) factLookup[sid] = fi;
   }
-
-  return {
-    ss: ss,
-    reviewSheet: reviewSheet,
-    factSheet: factSheet,
-    reviewData: reviewData,
-    factData: factData,
-    factLookup: factLookup,
-    RI: RI,
-    FI: FI,
-    startIdx: startIdx,
-    reviewCols: reviewCols,
-    factCols: factCols,
-    reviewLastRow: reviewLastRow
-  };
+  return factLookup;
 }
 
 /**
