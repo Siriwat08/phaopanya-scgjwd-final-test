@@ -605,10 +605,105 @@ function assignMasterUuidIfMissing() {
  *   Checkpoint resume + Time Guard preserved.
  */
 function MIGRATION_HybridAliasSystem() {
+  // [REF-009] V5.5.019: Refactored — แยก confirmation + step execution + report เป็น helpers
+  //   1. confirmMigrationDialog_       — AuthZ + YES/NO dialog
+  //   2. runMigrationStepSafely_       — wrapper สำหรับ step execution + timedOut propagation
+  //   3. buildMigrationReport_         — summary report builder
+  //   Preserve Behavior 100% — same step order, same state.step checks, same timedOut logic, same report
+
+  // [SEC-002] Authorization Guard + Confirmation
+  if (!confirmMigrationDialog_()) return;
+
+  // [FIX BUG-A2] try-catch ครอบ execution ทั้งหมด
+  try {
+    const state     = loadMigrationCheckpoint_();
+    const ss        = SpreadsheetApp.getActiveSpreadsheet();
+    const startTime = new Date();
+    const timeLimit = AI_CONFIG.TIME_LIMIT_MS || (5 * 60 * 1000);
+    let   timedOut  = false;
+
+    var ctx = { ss: ss, state: state, startTime: startTime, timeLimit: timeLimit, timedOut: false };
+    var counts = { uuidFixed: 0, migrateCount: 0, scgCount: 0, factCount: 0 };
+
+    // ─── Step 1: ตรวจสอบ master_uuid ─── [REF-005]
+    counts.uuidFixed = migrateStep1_AssignUuid_(ss, state);
+
+    // ─── Step 2: ย้าย M_PERSON_ALIAS → M_ALIAS ─── [REF-005]
+    if (!timedOut && state.step <= 2) {
+      var step2Result = runMigrationStepSafely_(ctx, function() {
+        return migrateStep2_PersonAlias_(ctx.ss, ctx.state, ctx.startTime, ctx.timeLimit);
+      });
+      counts.migrateCount += step2Result.count;
+      timedOut = timedOut || step2Result.timedOut;
+    }
+
+    // ─── Step 3: ย้าย M_PLACE_ALIAS → M_ALIAS ─── [REF-005]
+    if (!timedOut && state.step <= 3) {
+      var step3Result = runMigrationStepSafely_(ctx, function() {
+        return migrateStep3_PlaceAlias_(ctx.ss, ctx.state, ctx.startTime, ctx.timeLimit);
+      });
+      counts.migrateCount += step3Result.count;
+      timedOut = timedOut || step3Result.timedOut;
+    }
+
+    // ─── Step 4: ดึงจาก SCG ดิบ ─── [REF-005]
+    if (!timedOut && state.step <= 4) {
+      var step4Result = runMigrationStepSafely_(ctx, function() {
+        return migrateStep4_SCGData_(ctx.ss, ctx.state, ctx.startTime, ctx.timeLimit);
+      });
+      counts.scgCount = step4Result.count;
+      timedOut = timedOut || step4Result.timedOut;
+    }
+
+    // ─── Step 5: ดึงจาก FACT ─── [REF-005]
+    if (!timedOut && state.step <= 5) {
+      var step5Result = runMigrationStepSafely_(ctx, function() {
+        return migrateStep5_FactData_(ctx.ss, ctx.state, ctx.startTime, ctx.timeLimit);
+      });
+      counts.factCount = step5Result.count;
+      timedOut = timedOut || step5Result.timedOut;
+    }
+
+    const elapsedSec   = Math.round((new Date() - startTime) / 1000);
+    const totalMigrated = counts.migrateCount + counts.scgCount + counts.factCount;
+
+    if (!timedOut) clearMigrationCheckpoint_();
+
+    logInfo('AliasService',
+      'Migration: UUID=' + counts.uuidFixed +
+      ' PersonAlias→M_ALIAS=' + counts.migrateCount +
+      ' SCG→M_ALIAS=' + counts.scgCount +
+      ' FACT→M_ALIAS=' + counts.factCount +
+      ' รวม=' + totalMigrated +
+      (timedOut ? ' ⚠️ TIMEOUT' : '') +
+      ' (' + elapsedSec + 's)'
+    );
+
+    var reportMsg = buildMigrationReport_(state, counts, elapsedSec, totalMigrated, timedOut);
+    // [FIX B2 v5.5.002] เปลี่ยน ui.alert() เป็น safeUiAlert_() — trigger-safe (Rule 4)
+    safeUiAlert_(reportMsg);
+
+  } catch (err) {
+    logError('AliasService', 'MIGRATION_HybridAliasSystem: ' + err.message, err);
+    // [FIX B2 v5.5.002] เปลี่ยน ui.alert() เป็น safeUiAlert_() — trigger-safe (Rule 4)
+    safeUiAlert_('❌ Migration ล้มเหลว: ' + err.message);
+  } finally {
+    // [FIX v5.5.008 P2 #11] flush log buffer ก่อน exit — ป้องกัน log entries <50 หาย
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
+  }
+}
+
+/**
+ * confirmMigrationDialog_ — [REF-009] AuthZ + YES/NO confirmation dialog
+ *   รักษา behavior เดิม 100% — same AuthZ message, same dialog text, same YES_NO check
+ * @return {boolean} true ถ้า user กด YES, false ถ้า AuthZ fail หรือ user กด NO
+ * @private
+ */
+function confirmMigrationDialog_() {
   // [SEC-002] Authorization Guard
   if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
     safeUiAlert_('🔒 คุณไม่มีสิทธิ์รัน Migration\nกรุณาติดต่อ Admin');
-    return;
+    return false;
   }
   const ui = SpreadsheetApp.getUi();
 
@@ -624,90 +719,45 @@ function MIGRATION_HybridAliasSystem() {
     'พร้อมดำเนินการหรือไม่?',
     ui.ButtonSet.YES_NO
   );
-  if (confirmation !== ui.Button.YES) return;
+  return confirmation === ui.Button.YES;
+}
 
-  // [FIX BUG-A2] try-catch ครอบ execution ทั้งหมด
-  try {
-    const state     = loadMigrationCheckpoint_();
-    const ss        = SpreadsheetApp.getActiveSpreadsheet();
-    const startTime = new Date();
-    const timeLimit = AI_CONFIG.TIME_LIMIT_MS || (5 * 60 * 1000);
-    let   timedOut  = false;
+/**
+ * runMigrationStepSafely_ — [REF-009] Wrapper สำหรับ step execution
+ *   ปัจจุบันเป็น simple wrapper (preserve behavior) — พร้อมขยายสำหรับ logging/error handling ในอนาคต
+ * @param {Object} ctx - {ss, state, startTime, timeLimit, timedOut}
+ * @param {Function} stepFn - function that returns {count, timedOut}
+ * @return {{count: number, timedOut: boolean}}
+ * @private
+ */
+function runMigrationStepSafely_(ctx, stepFn) {
+  return stepFn();
+}
 
-    // ─── Step 1: ตรวจสอบ master_uuid ─── [REF-005]
-    var uuidFixed = migrateStep1_AssignUuid_(ss, state);
+/**
+ * buildMigrationReport_ — [REF-009] Build summary report message
+ *   รักษา behavior เดิม 100% — same format, same uuidLabel logic, same timeout message
+ * @param {Object} state - checkpoint state
+ * @param {Object} counts - {uuidFixed, migrateCount, scgCount, factCount}
+ * @param {number} elapsedSec
+ * @param {number} totalMigrated
+ * @param {boolean} timedOut
+ * @return {string} report message
+ * @private
+ */
+function buildMigrationReport_(state, counts, elapsedSec, totalMigrated, timedOut) {
+  const uuidLabel = (state.step <= 1)
+    ? ('• เพิ่ม master_uuid: ' + counts.uuidFixed + ' รายการ\n')
+    : '• master_uuid: ข้าม (Checkpoint Resume)\n';  // [FIX BUG-A3]
 
-    var migrateCount = 0;
-
-    // ─── Step 2: ย้าย M_PERSON_ALIAS → M_ALIAS ─── [REF-005]
-    if (!timedOut && state.step <= 2) {
-      var step2Result = migrateStep2_PersonAlias_(ss, state, startTime, timeLimit);
-      migrateCount += step2Result.count;
-      timedOut = timedOut || step2Result.timedOut;
-    }
-
-    // ─── Step 3: ย้าย M_PLACE_ALIAS → M_ALIAS ─── [REF-005]
-    if (!timedOut && state.step <= 3) {
-      var step3Result = migrateStep3_PlaceAlias_(ss, state, startTime, timeLimit);
-      migrateCount += step3Result.count;
-      timedOut = timedOut || step3Result.timedOut;
-    }
-
-    // ─── Step 4: ดึงจาก SCG ดิบ ─── [REF-005]
-    var scgCount = 0;
-    if (!timedOut && state.step <= 4) {
-      var step4Result = migrateStep4_SCGData_(ss, state, startTime, timeLimit);
-      scgCount = step4Result.count;
-      timedOut = timedOut || step4Result.timedOut;
-    }
-
-    // ─── Step 5: ดึงจาก FACT ─── [REF-005]
-    var factCount = 0;
-    if (!timedOut && state.step <= 5) {
-      var step5Result = migrateStep5_FactData_(ss, state, startTime, timeLimit);
-      factCount = step5Result.count;
-      timedOut = timedOut || step5Result.timedOut;
-    }
-
-    const elapsedSec   = Math.round((new Date() - startTime) / 1000);
-    const totalMigrated = migrateCount + scgCount + factCount;
-
-    if (!timedOut) clearMigrationCheckpoint_();
-
-    logInfo('AliasService',
-      'Migration: UUID=' + uuidFixed +
-      ' PersonAlias→M_ALIAS=' + migrateCount +
-      ' SCG→M_ALIAS=' + scgCount +
-      ' FACT→M_ALIAS=' + factCount +
-      ' รวม=' + totalMigrated +
-      (timedOut ? ' ⚠️ TIMEOUT' : '') +
-      ' (' + elapsedSec + 's)'
-    );
-
-    const uuidLabel = (state.step <= 1)
-      ? ('• เพิ่ม master_uuid: ' + uuidFixed + ' รายการ\n')
-      : '• master_uuid: ข้าม (Checkpoint Resume)\n';  // [FIX BUG-A3]
-
-    // [FIX B2 v5.5.002] เปลี่ยน ui.alert() เป็น safeUiAlert_() — trigger-safe (Rule 4)
-    safeUiAlert_(
-      (timedOut ? '⚠️ Migration หยุดกลางคัน (Timeout)!\n\n' : '✅ Migration เสร็จสิ้น!\n\n') +
-      uuidLabel +
-      '• PersonAlias → M_ALIAS: ' + migrateCount + ' รายการ\n' +
-      '• SCG Raw → M_ALIAS: ' + scgCount + ' รายการ\n' +
-      '• FACT → M_ALIAS: ' + factCount + ' รายการ\n' +
-      '• รวมทั้งหมด: ' + totalMigrated + ' รายการ\n' +
-      '• ใช้เวลา: ' + elapsedSec + ' วินาที' +
-      (timedOut ? '\n\n💡 รัน Migration อีกครั้งเพื่อดำเนินการต่อ' : '')
-    );
-
-  } catch (err) {
-    logError('AliasService', 'MIGRATION_HybridAliasSystem: ' + err.message, err);
-    // [FIX B2 v5.5.002] เปลี่ยน ui.alert() เป็น safeUiAlert_() — trigger-safe (Rule 4)
-    safeUiAlert_('❌ Migration ล้มเหลว: ' + err.message);
-  } finally {
-    // [FIX v5.5.008 P2 #11] flush log buffer ก่อน exit — ป้องกัน log entries <50 หาย
-    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
-  }
+  return (timedOut ? '⚠️ Migration หยุดกลางคัน (Timeout)!\n\n' : '✅ Migration เสร็จสิ้น!\n\n') +
+    uuidLabel +
+    '• PersonAlias → M_ALIAS: ' + counts.migrateCount + ' รายการ\n' +
+    '• SCG Raw → M_ALIAS: ' + counts.scgCount + ' รายการ\n' +
+    '• FACT → M_ALIAS: ' + counts.factCount + ' รายการ\n' +
+    '• รวมทั้งหมด: ' + totalMigrated + ' รายการ\n' +
+    '• ใช้เวลา: ' + elapsedSec + ' วินาที' +
+    (timedOut ? '\n\n💡 รัน Migration อีกครั้งเพื่อดำเนินการต่อ' : '');
 }
 
 // ============================================================

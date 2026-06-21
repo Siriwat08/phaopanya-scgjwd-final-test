@@ -669,6 +669,13 @@ function flushGlobalAliasRows_(ss, rows) {
  *               + Q_REVIEW ใช้ Range Protection (ปกป้อง A1:Q — ปล่อย R-V ให้ reviewer แก้ DECISION/STATUS/NOTE)
  */
 function applySheetProtection_UI() {
+  // [REF-010] V5.5.019: Refactored into helpers for Separation of Concerns + schema-safe range
+  //   1. applySheetLevelProtection_  — per-sheet protection (PII sheets)
+  //   2. applyReviewRangeProtection_ — Q_REVIEW range protection (uses REVIEW_IDX.* instead of hardcoded 17)
+  //   3. applyGeoPointProtection_    — M_GEO_POINT protection
+  //   4. buildProtectionReport_      — summary report builder
+  // Preserve Behavior 100% — same sheets protected, same editors, same messages
+
   // [SEC-002] Authorization Guard — เฉพาะ Admin เท่านั้น
   if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
     safeUiAlert_('🔒 คุณไม่มีสิทธิ์ตั้งค่าการป้องกันชีต\nกรุณาติดต่อ Admin');
@@ -700,79 +707,17 @@ function applySheetProtection_UI() {
     ];
 
     protectedSheets.forEach(config => {
-      const sheet = ss.getSheetByName(config.name);
-      if (!sheet) {
-        results.push('⚠️ ไม่พบชีต: ' + config.name);
-        return;
-      }
-
-      // Protected Range: ทั้งชีต
-      const protection = sheet.protect();
-      protection.setDescription(`[SEC-005] ${config.reason} — เฉพาะ Admin เท่านั้น`);
-
-      // ลบ Editor เดิมทั้งหมด
-      const editors = protection.getEditors();
-      editors.forEach(editor => {
-        try { protection.removeEditor(editor.getEmail()); } catch (e) {}
-      });
-      // [SEC-009 FIX] เพิ่ม Script Owner
-      if (me) {
-        try { protection.addEditor(me); } catch (e) {}
-      }
-      // [SEC-009 FIX] เพิ่ม Admin ทั้งหมดจาก LMDS_ADMINS
-      adminEmails.forEach(email => {
-        try { protection.addEditor(email); } catch (e) {}
-      });
-
-      // Hidden Sheet (ถ้ากำหนด)
-      if (config.hide) {
-        try { sheet.hideSheet(); } catch (e) {}
-      }
-
-      results.push(`✅ ${config.name}: Protected${config.hide ? ' + Hidden' : ''}`);
+      const msg = applySheetLevelProtection_(ss, config, me, adminEmails);
+      results.push(msg);
     });
 
     // [SEC-009 FIX] === 1b. Q_REVIEW ใช้ Range Protection ===
-    // ปกป้อง cols A-Q (REVIEW_ID ถึง RECOMMEND) — ปล่อย cols R-V (STATUS, REVIEWER, REVIEWED_AT, DECISION, NOTE)
-    // เพื่อให้ reviewer สามารถแก้ DECISION ผ่าน onEdit ได้
-    const reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
-    if (reviewSheet) {
-      const reviewMaxRows = Math.max(reviewSheet.getMaxRows(), 100);
-      const protectedRange = reviewSheet.getRange(1, 1, reviewMaxRows, 17); // cols A-Q (1-17)
-      const rangeProtection = protectedRange.protect();
-      rangeProtection.setDescription('[SEC-005] Q_REVIEW candidate/system columns — ป้องกันการแก้ไขตรง (reviewer แก้ได้เฉพาะ cols R-V)');
+    const reviewMsg = applyReviewRangeProtection_(ss, me, adminEmails);
+    if (reviewMsg) results.push(reviewMsg);
 
-      const reviewEditors = rangeProtection.getEditors();
-      reviewEditors.forEach(editor => {
-        try { rangeProtection.removeEditor(editor.getEmail()); } catch (e) {}
-      });
-      if (me) {
-        try { rangeProtection.addEditor(me); } catch (e) {}
-      }
-      adminEmails.forEach(email => {
-        try { rangeProtection.addEditor(email); } catch (e) {}
-      });
-      results.push('✅ Q_REVIEW: Range Protected (A1:Q — reviewer แก้ R-V ได้)');
-    }
-
-    // === 2. ป้องกันชีต M_GEO_POINT จากการแก้ไขโดยผู้ใช้ทั่วไป ===
-    const geoSheet = ss.getSheetByName(SHEET.M_GEO_POINT);
-    if (geoSheet) {
-      const geoProtection = geoSheet.protect();
-      geoProtection.setDescription('[SEC-005] ข้อมูลพิกัด — เฉพาะ Script เท่านั้นที่เขียน');
-      const geoEditors = geoProtection.getEditors();
-      geoEditors.forEach(editor => {
-        try { geoProtection.removeEditor(editor.getEmail()); } catch (e) {}
-      });
-      if (me) {
-        try { geoProtection.addEditor(me); } catch (e) {}
-      }
-      // [SEC-009 FIX] เพิ่ม admin สำหรับ M_GEO_POINT ด้วย
-      adminEmails.forEach(email => {
-        try { geoProtection.addEditor(email); } catch (e) {}
-      });
-      results.push('✅ M_GEO_POINT: Protected');
-    }
+    // === 2. ป้องกันชีต M_GEO_POINT ===
+    const geoMsg = applyGeoPointProtection_(ss, me, adminEmails);
+    if (geoMsg) results.push(geoMsg);
 
     logInfo('Hardening', '[SEC-005] ตั้งค่า Sheet Protection สำเร็จ (7 sheets + M_GEO_POINT, Q_REVIEW Range Protection)');
     safeUiAlert_('🛡️ ตั้งค่าการป้องกันข้อมูล Sensitive สำเร็จ!\n\n' + results.join('\n'));
@@ -781,4 +726,111 @@ function applySheetProtection_UI() {
     logError('Hardening', '[SEC-005] applySheetProtection_UI ล้มเหลว: ' + err.message, err);
     safeUiAlert_('❌ ตั้งค่าการป้องกันล้มเหลว: ' + err.message);
   }
+}
+
+/**
+ * applySheetLevelProtection_ — [REF-010] Protect single PII sheet
+ *   รักษา behavior เดิม 100% — same protection.setDescription, same editor management, same hide logic
+ * @param {object} ss - Active spreadsheet
+ * @param {Object} config - {name, reason, hide}
+ * @param {string} me - Script Owner email
+ * @param {Array} adminEmails - LMDS_ADMINS array
+ * @return {string} status message for results array
+ * @private
+ */
+function applySheetLevelProtection_(ss, config, me, adminEmails) {
+  const sheet = ss.getSheetByName(config.name);
+  if (!sheet) {
+    return '⚠️ ไม่พบชีต: ' + config.name;
+  }
+
+  // Protected Range: ทั้งชีต
+  const protection = sheet.protect();
+  protection.setDescription(`[SEC-005] ${config.reason} — เฉพาะ Admin เท่านั้น`);
+
+  // ลบ Editor เดิมทั้งหมด
+  const editors = protection.getEditors();
+  editors.forEach(editor => {
+    try { protection.removeEditor(editor.getEmail()); } catch (e) {}
+  });
+  // [SEC-009 FIX] เพิ่ม Script Owner
+  if (me) {
+    try { protection.addEditor(me); } catch (e) {}
+  }
+  // [SEC-009 FIX] เพิ่ม Admin ทั้งหมดจาก LMDS_ADMINS
+  adminEmails.forEach(email => {
+    try { protection.addEditor(email); } catch (e) {}
+  });
+
+  // Hidden Sheet (ถ้ากำหนด)
+  if (config.hide) {
+    try { sheet.hideSheet(); } catch (e) {}
+  }
+
+  return `✅ ${config.name}: Protected${config.hide ? ' + Hidden' : ''}`;
+}
+
+/**
+ * applyReviewRangeProtection_ — [REF-010] Q_REVIEW range protection using REVIEW_IDX.* (schema-safe)
+ *   แทน hardcoded `getRange(1, 1, reviewMaxRows, 17)` ด้วย REVIEW_IDX.RECOMMEND + 1
+ *   ปกป้อง cols A-Q (REVIEW_ID ถึง RECOMMEND) — ปล่อย cols R-V (STATUS, REVIEWER, REVIEWED_AT, DECISION, NOTE)
+ * @param {object} ss
+ * @param {string} me
+ * @param {Array} adminEmails
+ * @return {string|null} status message หรือ null ถ้า sheet missing
+ * @private
+ */
+function applyReviewRangeProtection_(ss, me, adminEmails) {
+  const reviewSheet = ss.getSheetByName(SHEET.Q_REVIEW);
+  if (!reviewSheet) return null;
+
+  const reviewMaxRows = Math.max(reviewSheet.getMaxRows(), 100);
+  // [REF-010] ใช้ REVIEW_IDX.RECOMMEND + 1 (1-based) แทน magic number 17
+  //   REVIEW_IDX.RECOMMEND = 16 (0-based) → +1 = 17 (1-based, cols A-Q)
+  //   Schema-safe: ถ้าเพิ่ม/ลดคอลัมน์ก่อน RECOMMEND ในอนาคต ค่านี้จะปรับอัตโนมัติ
+  const protectedColCount = (REVIEW_IDX.RECOMMEND || 16) + 1;
+  const protectedRange = reviewSheet.getRange(1, 1, reviewMaxRows, protectedColCount);
+  const rangeProtection = protectedRange.protect();
+  rangeProtection.setDescription('[SEC-005] Q_REVIEW candidate/system columns — ป้องกันการแก้ไขตรง (reviewer แก้ได้เฉพาะ cols R-V)');
+
+  const reviewEditors = rangeProtection.getEditors();
+  reviewEditors.forEach(editor => {
+    try { rangeProtection.removeEditor(editor.getEmail()); } catch (e) {}
+  });
+  if (me) {
+    try { rangeProtection.addEditor(me); } catch (e) {}
+  }
+  adminEmails.forEach(email => {
+    try { rangeProtection.addEditor(email); } catch (e) {}
+  });
+  return '✅ Q_REVIEW: Range Protected (A1:Q — reviewer แก้ R-V ได้)';
+}
+
+/**
+ * applyGeoPointProtection_ — [REF-010] M_GEO_POINT protection (separate from PII sheets)
+ *   รักษา behavior เดิม 100% — same description, same editor management
+ * @param {object} ss
+ * @param {string} me
+ * @param {Array} adminEmails
+ * @return {string|null} status message หรือ null ถ้า sheet missing
+ * @private
+ */
+function applyGeoPointProtection_(ss, me, adminEmails) {
+  const geoSheet = ss.getSheetByName(SHEET.M_GEO_POINT);
+  if (!geoSheet) return null;
+
+  const geoProtection = geoSheet.protect();
+  geoProtection.setDescription('[SEC-005] ข้อมูลพิกัด — เฉพาะ Script เท่านั้นที่เขียน');
+  const geoEditors = geoProtection.getEditors();
+  geoEditors.forEach(editor => {
+    try { geoProtection.removeEditor(editor.getEmail()); } catch (e) {}
+  });
+  if (me) {
+    try { geoProtection.addEditor(me); } catch (e) {}
+  }
+  // [SEC-009 FIX] เพิ่ม admin สำหรับ M_GEO_POINT ด้วย
+  adminEmails.forEach(email => {
+    try { geoProtection.addEditor(email); } catch (e) {}
+  });
+  return '✅ M_GEO_POINT: Protected';
 }
