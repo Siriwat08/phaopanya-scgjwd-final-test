@@ -7,6 +7,11 @@
  *   จัดการ Master Place — ฐานข้อมูลสถานที่จัดส่ง
  *   เป็น Single Source of Truth สำหรับข้อมูลสถานที่
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 13 (Logging): +4 Error objects to logError calls (R13-01, R13-01b, R13-02, R13-02b)
+ *     -   - loadCachedPlaceAliases_/loadCachedPlaces_ missing-cache fallback path
+ *     -   - now SYS_LOG.DETAILS column shows stack trace for chunked-cache unavailable scenarios
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - [SEC-005 (createPlaceAlias PII log masking with generateMd5Hash)]
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),

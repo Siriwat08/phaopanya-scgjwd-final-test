@@ -7,6 +7,9 @@
  *   สร้างโครงสร้างชีตเริ่มต้นทั้งหมดในระบบ LMDS
  *   เป็น Single Source of Truth สำหรับโครงสร้าง Spreadsheet
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 1 (Clean Code): var _LOG_BUFFER_LIMIT -> const (R1-03)
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - (no SEC fix in this file — only version bump for consistency)
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),

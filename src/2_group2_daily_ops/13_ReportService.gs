@@ -6,6 +6,9 @@
  * PURPOSE:
  *   สร้างรายงาน Data Quality ของระบบ LMDS
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 13 (Logging): +Error object to buildFullQualityReport sheet-not-found guard (R13-06)
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - (no SEC fix in this file — only version bump for consistency)
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),

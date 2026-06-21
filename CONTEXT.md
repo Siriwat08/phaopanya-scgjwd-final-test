@@ -7,7 +7,7 @@
 - **APIs:** Google Maps API (Geocoding), Gemini API (AI Reasoning)
 
 # 📂 Architecture & Domain Separation
-โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 321 ฟังก์ชัน ~17,399 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
+โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 327 ฟังก์ชัน ~17,440 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
 1. **🟩 Group 1 (The Brain & Master DB):** `05` ถึง `10`, `16`, `20`, และ `21`
    - *หน้าที่:* ทำความสะอาดข้อมูล, จับคู่ (MatchEngine), เป็นเจ้าของฐานข้อมูล `M_PERSON`, `M_PLACE`, `M_GEO_POINT`, `M_ALIAS`
    - *รวมถึง:* `16_GeoDictionaryBuilder` (สร้างพจนานุกรมภูมิศาสตร์สำหรับ Master DB) และ `20_ThGeoService` (บริการข้อมูลภูมิศาสตร์ไทยสำหรับ Master DB)
@@ -43,10 +43,10 @@
 
 # 🛡️ Error Handling & Logging
 - Entry Point ทุกตัว (เมนู/Trigger) ต้องหุ้มด้วย `try-catch` เสมอ
-- ใน block catch ต้องบันทึก log ด้วย: `logError('ModuleName', e.stack)` ห้ามเกิด Silent Fail
+- ใน block catch ต้องบันทึก log ด้วย: `logError('ModuleName', e.message, e)` ห้ามเกิด Silent Fail (Rule 13 — V5.5.018)
 
 # 🎯 Current Focus & Known Issues
-- **Focus:** V5.5.017 post-SECURITY-POSTFIX — 14 audit cycles complete (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX → SECURITY-POSTFIX), 102 code issues fixed (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016 + 12 SEC fix V5.5.017) across 22 files, function count 321, ~17,399 lines, production readiness 97% (Security Hardened), 16/16 COMPLIANT
+- **Focus:** V5.5.018 post-REVIEW15-CLEAN-CODE-FIX — 15 audit cycles complete (CRITICAL → PERF → SECURITY → REVIEW15 → REFACTOR → SYNC → CACHE-FIX → CACHE-CLEANUP → DOC-SYNC → GOOGLE-MAPS-REFACTOR → DRIVER-VERIFIED → CRITICAL FIX → PERFORMANCE-FIX → SECURITY-POSTFIX → REVIEW15-CLEAN-CODE-FIX), 116 code issues fixed (53 audit + 9 cache fix V5.5.007 + 6 cache cleanup V5.5.011 + 3 antipattern fixes V5.5.012 + 2 google maps refactor V5.5.013 + 2 driver verified cols V5.5.014 + 2 critical fix V5.5.015 + 13 performance fix V5.5.016 + 12 SEC fix V5.5.017 + 14 REVIEW15 clean code fix V5.5.018) across 22 files, function count 327, ~17,440 lines, production readiness 97% (Security Hardened), 14/15 REVIEW15 issues FIXED (Phases 4-5 deferred to next iteration), 14/15 COMPLIANT (Rule 2 SRP — 14 other long functions pending Phase 4)
 - **Gotchas:** ถ้าระบบขึ้นสีแดง `NOT_FOUND` ตอนโหลดงาน มักเกิดจาก Schema หัวคอลัมน์ในชีตไม่ตรงกับความยาวของ Array ในสคริปต์
 
 # ⚖️ The 16 Immutable Laws (รัฐธรรมนูญของโปรเจกต์)
@@ -61,6 +61,6 @@
 👉 `docs/Code Reviewer สำหรับโปรเจกต์ LMDS.md`
 เมื่อ User พิมพ์คำสั่งเหล่านี้ ให้คุณดึงกฎจาก SOP มาบังคับใช้และตอบกลับตาม Format ที่กำหนดทันที :
 - `[CMD: BUGHUNT]` = สแกนโค้ดหาความเสี่ยง Critical & Performance ✅ ผ่านแล้ว
-- `[CMD: REVIEW15]` = ประเมินตามกฎ 16 Immutable Laws อย่างละเอียด ✅ 16/16 COMPLIANT
+- `[CMD: REVIEW15]` = ประเมินตามกฎ 16 Immutable Laws อย่างละเอียด ✅ 14/15 COMPLIANT (Phase 4-5 deferred)
 - `[CMD: REFACTOR]` = วิเคราะห์ฟังก์ชันที่ยาวเกินไปและเสนอแผนการหั่นโค้ด ✅ 21 REF issues, 16 files changed
 - `[CMD: PREDEPLOY]` = เช็คสถานะระบบครั้งสุดท้ายก่อนขึ้น Production ✅ PASSED (97% readiness, Security Hardened)

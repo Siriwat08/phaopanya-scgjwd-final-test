@@ -7,6 +7,10 @@
  *   ให้บริการค้นหาข้อมูลภูมิศาสตร์ไทย — ค้นหาจังหวัด/อำเภอ/ตำบล
  *   จากรหัสไปรษณีย์ หรือชื่อพื้นที่
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 7 (Phantom Calls): fix comment typo invalidateGeoDictCache_ -> invalidateGeoDictCache (R7-01)
+ *     -   - 3 header comment lines (152, 157, 188) now match actual function name in 16_GeoDictionaryBuilder
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - [SEC-012 (populateGeoMetadata + AuthZ guard)]
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),

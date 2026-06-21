@@ -7,6 +7,10 @@
  *   จัดการตาราง FACT_DELIVERY — บันทึกประวัติการจัดส่งทั้งหมด
  *   เป็น Single Source of Truth สำหรับประวัติขนส่ง
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 13 (Logging): +e arg to upsertFactDelivery catch block (R13-04)
+ *     -   - now SYS_LOG.DETAILS column shows stack trace of real error (not just message)
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - (no SEC fix in this file — only version bump for consistency)
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),

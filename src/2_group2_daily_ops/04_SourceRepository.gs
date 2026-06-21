@@ -7,6 +7,10 @@
  *   จัดการข้อมูลต้นทาง (Source Sheet) สำหรับ Pipeline
  *   เป็น Single Entry Point สำหรับการอ่านและเขียนข้อมูลต้นฉบับ
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 13 (Logging): +e arg to getAllSourceRows catch block (R13-05)
+ *     - Rule 8 (Namespace): module name '04_SourceRepository' -> 'SourceRepo' (consistency with file)
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - (no SEC fix in this file — only version bump for consistency)
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),

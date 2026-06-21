@@ -12,6 +12,20 @@
  * PURPOSE:
  * จัดการคิวรีวิว Q_REVIEW — พักข้อมูลที่ต้องให้คนตัดสินใจ
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 13 (Logging): +Error object to enqueueReview sheet-not-found guard (R13-03)
+ *     - Rule 13 (Logging): +e arg to enqueueReview outer catch (R13-04 same file)
+ *     - Rule 1 (Clean Code): var REPROCESS_REVIEW_CHECKPOINT_KEY -> const (R1-02)
+ *     - Rule 2 (SRP): split reprocessReviewQueue (432 lines -> 40 lines + 6 helpers) (R2-01)
+ *     -   + reprocPrepareContext_ (Phase 1+2: read sheets, checkpoint, RI/FI maps)
+ *     -   + reprocProcessAllRows_ (Phase 3: loop + Time Guard + dispatch)
+ *     -   + reprocGroupA_YellowWithName_ (GEO_NEARBY_YELLOW + name -> AUTO_MATCH)
+ *     -   + reprocGroupB_NewRecordWithGeo_ (NEW_RECORD_PENDING + Geo -> CREATE_NEW)
+ *     -   + reprocGroupC_FuzzyHighScore_ (FUZZY_MATCH 85+ -> AUTO_MATCH)
+ *     -   + reprocBatchWriteAndReport_ (Phase 4+5: batch write + report + log)
+ *     -   Behavior preserved 100%: same try-catch, same mutation order, same Time Guard,
+ *     -     same checkpoint save/clear, same final report message format
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - (no SEC fix in this file — only version bump for consistency)
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),

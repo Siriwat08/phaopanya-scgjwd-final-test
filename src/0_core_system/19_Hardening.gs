@@ -9,6 +9,9 @@
  *   ตรวจสอบความสมบูรณ์ของข้อมูลก่อนประมวลผล (Preflight Audit)
  *   และตรวจจับปัญหาซ้ำซ้อน
  * ===================================================
+ *   v5.5.018 (2026-06-21) — REVIEW15 CLEAN CODE FIX (Cycle 15, 14 issues FIXED):
+ *     - Rule 1 (Clean Code): var HARDENING_ALIAS_CHECKPOINT_KEY -> const (R1-01)
+ *
  *   v5.5.017 (2026-06-21) — SECURITY POSTFIX (12 SEC issues total, Cycle 14):
  *     - [SEC-009 (Sheet Protection expanded: +M_PLACE, +M_ALIAS, +FACT_DELIVERY, +Q_REVIEW Range Protection, +LMDS_ADMINS as editors)]
  *     Cumulative impact: deny-by-default AuthZ, OAuth Least Privilege (10->6 scopes), PII masking (MD5 hash),
