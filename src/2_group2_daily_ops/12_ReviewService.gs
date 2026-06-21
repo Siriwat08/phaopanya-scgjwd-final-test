@@ -1287,17 +1287,86 @@ function reprocProcessAllRows_(ctx, startTime, timeLimit) {
 }
 
 /**
- * reprocGroupA_YellowWithName_ — [REF-R2-01 REVIEW15] Group A: GEO_NEARBY_YELLOW + name → AUTO_MATCH
- *   ย้ายมาจากบรรทัด 1158-1207 (เดิม) — รักษา try-catch + mutation pattern 100%
- *   แก้ r (Q_REVIEW row) + factData[factIdx] (FACT row) ผ่าน pass-by-reference
+ * reprocApplyFactUpdate_ — [REF-002] Shared FACT_DELIVERY row mutator
+ *   แทนที่ pattern ซ้ำ 30 บรรทัดใน Group A/B/C — ลด code duplication
+ * @param {Array} factData - reference ของ factData array (mutate โดยตรง)
+ * @param {number} factIdx - index ใน factData
+ * @param {Object} FI - FACT_IDX map
+ * @param {Object} fields - {personId, placeId, geoId, destId, matchStatus, matchConfidence, matchReason, matchAction, evidence}
+ * @param {Date} now - timestamp
+ * @private
+ */
+function reprocApplyFactUpdate_(factData, factIdx, FI, fields, now) {
+  var row = factData[factIdx];
+  if (fields.personId        && FI.personId        >= 0) row[FI.personId]        = fields.personId;
+  if (fields.placeId         && FI.placeId         >= 0) row[FI.placeId]         = fields.placeId;
+  if (fields.geoId           && FI.geoId           >= 0) row[FI.geoId]           = fields.geoId;
+  if (fields.destId          && FI.destId          >= 0) row[FI.destId]          = fields.destId;
+  if (FI.matchStatus         >= 0) row[FI.matchStatus]         = fields.matchStatus;
+  if (FI.matchConfidence     >= 0) row[FI.matchConfidence]     = fields.matchConfidence;
+  if (FI.matchReason         >= 0) row[FI.matchReason]         = fields.matchReason;
+  if (FI.matchAction         >= 0) row[FI.matchAction]         = fields.matchAction;
+  if (FI.matchEvidence       >= 0 && fields.evidence) row[FI.matchEvidence] = fields.evidence;
+  if (FI.updatedAt           >= 0) row[FI.updatedAt]           = now;
+}
+
+/**
+ * reprocApplyReviewUpdate_ — [REF-002] Shared Q_REVIEW row mutator
+ * @param {Array} r - reference ของ reviewData[i] (mutate โดยตรง)
+ * @param {Object} RI - REVIEW_IDX map
+ * @param {string} decision - 'AUTO_MATCH' or 'CREATE_NEW'
+ * @param {string} note - note string
+ * @param {Date} now - timestamp
+ * @private
+ */
+function reprocApplyReviewUpdate_(r, RI, decision, note, now) {
+  if (RI.status     >= 0) r[RI.status]     = 'Auto_Resolved';
+  if (RI.reviewer   >= 0) r[RI.reviewer]   = 'SYSTEM_V55';
+  if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
+  if (RI.decision   >= 0) r[RI.decision]   = decision;
+  if (RI.note       >= 0) r[RI.note]       = note;
+}
+
+/**
+ * reprocCreateDestinationViaGateway_ — [REF-001] Delegate createDestination through Group 1 public helper
+ *   แทนการเรียก createDestination() โดยตรงจาก Group 2 (Module Boundary violation)
+ *   เรียกผ่าน reprocCreateDestinationForReview_ ใน 10_MatchEngine (Group 1)
+ *   Preserve Behavior 100% — same createDestination call, just through wrapper
+ * @param {Object} rowData - review row data (สำหรับ rawLat/rawLng และ error logging)
+ * @param {string|null} personId
+ * @param {string|null} placeId
+ * @param {string} geoId
+ * @param {Object} stats - stats accumulator (mutated: destCreated++, errorList.push)
+ * @param {string} groupId - 'A' | 'B' | 'C' for error logging
+ * @return {string|null} destId or null
+ * @private
+ */
+function reprocCreateDestinationViaGateway_(rowData, personId, placeId, geoId, stats, groupId) {
+  if (!((personId || placeId) && geoId)) return null;
+  var result = reprocCreateDestinationForReview_(personId, placeId, geoId, rowData.rawLat, rowData.rawLng);
+  if (result.destId) {
+    stats.destCreated++;
+    return result.destId;
+  }
+  if (result.error) {
+    stats.errorList.push('Dest-' + groupId + ': ' + rowData.srcRecId + ' - ' + result.error);
+  }
+  return null;
+}
+
+/**
+ * reprocGroupA_YellowWithName_ — [REF-001 + REF-002] Group A: GEO_NEARBY_YELLOW + name → AUTO_MATCH
+ *   Refactored: ใช้ shared mutators (reprocApplyFactUpdate_/reprocApplyReviewUpdate_)
+ *   + delegate createDestination via reprocCreateDestinationViaGateway_ (Module Boundary)
+ *   ลดจาก 46 → ~25 บรรทัด — Preserve Behavior 100% (same field values, same order)
  * @param {Array} r - reference ของ reviewData[i] (mutate โดยตรง)
  * @param {Array} factData - reference ของ ctx.factData (mutate โดยตรง)
  * @param {number} factIdx - index ใน factData
  * @param {Object} rowData - {issueType, score, srcRecId, rawPerson, rawPlace, rawAddr, rawLat, rawLng, candPerson, candPlace, candGeo}
  * @param {Object} RI - REVIEW_IDX map
  * @param {Object} FI - FACT_IDX map
- * @param {Date} now - timestamp ปัจจุบัน (ส่งจาก caller เพื่อรักษา一致性)
- * @param {Object} stats - stats object ที่จะ mutate (groupA++, destCreated++, errors++, errorList.push)
+ * @param {Date} now - timestamp ปัจจุบัน
+ * @param {Object} stats - stats object ที่จะ mutate
  */
 function reprocGroupA_YellowWithName_(r, factData, factIdx, rowData, RI, FI, now, stats) {
   try {
@@ -1305,39 +1374,21 @@ function reprocGroupA_YellowWithName_(r, factData, factIdx, rowData, RI, FI, now
     var placeId  = extractFirstId_(rowData.candPlace);
     var geoId    = extractFirstId_(rowData.candGeo);
 
-    if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
-    if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
-    if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
-    if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
-    if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 82;
-    if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_AUTO';
-    if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
-    if (FI.matchEvidence >= 0) {
-      var ev = 'geo_nearby_50_200m';
-      if (personId) ev += '|person_match';
-      if (placeId) ev += '|place_match';
-      ev += '|post_process_v55';
-      factData[factIdx][FI.matchEvidence] = ev;
-    }
-    if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+    var destId = reprocCreateDestinationViaGateway_(rowData, personId, placeId, geoId, stats, 'A');
 
-    if ((personId || placeId) && geoId) {
-      try {
-        var newDestId = createDestination(personId, placeId, geoId, rowData.rawLat, rowData.rawLng, '');
-        if (newDestId) {
-          if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
-          stats.destCreated++;
-        }
-      } catch (e) {
-        stats.errorList.push('Dest-A: ' + rowData.srcRecId + ' - ' + e.message);
-      }
-    }
+    var ev = 'geo_nearby_50_200m';
+    if (personId) ev += '|person_match';
+    if (placeId) ev += '|place_match';
+    ev += '|post_process_v55';
 
-    if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
-    if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
-    if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
-    if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
-    if (RI.note >= 0)       r[RI.note] = 'GEO_NEARBY_YELLOW + name match → auto-resolved by v5.5.010';
+    reprocApplyFactUpdate_(factData, factIdx, FI, {
+      personId: personId, placeId: placeId, geoId: geoId, destId: destId,
+      matchStatus: 'AUTO_MATCHED', matchConfidence: 82,
+      matchReason: 'GEO_ANCHOR_AUTO', matchAction: 'AUTO_MATCH',
+      evidence: ev
+    }, now);
+    reprocApplyReviewUpdate_(r, RI, 'AUTO_MATCH',
+      'GEO_NEARBY_YELLOW + name match → auto-resolved by v5.5.010', now);
 
     stats.groupA++;
   } catch (e) {
@@ -1347,9 +1398,11 @@ function reprocGroupA_YellowWithName_(r, factData, factIdx, rowData, RI, FI, now
 }
 
 /**
- * reprocGroupB_NewRecordWithGeo_ — [REF-R2-01 REVIEW15] Group B: NEW_RECORD_PENDING + Geo → CREATE_NEW
- *   ย้ายมาจากบรรทัด 1209-1283 (เดิม) — รักษา try-catch nested + resolvePerson/resolvePlace/createPlace pattern 100%
- *   อ้างอิง constants จาก parameter (ไม่ใช้ global state — Rule 9)
+ * reprocGroupB_NewRecordWithGeo_ — [REF-001 + REF-002] Group B: NEW_RECORD_PENDING + Geo → CREATE_NEW
+ *   Refactored: ใช้ Group 1 public helpers (reprocResolveOrCreatePersonForReview_,
+ *   reprocResolveOrCreatePlaceForReview_, reprocCreateDestinationForReview_) แทน direct CRUD
+ *   + shared mutators — Preserve Behavior 100% (same createPerson/createPlace/createDestination calls)
+ *   ลดจาก 71 → ~40 บรรทัด
  */
 function reprocGroupB_NewRecordWithGeo_(r, factData, factIdx, rowData, RI, FI, now, stats) {
   try {
@@ -1358,63 +1411,40 @@ function reprocGroupB_NewRecordWithGeo_(r, factData, factIdx, rowData, RI, FI, n
     var placeId = null;
     var destId = null;
 
+    // [REF-001] Person: resolve-or-create via Group 1 public helper (no direct createPerson)
     if (rowData.rawPerson) {
-      try {
-        var pRes = resolvePerson(rowData.rawPerson);
-        if (pRes && pRes.status === 'FOUND' && pRes.personId) {
-          personId = pRes.personId;
-        } else if (pRes && pRes.normResult) {
-          personId = createPerson(pRes.normResult);
-        }
-      } catch (e2) {
-        stats.errorList.push('Person-B: ' + rowData.srcRecId + ' - ' + e2.message);
-      }
+      var pResult = reprocResolveOrCreatePersonForReview_(rowData.rawPerson);
+      personId = pResult.personId;
+      if (pResult.error) stats.errorList.push('Person-B: ' + rowData.srcRecId + ' - ' + pResult.error);
     }
 
+    // [REF-001] Place: resolve-or-create via Group 1 public helper (no direct createPlace)
     var placeInput = rowData.rawPlace || rowData.rawAddr || '';
     if (placeInput) {
-      try {
-        var plRes = resolvePlace(placeInput, '');
-        if (plRes && plRes.status === 'FOUND' && plRes.placeId) {
-          placeId = plRes.placeId;
-        } else if (plRes && plRes.normResult) {
-          placeId = createPlace(plRes.normResult, '', '', '', '');
-        }
-      } catch (e2) {
-        stats.errorList.push('Place-B: ' + rowData.srcRecId + ' - ' + e2.message);
-      }
+      var plResult = reprocResolveOrCreatePlaceForReview_(rowData.rawPlace, rowData.rawAddr);
+      placeId = plResult.placeId;
+      if (plResult.error) stats.errorList.push('Place-B: ' + rowData.srcRecId + ' - ' + plResult.error);
     }
 
+    // [REF-001] Destination: create via Group 1 public helper (no direct createDestination)
     if ((personId || placeId) && geoId) {
-      try {
-        destId = createDestination(personId, placeId, geoId, rowData.rawLat, rowData.rawLng, '');
-        stats.destCreated++;
-      } catch (e2) {
-        stats.errorList.push('Dest-B: ' + rowData.srcRecId + ' - ' + e2.message);
-      }
+      var dResult = reprocCreateDestinationForReview_(personId, placeId, geoId, rowData.rawLat, rowData.rawLng);
+      destId = dResult.destId;
+      if (dResult.destId) stats.destCreated++;
+      if (dResult.error) stats.errorList.push('Dest-B: ' + rowData.srcRecId + ' - ' + dResult.error);
     }
 
-    if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
-    if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
-    if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
-    if (destId && FI.destId >= 0)    factData[factIdx][FI.destId] = destId;
-    if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'CREATED';
-    if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = 75;
-    if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'GEO_ANCHOR_NEW';
-    if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'CREATE_NEW';
-    if (FI.matchEvidence >= 0) {
-      factData[factIdx][FI.matchEvidence] = 'geo_existing' +
+    reprocApplyFactUpdate_(factData, factIdx, FI, {
+      personId: personId, placeId: placeId, geoId: geoId, destId: destId,
+      matchStatus: 'CREATED', matchConfidence: 75,
+      matchReason: 'GEO_ANCHOR_NEW', matchAction: 'CREATE_NEW',
+      evidence: 'geo_existing' +
         (personId ? '|person_new' : '|person_na') +
         (placeId ? '|place_new' : '|place_na') +
-        '|post_process_v55';
-    }
-    if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
-
-    if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
-    if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
-    if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
-    if (RI.decision >= 0)   r[RI.decision] = 'CREATE_NEW';
-    if (RI.note >= 0)       r[RI.note] = 'NEW_RECORD_PENDING + Geo match → auto-create by v5.5.010';
+        '|post_process_v55'
+    }, now);
+    reprocApplyReviewUpdate_(r, RI, 'CREATE_NEW',
+      'NEW_RECORD_PENDING + Geo match → auto-create by v5.5.010', now);
 
     stats.groupB++;
   } catch (e) {
@@ -1424,8 +1454,9 @@ function reprocGroupB_NewRecordWithGeo_(r, factData, factIdx, rowData, RI, FI, n
 }
 
 /**
- * reprocGroupC_FuzzyHighScore_ — [REF-R2-01 REVIEW15] Group C: FUZZY_MATCH 85+ → AUTO_MATCH
- *   ย้ายมาจากบรรทัด 1285-1333 (เดิม) — รักษา confidence=score pattern 100%
+ * reprocGroupC_FuzzyHighScore_ — [REF-001 + REF-002] Group C: FUZZY_MATCH 85+ → AUTO_MATCH
+ *   Refactored: ใช้ shared mutators + delegate createDestination via gateway
+ *   ลดจาก 49 → ~25 บรรทัด — Preserve Behavior 100%
  */
 function reprocGroupC_FuzzyHighScore_(r, factData, factIdx, rowData, RI, FI, now, stats) {
   try {
@@ -1433,38 +1464,20 @@ function reprocGroupC_FuzzyHighScore_(r, factData, factIdx, rowData, RI, FI, now
     var placeId  = extractFirstId_(rowData.candPlace);
     var geoId    = extractFirstId_(rowData.candGeo);
 
-    if (personId && FI.personId >= 0) factData[factIdx][FI.personId] = personId;
-    if (placeId && FI.placeId >= 0)  factData[factIdx][FI.placeId] = placeId;
-    if (geoId && FI.geoId >= 0)      factData[factIdx][FI.geoId] = geoId;
-    if (FI.matchStatus >= 0)     factData[factIdx][FI.matchStatus] = 'AUTO_MATCHED';
-    if (FI.matchConfidence >= 0) factData[factIdx][FI.matchConfidence] = rowData.score;
-    if (FI.matchReason >= 0)     factData[factIdx][FI.matchReason] = 'FUZZY_HIGH_SCORE_AUTO';
-    if (FI.matchAction >= 0)     factData[factIdx][FI.matchAction] = 'AUTO_MATCH';
-    if (FI.matchEvidence >= 0) {
-      var ev = 'fuzzy_score_' + rowData.score;
-      if (geoId) ev += '|geo_confirm';
-      ev += '|post_process_v55';
-      factData[factIdx][FI.matchEvidence] = ev;
-    }
-    if (FI.updatedAt >= 0) factData[factIdx][FI.updatedAt] = now;
+    var destId = reprocCreateDestinationViaGateway_(rowData, personId, placeId, geoId, stats, 'C');
 
-    if ((personId || placeId) && geoId) {
-      try {
-        var newDestId = createDestination(personId, placeId, geoId, rowData.rawLat, rowData.rawLng, '');
-        if (newDestId) {
-          if (FI.destId >= 0) factData[factIdx][FI.destId] = newDestId;
-          stats.destCreated++;
-        }
-      } catch (e2) {
-        stats.errorList.push('Dest-C: ' + rowData.srcRecId + ' - ' + e2.message);
-      }
-    }
+    var ev = 'fuzzy_score_' + rowData.score;
+    if (geoId) ev += '|geo_confirm';
+    ev += '|post_process_v55';
 
-    if (RI.status >= 0)     r[RI.status] = 'Auto_Resolved';
-    if (RI.reviewer >= 0)   r[RI.reviewer] = 'SYSTEM_V55';
-    if (RI.reviewedAt >= 0) r[RI.reviewedAt] = now;
-    if (RI.decision >= 0)   r[RI.decision] = 'AUTO_MATCH';
-    if (RI.note >= 0)       r[RI.note] = 'FUZZY_MATCH score ' + rowData.score + ' → auto-resolved by v5.5.010';
+    reprocApplyFactUpdate_(factData, factIdx, FI, {
+      personId: personId, placeId: placeId, geoId: geoId, destId: destId,
+      matchStatus: 'AUTO_MATCHED', matchConfidence: rowData.score,
+      matchReason: 'FUZZY_HIGH_SCORE_AUTO', matchAction: 'AUTO_MATCH',
+      evidence: ev
+    }, now);
+    reprocApplyReviewUpdate_(r, RI, 'AUTO_MATCH',
+      'FUZZY_MATCH score ' + rowData.score + ' → auto-resolved by v5.5.010', now);
 
     stats.groupC++;
   } catch (e) {

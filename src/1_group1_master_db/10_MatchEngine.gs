@@ -1513,3 +1513,81 @@ function resolveAndPersistCreate_(srcObj) {
   }
   return null;
 }
+
+// ============================================================
+// SECTION: [REF-001] Group 1 Public Helpers for Reproc Flow
+//   expose resolve-or-create operations โดยไม่ upsert FACT_DELIVERY
+//   เพื่อให้ Group 2 (12_ReviewService.reprocessReviewQueue) เรียกผ่าน public interface
+//   แทนการเรียก createPerson/createPlace/createDestination โดยตรง (Module Boundary)
+//   Preserve Behavior 100% — เรียก create* ภายในเหมือนเดิม แค่ผ่าน wrapper
+// ============================================================
+
+/**
+ * reprocResolveOrCreatePersonForReview_ — [REF-001] Resolve-or-create Person สำหรับ reproc flow
+ *   ไม่ upsert FACT_DELIVERY — คืนเฉพาะ personId ให้ caller ใช้ mutate factData ภายหลัง
+ *   Behavior mirror ของ Group B inline logic (12_ReviewService.gs:1361-1372)
+ * @param {string} rawPerson - raw person name from review row
+ * @return {{personId: string|null, error: string|null}}
+ */
+function reprocResolveOrCreatePersonForReview_(rawPerson) {
+  if (!rawPerson) return { personId: null, error: null };
+  try {
+    var pRes = resolvePerson(rawPerson);
+    if (pRes && pRes.status === 'FOUND' && pRes.personId) {
+      return { personId: pRes.personId, error: null };
+    }
+    if (pRes && pRes.normResult) {
+      var newPersonId = createPerson(pRes.normResult);
+      return { personId: newPersonId, error: null };
+    }
+    return { personId: null, error: null };
+  } catch (e) {
+    return { personId: null, error: e.message };
+  }
+}
+
+/**
+ * reprocResolveOrCreatePlaceForReview_ — [REF-001] Resolve-or-create Place สำหรับ reproc flow
+ *   Behavior mirror ของ Group B inline logic (12_ReviewService.gs:1374-1386)
+ * @param {string} rawPlace - raw place name
+ * @param {string} rawAddr - raw address (fallback)
+ * @return {{placeId: string|null, error: string|null}}
+ */
+function reprocResolveOrCreatePlaceForReview_(rawPlace, rawAddr) {
+  var placeInput = rawPlace || rawAddr || '';
+  if (!placeInput) return { placeId: null, error: null };
+  try {
+    var plRes = resolvePlace(placeInput, '');
+    if (plRes && plRes.status === 'FOUND' && plRes.placeId) {
+      return { placeId: plRes.placeId, error: null };
+    }
+    if (plRes && plRes.normResult) {
+      var newPlaceId = createPlace(plRes.normResult, '', '', '', '');
+      return { placeId: newPlaceId, error: null };
+    }
+    return { placeId: null, error: null };
+  } catch (e) {
+    return { placeId: null, error: e.message };
+  }
+}
+
+/**
+ * reprocCreateDestinationForReview_ — [REF-001] Create Destination สำหรับ reproc flow
+ *   Behavior mirror ของ createDestination() calls ใน Group A/B/C
+ *   ไม่ upsert FACT_DELIVERY — คืนเฉพาะ destId
+ * @param {string|null} personId
+ * @param {string|null} placeId
+ * @param {string} geoId
+ * @param {number} rawLat
+ * @param {number} rawLng
+ * @return {{destId: string|null, error: string|null}}
+ */
+function reprocCreateDestinationForReview_(personId, placeId, geoId, rawLat, rawLng) {
+  if (!((personId || placeId) && geoId)) return { destId: null, error: null };
+  try {
+    var newDestId = createDestination(personId, placeId, geoId, rawLat, rawLng, '');
+    return { destId: newDestId, error: null };
+  } catch (e) {
+    return { destId: null, error: e.message };
+  }
+}
