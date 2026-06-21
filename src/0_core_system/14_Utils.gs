@@ -526,6 +526,64 @@ function safeUiAlert_(message, title) {
   }
 }
 
+/**
+ * withEntryPointGuard_ — [REF-011] Wrap entry-point function with standardized error handling
+ *   ลด boilerplate pattern ซ้ำ ~10 บรรทัด → 1 บรรทัดใน caller
+ *
+ *   Pattern ที่ถูกแทนที่:
+ *     try { ...body... } catch (e) {
+ *       logError('Module', 'fn ล้มเหลว: ' + e.message, e);
+ *       safeUiAlert_("❌ เกิดข้อผิดพลาด: " + e.message);
+ *     } finally {
+ *       if (lock) lock.releaseLock();
+ *       if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
+ *     }
+ *
+ *   วิธีใช้:
+ *     function myEntryPoint() {
+ *       var lock = LockService.getScriptLock();
+ *       if (!lock.tryLock(10000)) { safeUiAlert_('⚠️ busy'); return; }
+ *       withEntryPointGuard_('Module', 'myEntryPoint', function() {
+ *         // ... body ...
+ *       }, { lock: lock });
+ *     }
+ *
+ *   Note V5.5.019: helper ถูกสร้างในรอบนี้ แต่ยังไม่ถูก apply ใน entry points ใด (pilot จะทำใน V5.5.020)
+ *   เพื่อรักษา Preserve Behavior 100% และให้ทดสอบ helper แบบ isolated ก่อน
+ *
+ * @param {string} moduleName - e.g. 'MatchEngine', 'ServiceSCG' (สำหรับ logError)
+ * @param {string} fnName - function name สำหรับ logging
+ * @param {Function} fn - function body to execute (no args, returns any)
+ * @param {Object} options - {lock: object, showAlert: boolean=true, errorPrefix: string='ล้มเหลว: '}
+ * @return {*} return value of fn, or undefined if error
+ * @private
+ */
+function withEntryPointGuard_(moduleName, fnName, fn, options) {
+  options = options || {};
+  var lock = options.lock;
+  var showAlert = options.showAlert !== false;
+  var errorPrefix = options.errorPrefix || 'ล้มเหลว: ';
+
+  try {
+    return fn();
+  } catch (e) {
+    logError(moduleName, fnName + ' ' + errorPrefix + e.message, e);
+    if (showAlert) {
+      try {
+        safeUiAlert_('❌ ' + fnName + ' ' + errorPrefix + e.message);
+      } catch (alertErr) { /* ignore — trigger context */ }
+    }
+    return undefined;
+  } finally {
+    if (lock && lock.hasLock()) {
+      try { lock.releaseLock(); } catch (e) { /* ignore */ }
+    }
+    if (typeof flushLogBuffer_ === 'function') {
+      try { flushLogBuffer_(); } catch (e) { /* ignore */ }
+    }
+  }
+}
+
 // ============================================================
 // SECTION 6: Time Guard Utility
 // [FIX CRIT-003] Centralized hasTimePassed_() — LMDS V5.5 Standard

@@ -536,12 +536,30 @@ function validateSheetHeaders(sheet, expected) {
 }
 
 /**
- * getColIndex — ค้นหา Index ของ Column (0-based)
- * @param {string} schemaKey - ชื่อชีตจริง
- * @param {string} colName
- * @return {number} Index หรือ -1
+ * getColIndex — [REF-012] DEPRECATED — Use *_IDX.* constants directly (Rule 3: No Hardcode Index)
+ *
+ *   ฟังก์ชันนี้ยังเก็บไว้เพื่อ backward compatibility แต่ไม่ควรใช้ในโค้ดใหม่
+ *   ใช้ PERSON_IDX.*, PLACE_IDX.*, FACT_IDX.*, REVIEW_IDX.*, etc. จาก 01_Config.gs แทน
+ *   เหตุผล: runtime O(N) indexOf lookup + ขัด Single Source of Truth rule
+ *
+ *   Audit พบว่าไม่มี caller จริงใน codebase ปัจจุบัน (เฉพาะ definition + comment)
+ *   แต่เก็บไว้เพื่อป้องกัน breaking change ถ้ามี external script เรียกใช้
+ *
+ * @param {string} schemaKey - ชื่อชีตจริง (key ใน SCHEMA object)
+ * @param {string} colName - ชื่อคอลัมน์ที่ต้องการหา index
+ * @return {number} 0-based column index หรือ -1 ถ้าไม่พบ
+ *
+ * @deprecated since V5.5.019 — Use *_IDX.* constants from 01_Config.gs
  */
 function getColIndex(schemaKey, colName) {
+  // [REF-012] Log warning เมื่อถูกเรียก — ป้องกันการใช้งานในอนาคต
+  if (typeof logWarn === 'function') {
+    try {
+      var stack = (new Error().stack || '').split('\n');
+      var caller = stack[2] || 'unknown';
+      logWarn('Schema', '[DEPRECATED] getColIndex("' + schemaKey + '", "' + colName + '") — Use *_IDX.* constants instead. Caller: ' + caller.trim());
+    } catch (e) { /* ignore log error */ }
+  }
   const headers = SCHEMA[schemaKey];
   if (!headers) return -1;
   return headers.indexOf(colName);
