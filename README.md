@@ -4,7 +4,7 @@
 
 | รายการ | ค่า |
 |--------|-----|
-| **เวอร์ชัน** | 5.5.018 (REVIEW15-CLEAN-CODE-FIX) |
+| **เวอร์ชัน** | 5.5.020 (REFACTOR_CYCLE6_RESIDUAL) |
 | **Last Updated** | 2026-06-21 |
 | **Platform** | Google Apps Script + Google Sheets |
 | **Core Engine** | MatchEngine V5.5 with Hybrid Alias Architecture |

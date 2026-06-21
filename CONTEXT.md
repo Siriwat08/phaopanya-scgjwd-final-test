@@ -7,7 +7,7 @@
 - **APIs:** Google Maps API (Geocoding), Gemini API (AI Reasoning)
 
 # 📂 Architecture & Domain Separation
-โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 327 ฟังก์ชัน ~17,440 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
+โปรเจกต์มี 22 ไฟล์ (`00_App` ถึง `21_AliasService`) รวม 327 ฟังก์ชัน ~16,004 บรรทัด แบ่ง Domain ชัดเจน ห้ามก้าวก่ายกัน:
 1. **🟩 Group 1 (The Brain & Master DB):** `05` ถึง `10`, `16`, `20`, และ `21`
    - *หน้าที่:* ทำความสะอาดข้อมูล, จับคู่ (MatchEngine), เป็นเจ้าของฐานข้อมูล `M_PERSON`, `M_PLACE`, `M_GEO_POINT`, `M_ALIAS`
    - *รวมถึง:* `16_GeoDictionaryBuilder` (สร้างพจนานุกรมภูมิศาสตร์สำหรับ Master DB) และ `20_ThGeoService` (บริการข้อมูลภูมิศาสตร์ไทยสำหรับ Master DB)

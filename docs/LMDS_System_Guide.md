@@ -1,7 +1,7 @@
 # 📘 LMDS System Guide — คู่มือระบบฉบับเต็ม
 
 > **Logistics Master Data System (LMDS)** — ระบบจัดการข้อมูลหลักด้านโลจิสติกส์
-> เวอร์ชัน: V5.5.017 (SECURITY-POSTFIX) | อัปเดตล่าสุด: 2026-06-21
+> เวอร์ชัน: V5.5.020 (REFACTOR_CYCLE6_RESIDUAL) | อัปเดตล่าสุด: 2026-06-21
 > แพลตฟอร์ม: Google Apps Script (GAS) บน Google Sheets
 > ฟังก์ชันทั้งหมด: 321 | บรรทัดโค้ด: ~17,399 | Production Readiness: 97% (Security Hardened)
 
