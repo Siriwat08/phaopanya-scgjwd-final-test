@@ -349,120 +349,22 @@ function detectDoubleProcessing() {
 // ============================================================
 
 function generatePersonAliasesFromHistory() {
-  // [SEC-002] Authorization Guard
-  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
-    safeUiAlert_('🔒 คุณไม่มีสิทธิ์รัน Hardening\nกรุณาติดต่อ Admin');
-    return;
-  }
-  // [FIX v5.5.001] Named constant สำหรับ alias enrichment confidence score
-  const ALIAS_ENRICH_SCORE = 95;
+  // [REF-006] V5.5.019: Refactored into 4 section helpers for Separation of Concerns
+  //   1. acquireAliasHistoryLock_   — SECTION A: AuthZ guard + early validation
+  //   2. prepareAliasHistoryContext_ — SECTION B: Load FACT_DELIVERY + Person maps + checkpoint
+  //   3. runAliasHistoryLoop_       — SECTION C: Main loop with Time Guard + partial flush
+  //   4. finalizeAliasHistory_      — SECTION D: Final flush + clear checkpoint + report
+  // Preserve Behavior 100% — same AuthZ, same checkpoint, same flush pattern, same report message
+
+  var setup = acquireAliasHistoryLock_();
+  if (!setup) return;
 
   try {
-    const ss         = SpreadsheetApp.getActiveSpreadsheet();
-    const factSheet  = ss.getSheetByName(SHEET.FACT_DELIVERY);
-    const aliasSheet = ss.getSheetByName(SHEET.M_PERSON_ALIAS);
-    if (!factSheet || !aliasSheet) {
-      safeUiAlert_('❌ ไม่พบชีต FACT_DELIVERY หรือ M_PERSON_ALIAS');
-      return;
-    }
+    var ctx = prepareAliasHistoryContext_(setup.ss);
+    if (ctx === null) return;  // empty/error path already handled in prepare
 
-    const factRows = factSheet.getLastRow();
-    if (factRows < 2) {
-      safeUiAlert_('ℹ️ ไม่มีข้อมูลประวัติใน FACT_DELIVERY');
-      return;
-    }
-
-    ss.toast('กำลังวิเคราะห์ประวัติการจัดส่งเพื่อสร้าง Alias...', 'Processing', 5);
-
-    const factData = factSheet.getRange(
-      2, 1, factRows - 1, SCHEMA[SHEET.FACT_DELIVERY].length
-    ).getValues();
-
-    // ─── [PERF-007] โหลด Checkpoint ───
-    //   ถ้ามี checkpoint (จากการ Time Guard หยุดกลางคันรอบก่อน) → เริ่มจาก idx นั้น
-    //   ถ้าไม่มี → เริ่มจาก 0
-    //   Stale protection: checkpoint เก่ากว่า 24 ชม. → auto clear (กัน garbage)
-    var checkpoint = loadHardeningAliasCheckpoint_();
-    var startIdx = checkpoint.startIdx || 0;
-
-    if (startIdx > 0) {
-      ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
-      logInfo('Hardening', 'generatePersonAliasesFromHistory: resume จาก idx ' + startIdx);
-    }
-
-    // โหลด Person Map
-    const allPersons        = loadAllPersons_();
-    const personCanonicalMap = new Map();
-    const personUuidMap      = new Map();
-    allPersons.forEach(function(p) {
-      if (p.personId && p.canonical)   personCanonicalMap.set(p.personId, normalizeForCompare(p.canonical));
-      if (p.personId && p.masterUuid)  personUuidMap.set(p.personId, p.masterUuid);
-    });
-
-    // [REFACTOR-05] ใช้ buildExistingPersonAliasSet_() แทน inline code
-    const existingAliasSet = buildExistingPersonAliasSet_();
-
-    // [FIX BUG-B1] buildGlobalAliasDedupSet_ โหลด M_ALIAS ครั้งเดียว
-    const existingGlobalAliasSet = buildGlobalAliasDedupSet_();
-
-    let newAliasRows  = [];   // M_PERSON_ALIAS
-    let newGlobalRows = [];   // M_ALIAS
-    const now           = new Date();
-    const hardeningStart = new Date();
-    const hardeningLimit = AI_CONFIG.TIME_LIMIT_MS || 300000;  // 5 นาที
-    let timedOut       = false;
-
-    // NOTE: ALIAS_ENRICH_SCORE ประกาศที่ต้นฟังก์ชัน (บรรทัด 248)
-
-    // ─── [PERF-007] เริ่มลูปจาก startIdx (จาก checkpoint) แทน 0 ───
-    //   เดิม: ทุกครั้งเริ่มจาก idx 0 → รอบที่ 2 ประมวลผล 1,500 แถวแรกซ้ำ (CPU waste ~30-60s)
-    //   ใหม่: resume จาก checkpoint → ประหยัดเวลา ~50-70% สำหรับการ hardening ครั้งใหญ่
-    for (let idx = startIdx; idx < factData.length; idx++) {
-      // [REFACTOR-05] Time Guard: flush แล้ว break + บันทึก checkpoint
-      if (idx % 100 === 0 && (new Date() - hardeningStart) > (hardeningLimit - 30000)) {
-        if (newAliasRows.length + newGlobalRows.length > 0) {
-          const flushedPA = flushPersonAliasRows_(aliasSheet, newAliasRows);
-          const flushedGA = flushGlobalAliasRows_(ss, newGlobalRows);
-          newAliasRows = [];
-          newGlobalRows = [];
-          logWarn('Hardening', `generatePersonAliasesFromHistory: flushed partial at ${idx}/${factData.length} (PA:${flushedPA}, GA:${flushedGA})`);
-        }
-        // [PERF-007] บันทึก checkpoint ก่อน break → resume รอบถัดไป
-        saveHardeningAliasCheckpoint_(idx);
-        timedOut = true;
-        break;
-      }
-
-      const aliasResult = hardeningBuildOneAliasRow_(
-        factData[idx], personCanonicalMap, personUuidMap,
-        existingAliasSet, existingGlobalAliasSet, ALIAS_ENRICH_SCORE, now
-      );
-      if (aliasResult.paRow) newAliasRows.push(aliasResult.paRow);
-      if (aliasResult.gaRow) newGlobalRows.push(aliasResult.gaRow);
-    }
-
-    // Final flush
-    const totalPA = flushPersonAliasRows_(aliasSheet, newAliasRows);
-    const totalGA = flushGlobalAliasRows_(ss, newGlobalRows);
-
-    // [PERF-007] ล้าง checkpoint เมื่อเสร็จสมบูรณ์ (ถ้าไม่ Timeout)
-    if (!timedOut) {
-      clearHardeningAliasCheckpoint_();
-    }
-
-    const timeoutMsg = timedOut
-      ? '\n\n⚠️ หยุดก่อนเพราะ Timeout — บันทึกตำแหน่งไว้แล้ว กด Run ใหม่จะทำต่อ'
-      : '';
-    safeUiAlert_(
-      (totalPA > 0 || totalGA > 0)
-        ? '✅ สร้าง Alias สำเร็จ!\n' +
-          '- M_PERSON_ALIAS: ' + totalPA + ' รายการ\n' +
-          '- M_ALIAS: ' + totalGA + ' รายการ' +
-          timeoutMsg
-        : 'ℹ️ ตรวจสอบเรียบร้อย: ข้อมูล Alias อัปเดตถ้วนแล้ว' +
-          timeoutMsg
-    );
-
+    var loopResult = runAliasHistoryLoop_(ctx, setup.ss);
+    finalizeAliasHistory_(ctx, loopResult, setup.ss);
   } catch (err) {
     logError('Hardening', 'generatePersonAliasesFromHistory ล้มเหลว: ' + err.message, err);
     safeUiAlert_('เกิดข้อผิดพลาด: ' + err.message);
@@ -470,6 +372,174 @@ function generatePersonAliasesFromHistory() {
     // [PERF-007] flushLogBuffer_ ใน finally — กัน log entries สูญหายเมื่อ Timeout
     if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
   }
+}
+
+/**
+ * acquireAliasHistoryLock_ — [REF-006] SECTION A: AuthZ guard + sheet validation
+ *   รักษา behavior เดิม 100% — same AuthZ message, same sheet existence check
+ * @return {{ss: object}|null} null ถ้า AuthZ fail หรือ sheet missing
+ * @private
+ */
+function acquireAliasHistoryLock_() {
+  // [SEC-002] Authorization Guard
+  if (typeof isAuthorizedUser_ === 'function' && !isAuthorizedUser_()) {
+    safeUiAlert_('🔒 คุณไม่มีสิทธิ์รัน Hardening\nกรุณาติดต่อ Admin');
+    return null;
+  }
+
+  const ss         = SpreadsheetApp.getActiveSpreadsheet();
+  const factSheet  = ss.getSheetByName(SHEET.FACT_DELIVERY);
+  const aliasSheet = ss.getSheetByName(SHEET.M_PERSON_ALIAS);
+  if (!factSheet || !aliasSheet) {
+    safeUiAlert_('❌ ไม่พบชีต FACT_DELIVERY หรือ M_PERSON_ALIAS');
+    return null;
+  }
+
+  const factRows = factSheet.getLastRow();
+  if (factRows < 2) {
+    safeUiAlert_('ℹ️ ไม่มีข้อมูลประวัติใน FACT_DELIVERY');
+    return null;
+  }
+
+  ss.toast('กำลังวิเคราะห์ประวัติการจัดส่งเพื่อสร้าง Alias...', 'Processing', 5);
+
+  return { ss: ss };
+}
+
+/**
+ * prepareAliasHistoryContext_ — [REF-006] SECTION B: Load FACT_DELIVERY + Person maps + checkpoint
+ *   รักษา behavior เดิม 100% — same checkpoint load, same Person Map build, same dedup set
+ * @param {object} ss - Active spreadsheet
+ * @return {Object|null} context object หรือ null ถ้า error
+ * @private
+ */
+function prepareAliasHistoryContext_(ss) {
+  const factSheet  = ss.getSheetByName(SHEET.FACT_DELIVERY);
+  const aliasSheet = ss.getSheetByName(SHEET.M_PERSON_ALIAS);
+  const factRows   = factSheet.getLastRow();
+
+  const factData = factSheet.getRange(
+    2, 1, factRows - 1, SCHEMA[SHEET.FACT_DELIVERY].length
+  ).getValues();
+
+  // ─── [PERF-007] โหลด Checkpoint ───
+  //   ถ้ามี checkpoint (จากการ Time Guard หยุดกลางคันรอบก่อน) → เริ่มจาก idx นั้น
+  //   ถ้าไม่มี → เริ่มจาก 0
+  //   Stale protection: checkpoint เก่ากว่า 24 ชม. → auto clear (กัน garbage)
+  var checkpoint = loadHardeningAliasCheckpoint_();
+  var startIdx = checkpoint.startIdx || 0;
+
+  if (startIdx > 0) {
+    ss.toast('🔄 Resume จากแถว ' + (startIdx + 1) + '...', APP_NAME, 5);
+    logInfo('Hardening', 'generatePersonAliasesFromHistory: resume จาก idx ' + startIdx);
+  }
+
+  // โหลด Person Map
+  const allPersons        = loadAllPersons_();
+  const personCanonicalMap = new Map();
+  const personUuidMap      = new Map();
+  allPersons.forEach(function(p) {
+    if (p.personId && p.canonical)   personCanonicalMap.set(p.personId, normalizeForCompare(p.canonical));
+    if (p.personId && p.masterUuid)  personUuidMap.set(p.personId, p.masterUuid);
+  });
+
+  // [REFACTOR-05] ใช้ buildExistingPersonAliasSet_() แทน inline code
+  const existingAliasSet = buildExistingPersonAliasSet_();
+
+  // [FIX BUG-B1] buildGlobalAliasDedupSet_ โหลด M_ALIAS ครั้งเดียว
+  const existingGlobalAliasSet = buildGlobalAliasDedupSet_();
+
+  return {
+    ss: ss,
+    aliasSheet: aliasSheet,
+    factData: factData,
+    startIdx: startIdx,
+    personCanonicalMap: personCanonicalMap,
+    personUuidMap: personUuidMap,
+    existingAliasSet: existingAliasSet,
+    existingGlobalAliasSet: existingGlobalAliasSet,
+    newAliasRows: [],
+    newGlobalRows: [],
+    now: new Date(),
+    hardeningStart: new Date(),
+    hardeningLimit: AI_CONFIG.TIME_LIMIT_MS || 300000,  // 5 นาที
+    ALIAS_ENRICH_SCORE: 95  // [FIX v5.5.001] Named constant
+  };
+}
+
+/**
+ * runAliasHistoryLoop_ — [REF-006] SECTION C: Main loop with Time Guard + partial flush
+ *   รักษา behavior เดิม 100% — same Time Guard (idx % 100), same partial flush, same checkpoint save
+ * @param {Object} ctx - context from prepareAliasHistoryContext_
+ * @param {object} ss - Active spreadsheet
+ * @return {{timedOut: boolean, lastIdx: number}}
+ * @private
+ */
+function runAliasHistoryLoop_(ctx, ss) {
+  let timedOut = false;
+  let lastIdx = ctx.startIdx;
+
+  // ─── [PERF-007] เริ่มลูปจาก startIdx (จาก checkpoint) แทน 0 ───
+  //   เดิม: ทุกครั้งเริ่มจาก idx 0 → รอบที่ 2 ประมวลผล 1,500 แถวแรกซ้ำ (CPU waste ~30-60s)
+  //   ใหม่: resume จาก checkpoint → ประหยัดเวลา ~50-70% สำหรับการ hardening ครั้งใหญ่
+  for (let idx = ctx.startIdx; idx < ctx.factData.length; idx++) {
+    lastIdx = idx;
+    // [REFACTOR-05] Time Guard: flush แล้ว break + บันทึก checkpoint
+    if (idx % 100 === 0 && (new Date() - ctx.hardeningStart) > (ctx.hardeningLimit - 30000)) {
+      if (ctx.newAliasRows.length + ctx.newGlobalRows.length > 0) {
+        const flushedPA = flushPersonAliasRows_(ctx.aliasSheet, ctx.newAliasRows);
+        const flushedGA = flushGlobalAliasRows_(ss, ctx.newGlobalRows);
+        ctx.newAliasRows = [];
+        ctx.newGlobalRows = [];
+        logWarn('Hardening', `generatePersonAliasesFromHistory: flushed partial at ${idx}/${ctx.factData.length} (PA:${flushedPA}, GA:${flushedGA})`);
+      }
+      // [PERF-007] บันทึก checkpoint ก่อน break → resume รอบถัดไป
+      saveHardeningAliasCheckpoint_(idx);
+      timedOut = true;
+      break;
+    }
+
+    const aliasResult = hardeningBuildOneAliasRow_(
+      ctx.factData[idx], ctx.personCanonicalMap, ctx.personUuidMap,
+      ctx.existingAliasSet, ctx.existingGlobalAliasSet, ctx.ALIAS_ENRICH_SCORE, ctx.now
+    );
+    if (aliasResult.paRow) ctx.newAliasRows.push(aliasResult.paRow);
+    if (aliasResult.gaRow) ctx.newGlobalRows.push(aliasResult.gaRow);
+  }
+
+  return { timedOut: timedOut, lastIdx: lastIdx };
+}
+
+/**
+ * finalizeAliasHistory_ — [REF-006] SECTION D: Final flush + clear checkpoint + report
+ *   รักษา behavior เดิม 100% — same final flush, same clearCheckpoint condition, same alert message
+ * @param {Object} ctx
+ * @param {Object} loopResult - {timedOut, lastIdx}
+ * @param {object} ss
+ * @private
+ */
+function finalizeAliasHistory_(ctx, loopResult, ss) {
+  // Final flush
+  const totalPA = flushPersonAliasRows_(ctx.aliasSheet, ctx.newAliasRows);
+  const totalGA = flushGlobalAliasRows_(ss, ctx.newGlobalRows);
+
+  // [PERF-007] ล้าง checkpoint เมื่อเสร็จสมบูรณ์ (ถ้าไม่ Timeout)
+  if (!loopResult.timedOut) {
+    clearHardeningAliasCheckpoint_();
+  }
+
+  const timeoutMsg = loopResult.timedOut
+    ? '\n\n⚠️ หยุดก่อนเพราะ Timeout — บันทึกตำแหน่งไว้แล้ว กด Run ใหม่จะทำต่อ'
+    : '';
+  safeUiAlert_(
+    (totalPA > 0 || totalGA > 0)
+      ? '✅ สร้าง Alias สำเร็จ!\n' +
+        '- M_PERSON_ALIAS: ' + totalPA + ' รายการ\n' +
+        '- M_ALIAS: ' + totalGA + ' รายการ' +
+        timeoutMsg
+      : 'ℹ️ ตรวจสอบเรียบร้อย: ข้อมูล Alias อัปเดตถ้วนแล้ว' +
+        timeoutMsg
+  );
 }
 
 // ============================================================

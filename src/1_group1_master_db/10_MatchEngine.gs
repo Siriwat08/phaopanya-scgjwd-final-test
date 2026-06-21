@@ -243,6 +243,49 @@ function addEntityToEnrichmentContext_(entityType, entityId, masterUuid, canonic
 }
 
 function runMatchEngine() {
+  // [REF-004] V5.5.019: Refactored into 4 section helpers for Separation of Concerns
+  //   1. acquireMatchEngineLock_   — SECTION A: Lock + AuthZ
+  //   2. prepareMatchEngineContext_ — SECTION B: Initialize stats + load source rows
+  //   3. runMatchEngineLoop_       — SECTION C: Main loop with Time Guard + batch flush
+  //   4. finalizeMatchEngine_      — SECTION D: Final flush + cleanup + report
+  // Preserve Behavior 100% — same lock, same loop order, same flush triggers, same stats
+
+  var setup = acquireMatchEngineLock_();
+  if (!setup) return;
+
+  var ctx = prepareMatchEngineContext_();
+  if (ctx === null) {
+    // Empty pendingRows path — release lock + cleanup + return
+    if (setup.lock && setup.lock.hasLock()) setup.lock.releaseLock();
+    _ALIAS_ENRICHMENT_CONTEXT = null;
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
+    return;
+  }
+
+  try {
+    runMatchEngineLoop_(ctx, setup.startTime);
+    finalizeMatchEngine_(ctx, setup.startTime, setup.lock);
+  } catch (err) {
+    logError('MatchEngine', `runMatchEngine ล้มเหลว: ${err.message}`, err);
+    // [FIX CRIT-013] แจ้ง user ก่อน throw — ป้องกัน silent failure
+    safeUiAlert_('❌ Match Engine ล้มเหลว:\n' + err.message + '\n\nกรุณาตรวจสอบ SYS_LOG');
+    throw err;
+  } finally {
+    if (setup.lock && setup.lock.hasLock()) setup.lock.releaseLock();
+    // [FIX CRIT-018] ล้าง alias enrichment context เมื่อ execution จบ
+    _ALIAS_ENRICHMENT_CONTEXT = null;
+    // [PERF-012] Flush log buffer ก่อน execution จบ — ป้องกัน log entries สูญหาย
+    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
+  }
+}
+
+/**
+ * acquireMatchEngineLock_ — [REF-004] SECTION A: Lock acquisition
+ *   รักษา behavior เดิม 100% — tryLock with APP_CONST.LOCK_TIMEOUT_MS, same error messages
+ * @return {{lock: object, startTime: Date}|null} null if lock cannot be acquired
+ * @private
+ */
+function acquireMatchEngineLock_() {
   const lock = LockService.getScriptLock();
   // [FIX CRIT-009] ใช้ tryLock แทน waitLock — ไม่รอคิว แจ้ง user ทันที่ถ้า lock ไม่ได้
   try {
@@ -250,123 +293,141 @@ function runMatchEngine() {
   } catch (e) {
     logWarn('MatchEngine', 'ไม่สามารถ Lock ได้ — อาจมีการรันซ้อน กรุณารันใหม่ภายหลัง');
     safeUiAlert_('⚠️ ไม่สามารถรัน Match Engine ได้ — มีการรันซ้อนอยู่\nกรุณารอให้การรันก่อนหน้าเสร็จก่อน แล้วลองใหม่');
-    return;
+    return null;
   }
   if (!lock.hasLock()) {
     logWarn('MatchEngine', 'ไม่สามารถ Lock ได้ — อาจมีการรันซ้อน กรุณารันใหม่ภายหลัง');
     safeUiAlert_('⚠️ ไม่สามารถรัน Match Engine ได้ — มีการรันซ้อนอยู่\nกรุณารอให้การรันก่อนหน้าเสร็จก่อน แล้วลองใหม่');
-    return;
+    return null;
+  }
+  return { lock: lock, startTime: new Date() };
+}
+
+/**
+ * prepareMatchEngineContext_ — [REF-004] SECTION B: Initialize stats + load source rows
+ *   รักษา behavior เดิม 100% — resetProcessingState_, loadSourceBatch_, logInfo messages
+ * @param {Date} startTime
+ * @return {Object|null} context object หรือ null ถ้าไม่มี pending rows
+ * @private
+ */
+function prepareMatchEngineContext_(startTime) {
+  logInfo('MatchEngine', 'เริ่ม Match Engine');
+
+  // [FIX v5.2.007] ลบ Checkpoint Index — เริ่มจาก 0 เสมอ
+  // เหตุผล: getAllSourceRows() กรอง SUCCESS ออกอยู่แล้ว ดังนั้น Array ที่ได้จะมีเฉพาะแถวที่ยังไม่ได้ทำ
+  //   Checkpoint เดิมเก็บ "ตำแหน่ง" ใน Array แต่ Array หดเล็กลงทุกรอบ ทำให้ตำแหน่งชี้ผิด → ข้อมูลถูกข้ามไป (BUG)
+  resetProcessingState_();  // [REF-018] renamed from clearCheckpoint_ — ล้าง stale processing state
+  const startIndex = 0;
+  const pendingRows = loadSourceBatch_(); // [REF-002] Abstraction layer
+
+  if (pendingRows.length === 0) {
+    logInfo('MatchEngine', 'ไม่มีแถวที่ต้องประมวลผล');
+    removeAutoResume_();  // ลบ trigger ที่ค้างอยู่ด้วย
+    return null;
   }
 
-  const startTime = new Date();
+  logInfo('MatchEngine', `ประมวลผล ${pendingRows.length} แถว (เริ่มจาก index ${startIndex})`);
+
+  return {
+    pendingRows: pendingRows,
+    startIndex: startIndex,
+    processed: 0,
+    autoMatched: 0,
+    created: 0,
+    queued: 0,
+    errorCount: 0,
+    factBatch: [],
+    reviewBatch: [],
+    successRows: [],
+    failedRows: [],
+    personIdsToStats: new Set(),
+    placeIdsToStats: new Set(),
+    geoIdsToStats: new Set(),
+    destStatsQueue: []
+  };
+}
+
+/**
+ * runMatchEngineLoop_ — [REF-004] SECTION C: Main processing loop with Time Guard + batch flush
+ *   รักษา behavior เดิม 100% — same iteration order, same Time Guard (ทุก iteration), same BATCH_SIZE modulo
+ * @param {Object} ctx - context from prepareMatchEngineContext_
+ * @param {Date} startTime
+ * @private
+ */
+function runMatchEngineLoop_(ctx, startTime) {
   const timeLimit = AI_CONFIG.TIME_LIMIT_MS || (5 * 60 * 1000);
-  let processed = 0, autoMatched = 0, created = 0, queued = 0, errorCount = 0;
 
-  let factBatch     = [];
-  let reviewBatch   = [];
-  let successRows   = []; // Rows to mark SUCCESS
-  let failedRows    = []; // Rows to mark ERROR
-
-  // [PERF-001] Defer stats updates — collect IDs for batch processing
-  let personIdsToStats = new Set();
-  let placeIdsToStats  = new Set();
-  let geoIdsToStats    = new Set();
-  let destStatsQueue   = []; // { destId, deliveryDate }
-
-  try {
-    logInfo('MatchEngine', 'เริ่ม Match Engine');
-
-    // [FIX v5.2.007] ลบ Checkpoint Index — เริ่มจาก 0 เสมอ
-    // เหตุผล: getAllSourceRows() กรอง SUCCESS ออกอยู่แล้ว
-    //   ดังนั้น Array ที่ได้จะมีเฉพาะแถวที่ยังไม่ได้ทำ
-    //   Checkpoint เดิมเก็บ "ตำแหน่ง" ใน Array แต่ Array หดเล็กลงทุกรอบ
-    //   ทำให้ตำแหน่งชี้ผิด → ข้อมูลถูกข้ามไป (BUG)
-    resetProcessingState_();  // [REF-018] renamed from clearCheckpoint_ — ล้าง stale processing state
-    const startIndex = 0;
-    const pendingRows = loadSourceBatch_(); // [REF-002] Abstraction layer
-
-    if (pendingRows.length === 0) {
-      logInfo('MatchEngine', 'ไม่มีแถวที่ต้องประมวลผล');
-      removeAutoResume_();  // ลบ trigger ที่ค้างอยู่ด้วย
+  for (let i = ctx.startIndex; i < ctx.pendingRows.length; i++) {
+    if (new Date() - startTime > timeLimit) {
+      logWarn('MatchEngine', `Time Guard: หยุดที่แถว ${i}/${ctx.pendingRows.length} (ติดตั้ง Auto-Trigger)`);
+      // [FIX v5.2.007] ไม่บันทึก checkpoint อีกต่อไป — SYNC_STATUS ทำหน้าที่แทน
+      installAutoResume_('runMatchEngine');
       return;
     }
 
-    logInfo('MatchEngine', `ประมวลผล ${pendingRows.length} แถว (เริ่มจาก index ${startIndex})`);
+    const srcObj = ctx.pendingRows[i];
+    try {
+      const result = processOneRow(srcObj);
+      ctx.processed++;
 
-    for (let i = startIndex; i < pendingRows.length; i++) {
-      if (new Date() - startTime > timeLimit) {
-        logWarn('MatchEngine', `Time Guard: หยุดที่แถว ${i}/${pendingRows.length} (ติดตั้ง Auto-Trigger)`);
-        // [FIX v5.2.007] ไม่บันทึก checkpoint อีกต่อไป — SYNC_STATUS ทำหน้าที่แทน
-        installAutoResume_('runMatchEngine');
-        break;
-      }
-      
-      const srcObj = pendingRows[i];
-      try {
-        const result = processOneRow(srcObj);
-        processed++;
-        
-        if (result.action === 'AUTO_MATCH')  autoMatched++;
-        if (result.action === 'CREATE_NEW')  created++;
-        if (result.action === 'REVIEW')      queued++;
+      if (result.action === 'AUTO_MATCH')  ctx.autoMatched++;
+      if (result.action === 'CREATE_NEW')  ctx.created++;
+      if (result.action === 'REVIEW')      ctx.queued++;
 
-        if (result.factData)   factBatch.push(result.factData);
-        if (result.reviewData) reviewBatch.push(result.reviewData);
-        
-        // [PERF-001] เก็บ stats IDs ไว้อัปเดตเป็น batch ใน flushBatches_
-        if (result.statsToDefer) {
-          result.statsToDefer.personIds.forEach(function(id) { personIdsToStats.add(id); });
-          result.statsToDefer.placeIds.forEach(function(id) { placeIdsToStats.add(id); });
-          result.statsToDefer.geoIds.forEach(function(id) { geoIdsToStats.add(id); });
-          result.statsToDefer.destStats.forEach(function(item) { destStatsQueue.push(item); });
-        }
-        
-        successRows.push(srcObj);
+      if (result.factData)   ctx.factBatch.push(result.factData);
+      if (result.reviewData) ctx.reviewBatch.push(result.reviewData);
 
-      } catch (rowErr) {
-        errorCount++;
-        failedRows.push(srcObj);
-        logError('MatchEngine', `แถว ${srcObj.sourceRow} (Invoice hash: ${generateMd5Hash(String(srcObj.invoiceNo || '')).substring(0, 8)}): ${rowErr.message}`, rowErr);
+      // [PERF-001] เก็บ stats IDs ไว้อัปเดตเป็น batch ใน flushBatches_
+      if (result.statsToDefer) {
+        result.statsToDefer.personIds.forEach(function(id) { ctx.personIdsToStats.add(id); });
+        result.statsToDefer.placeIds.forEach(function(id) { ctx.placeIdsToStats.add(id); });
+        result.statsToDefer.geoIds.forEach(function(id) { ctx.geoIdsToStats.add(id); });
+        result.statsToDefer.destStats.forEach(function(item) { ctx.destStatsQueue.push(item); });
       }
 
-      // Batch Write & Sync Status every BATCH_SIZE
-      if (processed % AI_CONFIG.BATCH_SIZE === 0 && processed > 0) {
-        flushBatches_(factBatch, reviewBatch, successRows, failedRows,
-          personIdsToStats, placeIdsToStats, geoIdsToStats, destStatsQueue);
-        factBatch = []; reviewBatch = []; successRows = []; failedRows = [];
-        personIdsToStats = new Set();
-        placeIdsToStats  = new Set();
-        geoIdsToStats    = new Set();
-        destStatsQueue   = [];
-      }
+      ctx.successRows.push(srcObj);
+
+    } catch (rowErr) {
+      ctx.errorCount++;
+      ctx.failedRows.push(srcObj);
+      logError('MatchEngine', `แถว ${srcObj.sourceRow} (Invoice hash: ${generateMd5Hash(String(srcObj.invoiceNo || '')).substring(0, 8)}): ${rowErr.message}`, rowErr);
     }
 
-    // Final Flush
-    flushBatches_(factBatch, reviewBatch, successRows, failedRows,
-      personIdsToStats, placeIdsToStats, geoIdsToStats, destStatsQueue);
-
-    // [FIX v5.2.007] ถ้าประมวลผลครบทุกแถว → ลบ Auto-Trigger
-    if (processed + errorCount >= pendingRows.length) {
-      removeAutoResume_();
+    // Batch Write & Sync Status every BATCH_SIZE
+    if (ctx.processed % AI_CONFIG.BATCH_SIZE === 0 && ctx.processed > 0) {
+      flushBatches_(ctx.factBatch, ctx.reviewBatch, ctx.successRows, ctx.failedRows,
+        ctx.personIdsToStats, ctx.placeIdsToStats, ctx.geoIdsToStats, ctx.destStatsQueue);
+      ctx.factBatch = []; ctx.reviewBatch = []; ctx.successRows = []; ctx.failedRows = [];
+      ctx.personIdsToStats = new Set();
+      ctx.placeIdsToStats  = new Set();
+      ctx.geoIdsToStats    = new Set();
+      ctx.destStatsQueue   = [];
     }
-
-    const elapsedSec = Math.round((new Date() - startTime) / 1000);
-    logInfo('MatchEngine',
-      `เสร็จสิ้น — รัน:${processed} Match:${autoMatched} ` +
-      `สร้างใหม่:${created} Review:${queued} Error:${errorCount} (${elapsedSec}s)`);
-
-  } catch (err) {
-    logError('MatchEngine', `runMatchEngine ล้มเหลว: ${err.message}`, err);
-    // [FIX CRIT-013] แจ้ง user ก่อน throw — ป้องกัน silent failure
-    safeUiAlert_('❌ Match Engine ล้มเหลว:\n' + err.message + '\n\nกรุณาตรวจสอบ SYS_LOG');
-    throw err;
-  } finally {
-    lock.releaseLock();
-    // [FIX CRIT-018] ล้าง alias enrichment context เมื่อ execution จบ
-    _ALIAS_ENRICHMENT_CONTEXT = null;
-    // [PERF-012] Flush log buffer ก่อน execution จบ — ป้องกัน log entries สูญหาย
-    if (typeof flushLogBuffer_ === 'function') flushLogBuffer_();
   }
+}
+
+/**
+ * finalizeMatchEngine_ — [REF-004] SECTION D: Final flush + cleanup + report
+ *   รักษา behavior เดิม 100% — same final flush, same removeAutoResume_ condition, same log format
+ * @param {Object} ctx
+ * @param {Date} startTime
+ * @param {object} lock
+ * @private
+ */
+function finalizeMatchEngine_(ctx, startTime, lock) {
+  // Final Flush
+  flushBatches_(ctx.factBatch, ctx.reviewBatch, ctx.successRows, ctx.failedRows,
+    ctx.personIdsToStats, ctx.placeIdsToStats, ctx.geoIdsToStats, ctx.destStatsQueue);
+
+  // [FIX v5.2.007] ถ้าประมวลผลครบทุกแถว → ลบ Auto-Trigger
+  if (ctx.processed + ctx.errorCount >= ctx.pendingRows.length) {
+    removeAutoResume_();
+  }
+
+  const elapsedSec = Math.round((new Date() - startTime) / 1000);
+  logInfo('MatchEngine',
+    `เสร็จสิ้น — รัน:${ctx.processed} Match:${ctx.autoMatched} ` +
+    `สร้างใหม่:${ctx.created} Review:${ctx.queued} Error:${ctx.errorCount} (${elapsedSec}s)`);
 }
 
 /**

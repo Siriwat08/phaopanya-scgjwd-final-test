@@ -998,11 +998,71 @@ function migrateEntityAliasToGlobalBatch_(ss, entityType, aliasSheetName, aliasI
 // [FIX BUG-B1] v5.4.003: Batch pattern — ลบ createGlobalAlias() ออกจาก loop
 //              O(N²) → O(N): load dedup set ครั้งเดียว + batch setValues
 // [FIX BUG-B3] v5.4.003: เพิ่ม Time Guard ทุก 100 records
+// [REF-003] V5.5.019: เพิ่ม Checkpoint/Resume + Auto-Resume (mirror Hardening pattern)
 // ============================================================
+
+/**
+ * ALIAS_ENRICH_CHECKPOINT_KEY — [REF-003] PropertiesService key prefix for alias enrichment checkpoint
+ */
+var ALIAS_ENRICH_CHECKPOINT_KEY = 'ALIAS_ENRICH_CHECKPOINT';
+
+/**
+ * saveAliasEnrichCheckpoint_ — [REF-003] Save progress สำหรับ populateAliasFromSCGRawData_ / populateAliasFromFactDelivery_
+ *   Mirror pattern ของ saveHardeningAliasCheckpoint_ (19_Hardening.gs:485)
+ * @param {string} source - 'SCG_RAW' or 'FACT_DELIVERY'
+ * @param {number} idx - current iteration offset
+ * @param {number} totalProcessed - total processed so far
+ * @private
+ */
+function saveAliasEnrichCheckpoint_(source, idx, totalProcessed) {
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty(ALIAS_ENRICH_CHECKPOINT_KEY + '_' + source, JSON.stringify({
+    idx: idx,
+    totalProcessed: totalProcessed,
+    savedAt: new Date().getTime()
+  }));
+}
+
+/**
+ * loadAliasEnrichCheckpoint_ — [REF-003] Load checkpoint with 24h stale protection
+ *   Mirror pattern ของ loadHardeningAliasCheckpoint_ (19_Hardening.gs:497)
+ * @param {string} source - 'SCG_RAW' or 'FACT_DELIVERY'
+ * @return {{idx: number, totalProcessed: number}|null}
+ * @private
+ */
+function loadAliasEnrichCheckpoint_(source) {
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(ALIAS_ENRICH_CHECKPOINT_KEY + '_' + source);
+  if (!raw) return null;
+  try {
+    var cp = JSON.parse(raw);
+    var ageMs = new Date().getTime() - (cp.savedAt || 0);
+    if (ageMs > 24 * 60 * 60 * 1000) {  // 24h stale
+      logWarn('AliasService', 'AliasEnrich checkpoint (' + source + ') stale (' + Math.round(ageMs / 3600000) + 'h) — clearing');
+      clearAliasEnrichCheckpoint_(source);
+      return null;
+    }
+    return cp;
+  } catch (e) {
+    logWarn('AliasService', 'AliasEnrich checkpoint (' + source + ') parse error — clearing: ' + e.message);
+    clearAliasEnrichCheckpoint_(source);
+    return null;
+  }
+}
+
+/**
+ * clearAliasEnrichCheckpoint_ — [REF-003] Clear checkpoint on completion
+ * @param {string} source - 'SCG_RAW' or 'FACT_DELIVERY'
+ * @private
+ */
+function clearAliasEnrichCheckpoint_(source) {
+  PropertiesService.getScriptProperties().deleteProperty(ALIAS_ENRICH_CHECKPOINT_KEY + '_' + source);
+}
 
 /**
  * populateAliasFromSCGRawData_ — ดึงชื่อจากชีต SCG ดิบ → M_ALIAS (Batch)
  * ⚠️ ไม่เรียก createGlobalAlias() ใน loop — เขียน batch ตรงแทน
+ * [REF-003] V5.5.019: เพิ่ม Checkpoint/Resume + Auto-Resume
  * @return {number} จำนวน alias ใหม่
  */
 function populateAliasFromSCGRawData_() {
@@ -1056,10 +1116,26 @@ function populateAliasFromSCGRawData_() {
   const now       = new Date();
   let   processed = 0;
 
-  for (const normKey in nameCount) {
-    // [FIX BUG-B3] Time Guard ทุก 100 records
-    if (processed % 100 === 0 && processed > 0 && (new Date() - startTime) > timeLimit) {
-      logWarn('AliasService', 'populateAliasFromSCGRawData_: Time Guard หยุดที่ ' + processed);
+  // [REF-003] Load checkpoint for resume support
+  var cp = loadAliasEnrichCheckpoint_('SCG_RAW');
+  var startOffset = cp ? cp.idx : 0;
+  if (cp) {
+    processed = cp.totalProcessed || 0;
+    logInfo('AliasService', 'Resume populateAliasFromSCGRawData_ จาก offset ' + startOffset + ' (processed=' + processed + ')');
+  }
+  var allKeys = Object.keys(nameCount);
+  var timedOut = false;
+  var k;
+
+  for (k = startOffset; k < allKeys.length; k++) {
+    var normKey = allKeys[k];
+
+    // [FIX BUG-B3] Time Guard ทุก 100 records — [REF-003] + save checkpoint + auto-resume
+    if (processed > 0 && processed % 100 === 0 && (new Date() - startTime) > timeLimit) {
+      logWarn('AliasService', 'populateAliasFromSCGRawData_: Time Guard หยุดที่ offset ' + k + ' (processed=' + processed + ')');
+      saveAliasEnrichCheckpoint_('SCG_RAW', k, processed);
+      if (typeof installAutoResume_ === 'function') installAutoResume_('populateAliasFromSCGRawData');
+      timedOut = true;
       break;
     }
     processed++;
@@ -1083,6 +1159,12 @@ function populateAliasFromSCGRawData_() {
     newRows.push([generateShortId('A'), matchedUuid, rawName, matchedType, 90, 'SCG_RAW_IMPORT', now, true]);
   }
 
+  // [REF-003] Clear checkpoint on completion (only if loop finished without timeout)
+  if (!timedOut) {
+    clearAliasEnrichCheckpoint_('SCG_RAW');
+    if (typeof removeAutoResume_ === 'function') removeAutoResume_();
+  }
+
   // ─── 5. [FIX BUG-B1] Batch write ครั้งเดียว ───
   if (newRows.length > 0 && mAliasSheet) {
     mAliasSheet.getRange(
@@ -1094,7 +1176,8 @@ function populateAliasFromSCGRawData_() {
 
   logInfo('AliasService',
     'populateAliasFromSCGRawData_: ตรวจ ' + Object.keys(nameCount).length +
-    ' ชื่อ → สร้าง ' + newRows.length + ' alias ใหม่ (' + processed + ' processed)'
+    ' ชื่อ → สร้าง ' + newRows.length + ' alias ใหม่ (' + processed + ' processed)' +
+    (timedOut ? ' [TIMEOUT — resume จาก offset ' + (k + 1) + ']' : '')
   );
   return newRows.length;
 }
@@ -1103,10 +1186,12 @@ function populateAliasFromSCGRawData_() {
 // SECTION 10: populateAliasFromFactDelivery_
 // [FIX BUG-B1] v5.4.003: Batch pattern เหมือน Section 9
 // [FIX BUG-B3] v5.4.003: เพิ่ม Time Guard
+// [REF-003] V5.5.019: เพิ่ม Checkpoint/Resume + Auto-Resume (mirror populateAliasFromSCGRawData_)
 // ============================================================
 
 /**
  * populateAliasFromFactDelivery_ — ดึงชื่อจาก FACT → M_ALIAS (Batch)
+ * [REF-003] V5.5.019: เพิ่ม Checkpoint/Resume + Auto-Resume
  * @return {number} จำนวน alias ใหม่
  */
 function populateAliasFromFactDelivery_() {
@@ -1169,10 +1254,26 @@ function populateAliasFromFactDelivery_() {
   const now       = new Date();
   let   processed = 0;
 
-  for (const normKey in nameMap) {
-    // [FIX BUG-B3] Time Guard ทุก 100 records
-    if (processed % 100 === 0 && processed > 0 && (new Date() - startTime) > timeLimit) {
-      logWarn('AliasService', 'populateAliasFromFactDelivery_: Time Guard หยุดที่ ' + processed);
+  // [REF-003] Load checkpoint for resume support
+  var cp = loadAliasEnrichCheckpoint_('FACT_DELIVERY');
+  var startOffset = cp ? cp.idx : 0;
+  if (cp) {
+    processed = cp.totalProcessed || 0;
+    logInfo('AliasService', 'Resume populateAliasFromFactDelivery_ จาก offset ' + startOffset + ' (processed=' + processed + ')');
+  }
+  var allKeys = Object.keys(nameMap);
+  var timedOut = false;
+  var k;
+
+  for (k = startOffset; k < allKeys.length; k++) {
+    var normKey = allKeys[k];
+
+    // [FIX BUG-B3] Time Guard ทุก 100 records — [REF-003] + save checkpoint + auto-resume
+    if (processed > 0 && processed % 100 === 0 && (new Date() - startTime) > timeLimit) {
+      logWarn('AliasService', 'populateAliasFromFactDelivery_: Time Guard หยุดที่ offset ' + k + ' (processed=' + processed + ')');
+      saveAliasEnrichCheckpoint_('FACT_DELIVERY', k, processed);
+      if (typeof installAutoResume_ === 'function') installAutoResume_('populateAliasFromFactDelivery');
+      timedOut = true;
       break;
     }
     processed++;
@@ -1199,6 +1300,12 @@ function populateAliasFromFactDelivery_() {
     newRows.push([generateShortId('A'), matchedUuid, info.rawName, matchedType, 95, 'FACT_DELIVERY_IMPORT', now, true]);
   }
 
+  // [REF-003] Clear checkpoint on completion (only if loop finished without timeout)
+  if (!timedOut) {
+    clearAliasEnrichCheckpoint_('FACT_DELIVERY');
+    if (typeof removeAutoResume_ === 'function') removeAutoResume_();
+  }
+
   // ─── 4. Batch write ครั้งเดียว ───
   if (newRows.length > 0 && mAliasSheet) {
     mAliasSheet.getRange(
@@ -1210,7 +1317,8 @@ function populateAliasFromFactDelivery_() {
 
   logInfo('AliasService',
     'populateAliasFromFactDelivery_: ตรวจ ' + Object.keys(nameMap).length +
-    ' ชื่อ → สร้าง ' + newRows.length + ' alias ใหม่'
+    ' ชื่อ → สร้าง ' + newRows.length + ' alias ใหม่ (' + processed + ' processed)' +
+    (timedOut ? ' [TIMEOUT — resume จาก offset ' + (k + 1) + ']' : '')
   );
   return newRows.length;
 }
